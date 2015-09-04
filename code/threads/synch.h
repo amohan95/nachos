@@ -80,7 +80,7 @@ class Lock {
   void AddToWaitQueue(Thread* thread);
   Thread* RemoveFromWaitQueue();
 
-  List& wait_queue() const { return wait_queue_; }
+  List& wait_queue() { return wait_queue_; }
 
   struct LockState {
     typedef enum {
@@ -92,7 +92,7 @@ class Lock {
  private:
   char* name;       // for debugging
   Thread* lock_owner_;
-  LockState lock_state_;
+  LockState::Type lock_state_;
   List wait_queue_;
 };
 
