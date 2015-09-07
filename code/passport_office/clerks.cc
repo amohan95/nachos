@@ -1,11 +1,11 @@
 #include "clerks.h";
 #include "stdlib.h";
 
-Clerk::Clerk(PassportOffice * passport_office) {
-	passport_office_ = passport_office;
-	collected_money_ = 0;
-	wakeup_conditon_ = Condition();
-	wakeup_conditon_lock_ = Lock("Clerk Wakeup Condition Lock");
+Clerk::Clerk(PassportOffice * passport_office) 
+		: wakeup_condition_("Clerk Wakeup Condition"), 
+		wakeup_condition_lock_("Clerk Wakeup Condition Lock"),
+		passport_office_(passport_office)
+		collected_money_(0) {
 }
 
 Clerk::~Clerk() {}
@@ -17,11 +17,11 @@ int Clerk::CollectMoney() {
 }
 
 void Clerk::WakeUp() {
-	wakeup_conditon_.signal(wakeup_conditon_lock_);
+	wakeup_conditon_.Signal(wakeup_conditon_lock_);
 }
 
 
-void ApplicationClerk::run() {
+void ApplicationClerk::Run() {
 	Customer * current_customer = passport_office->RemoveCustomerFromPictureLine();
  	while (current_customer != NULL) {
 
@@ -30,13 +30,13 @@ void ApplicationClerk::run() {
  		current_customer->verify_passport();
 
  		// Collect bribe money.
- 		if (current_customer->hasBribed()) {
+ 		if (current_customer->has_bribed()) {
  			collected_money_ += current_customer->GiveBribe();
  		}
 
  		// Random delay.
  		int random_time = rand() % 80 + 20;
- 		for (int i = 0; i < random_time; i++) {
+ 		for (int i = 0; i < random_time; ++i) {
  			currentThread->Yield();
  		}
 
@@ -48,10 +48,10 @@ void ApplicationClerk::run() {
  	}
 
  	// Wait until woken up.
- 	wakeup_conditon_.wait(wakeup_conditon_lock_);
+ 	wakeup_conditon_.Wait(wakeup_conditon_lock_);
 }
 
-void PictureClerk::run() {
+void PictureClerk::Run() {
 	Customer * current_customer = passport_office->RemoveCustomerFromPictureLine();
  	while (current_customer != NULL) {
 
@@ -63,13 +63,13 @@ void PictureClerk::run() {
  		current_customer->set_picture_taken();
 
  		// Collect bribe money.
- 		if (current_customer->hasBribed()) {
+ 		if (current_customer->has_bribed()) {
  			collected_money_ += current_customer->GiveBribe();
  		}
 
  		// Random delay.
  		int random_time = rand() % 80 + 20;
- 		for (int i = 0; i < random_time; i++) {
+ 		for (int i = 0; i < random_time; ++i) {
  			currentThread->Yield();
  		}
 
@@ -81,10 +81,10 @@ void PictureClerk::run() {
  	}
 
  	// Wait until woken up.
- 	wakeup_conditon_.wait(wakeup_conditon_lock_);
+ 	wakeup_conditon_.Wait(wakeup_conditon_lock_);
 }
 
-void PassportClerk::run() {
+void PassportClerk::Run() {
 	Customer * current_customer = passport_office->RemoveCustomerFromPictureLine();
  	while (current_customer != NULL) {
 
@@ -95,7 +95,7 @@ void PassportClerk::run() {
 
  		// Random delay.
  		int random_time = rand() % 900 + 100;
- 		for (int i = 0; i < random_time; i++) {
+ 		for (int i = 0; i < random_time; ++i) {
  			currentThread->Yield();
  		}
 
@@ -107,10 +107,10 @@ void PassportClerk::run() {
  	}
 
  	// Wait until woken up.
- 	wakeup_conditon_.wait(wakeup_conditon_lock_);
+ 	wakeup_conditon_.Wait(wakeup_conditon_lock_);
 }
 
-void CashierClerk::run() {
+void CashierClerk::Run() {
 	Customer * current_customer = passport_office->RemoveCustomerFromPictureLine();
  	while (current_customer != NULL) {
 
@@ -123,13 +123,13 @@ void CashierClerk::run() {
  		collected_money_ += current_customer->GiveApplicationFee();
 
  		// Collect bribe money.
- 		if (current_customer->hasBribed()) {
+ 		if (current_customer->has_bribed()) {
  			collected_money_ += current_customer->GiveBribe();
  		}
 
  		// Random delay.
  		int random_time = rand() % 900 + 100;
- 		for (int i = 0; i < random_time; i++) {
+ 		for (int i = 0; i < random_time; ++i) {
  			currentThread->Yield();
  		}
 
@@ -141,5 +141,5 @@ void CashierClerk::run() {
  	}
 
  	// Wait until woken up.
- 	wakeup_conditon_.wait(wakeup_conditon_lock_);
+ 	wakeup_conditon_.Wait(wakeup_conditon_lock_);
 }

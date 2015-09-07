@@ -9,7 +9,7 @@ class Clerk {
  	~Clerk();
  	int CollectMoney();
  	void WakeUp();
- 	virtual void run() = 0;
+ 	virtual void Run() = 0;
  private:
  	PassportOffice* passport_office_;
  	int collected_money_;
@@ -17,24 +17,24 @@ class Clerk {
  	Condition wakeup_condition_;
 };
 
-class ApplicationClerk extends Clerk {
+class ApplicationClerk : Clerk {
  public:
- 	void run();
+ 	void Run();
 };
 
-class PictureClerk extends Clerk {
+class PictureClerk : Clerk {
  public:
- 	void run();
+ 	void Run();
 };
 
-class PassportClerk extends Clerk {
+class PassportClerk : Clerk {
  public:
- 	void run();
+ 	void Run();
 };
 
-class CashierClerk extends Clerk {
+class CashierClerk : Clerk {
  public:
- 	void run();
+ 	void Run();
 };
 
 #endif // PASSPORT_OFFICE_CLERK_H
