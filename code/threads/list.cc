@@ -152,7 +152,7 @@ List::Mapcar(VoidFunctionPtr func)
 //----------------------------------------------------------------------
 
 bool
-List::IsEmpty() 
+List::IsEmpty()
 { 
     if (first == NULL)
         return TRUE;

@@ -56,6 +56,7 @@
 
 // External functions used by this file
 
+extern void TestSuite();
 extern void ThreadTest(void), Copy(char *unixFile, char *nachosFile);
 extern void Print(char *file), PerformanceTest(void);
 extern void StartProcess(char *file), ConsoleTest(char *in, char *out);
@@ -83,7 +84,7 @@ main(int argc, char **argv)
 
     DEBUG('t', "Entering main");
     (void) Initialize(argc, argv);
-    
+
 #ifdef THREADS
     ThreadTest();
 #endif
@@ -143,6 +144,7 @@ main(int argc, char **argv)
 #endif // NETWORK
     }
 
+    ThreadTest();
     currentThread->Finish();	// NOTE: if the procedure "main" 
 				// returns, then the program "nachos"
 				// will exit (as any other normal program
