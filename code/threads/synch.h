@@ -96,6 +96,21 @@ class Lock {
   List wait_queue_;
 };
 
+// RAII lock class - acquires lock on initialization, releases on destructor.
+class MutexLock {
+ public:
+  MutexLock(Lock* lock) { 
+    lock_ = lock;
+    lock_->Acquire();
+  }
+
+  ~MutexLock() {
+    lock_->Release();
+  }
+ private:
+  Lock lock_;
+};
+
 // The following class defines a "condition variable".  A condition
 // variable does not have a value, but threads may be queued, waiting
 // on the variable.  These are only operations on a condition variable: 
