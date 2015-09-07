@@ -3,7 +3,7 @@
 
 #include "synch.h";
 
-virtual class Clerk {
+class Clerk {
  public:
  	Clerk(PassportOffice* passport_office);
  	~Clerk();
