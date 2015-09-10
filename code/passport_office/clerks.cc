@@ -5,7 +5,7 @@
 Clerk::Clerk(PassportOffice * passport_office) 
 		: wakeup_condition_("Clerk Wakeup Condition"), 
 		wakeup_condition_lock_("Clerk Wakeup Condition Lock"),
-		passport_office_(passport_office)
+		passport_office_(passport_office),
 		collected_money_(0) {
 }
 

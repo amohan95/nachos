@@ -2,17 +2,17 @@
 
 namespace thread_runners {
   
-static void RunManager(int arg) {
+void RunManager(int arg) {
   Manager* manager = (Manager*) arg;
   manager->Run();
 }
 
-static void RunClerk(int arg) {
+void RunClerk(int arg) {
   Clerk* clerk = (Clerk*) arg;
   clerk->Run();
 }
 
-static void RunCustomer(int arg) {
+void RunCustomer(int arg) {
   Customer* customer = (Customer*) arg;
   customer->Run();
 }
@@ -78,6 +78,46 @@ void PassportOffice::AddCustomerToLine(
   line->push_back(customer);
 }
 
+bool PassportOffice::MoveAheadInApplicationLine(Customer* customer) {
+  return MoveAheadInLine(
+      customer, &application_line_, &application_line_lock_);
+}
+
+bool PassportOffice::MoveAheadInPictureLine(Customer* customer) {
+  return MoveAheadInLine(customer, &picture_line_, &picture_line_lock_);
+}
+
+bool PassportOffice::MoveAheadInPassportLine(Customer* customer) {
+  return MoveAheadInLine(customer, &passport_line_, &passport_line_lock_);
+}
+
+bool PassportOffice::MoveAheadInCashierLine(Customer* customer) {
+  return MoveAheadInLine(customer, &cashier_line_, &cashier_line_lock_);
+}
+
+bool PassportOffice::MoveAheadInLine(
+    Customer* customer, Deque* line, Lock* lock) {
+  MutexLock l(lock);
+  int customer_index = -1;
+  for (int i = 0; i < line.size(); ++i) {
+    if (line[i] == customer) {
+      customer_index = i;
+      break;
+    }
+  }
+  if (customer_index == -1 || customer_index == 0) return false;
+  
+  int new_index = -1;
+  for (int i = 0; i < customer_index - 1; ++i) {
+    if (!line[i]->has_bribed()) new_index = i;
+  }
+  if (new_index == -1) return false;
+
+  line.erase(line.begin() + customer_index);
+  line.insert(line.begin() + new_index, customer);
+  return true;
+}
+
 Customer* PassportOffice::RemoveCustomerFromApplicationLine() {
   return RemoveCustomerFromLine(&application_line_, &application_line_lock_);
 }
@@ -96,5 +136,9 @@ Customer* PassportOffice::RemoveCustomerFromCashierLine() {
 
 Customer* PassportOffice::RemoveCustomerFromLine(Deque* line, Lock* lock) {
   MutexLock l(lock);
-  return line->pop_front();
+  if (line->size()) {
+    return line->pop_front();
+  }
+  return NULL;
 }
+
