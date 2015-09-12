@@ -38,12 +38,14 @@ void Manager::Run() {
     uint32_t n = passport_office_->breaking_clerks_.size();
     for (uint32_t i = 0; i < n; ++i) {
       Clerk* clerk = passport_office_->breaking_clerks_[i];
+      passport_office_->line_locks_[clerk->type()]->Acquire();
       if (clerk->line_.size() > CLERK_WAKEUP_THRESHOLD) {
         clerk->WakeUp();
-        passport_office_->breaking_clerks_->erase(
-            breaking_clerks_.begin() + i);
+        passport_office_->breaking_clerks_->remove(i);
         --n;
       }
+      passport_office_->line_locks_[clerk->type()]->Release();
     }
     passport_office_->breaking_clerks_lock_->Release();
+  }
 }
