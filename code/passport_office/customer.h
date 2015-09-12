@@ -23,15 +23,19 @@ class Customer {
   }
   inline void set_picture_taken(bool picture_taken) { picture_taken_ = picture_taken; }
 
+  void Run();
  private:
   static const std::vector<uint32_t> INITIAL_MONEY_AMOUNTS = {100, 600, 1100, 1600};
   static std::atomic<uint32_t> CURRENT_UNUSED_SSN;
 
   bool certified_;
+  bool done_;
   uint32_t money_;
   bool passport_verified_;
   bool picture_taken_;
   const std::string ssn_;
+  Condition wakeup_condition_;
+  Lock wakeup_condition_lock_;
 };
 
 #endif
