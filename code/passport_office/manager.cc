@@ -5,7 +5,7 @@
 #include <iostream>
 
 Manager::Manager(PassportOffice* passport_office) :
-  money_(NUM_CLERK_TYPES, 0),
+  money_(clerk_types::Size, 0),
   passport_office_(passport_office),
   running_(false) {
 }
@@ -21,7 +21,7 @@ void Manager::PrintMoneyReport(int32_t dummy) const {
   }
   std::cout << "$$$ Money Report $$$" << std::endl;
   uint32_t total = 0;
-  for (uint32_t i = 0; i < NUM_CLERK_TYPES; ++i) {
+  for (uint32_t i = 0; i < clerk_types::Size; ++i) {
     total += money_[i];
     std::cout << Clerk::NameForClerkType(i) << ": $"
               << money_[i] << std:endl;

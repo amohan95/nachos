@@ -8,16 +8,10 @@
 #include <string>
 #include <vector>
 
+#include "passport_office.h"
+
 #define CLERK_WAKEUP_THRESHOLD 3
 #define MONEY_REPORT_INTERVAL 5000
-
-enum ClerkType {
-  APPLICATION = 0,
-  PICTURE,
-  PASSPORT,
-  CASHIER
-  NUM_CLERK_TYPES
-};
 
 public:
   Manager(PassportOffice* passport_office);
