@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "passport_office.h"
+
 class Customer {
  public:
   Customer();

@@ -18,15 +18,15 @@ Customer::~Customer() {
 
 void Customer::Run() {
   while (!done_) {
-    ClerkType next_clerk;
+    clerk_types::Type next_clerk;
     if (!passport_verified() && !picture_taken()) {
-      next_clerk = rand() % 2; // either APPLICATION (0) or PICTURE (1)
+      next_clerk = rand() % 2; // either kApplication (0) or kPicture (1)
     } else if (!passport_verified()) {
-      next_clerk = APPLICATION;
+      next_clerk = clerk_types::kApplication;
     } else if (!picture_taken()) {
-      next_clerk = PICTURE;
+      next_clerk = clerk_types::kPicture;
     } else if (!certified()) {
-      next_clerk = CASHIER;
+      next_clerk = clerk_types::kCashier;
     } else {
       done_ = true;
     }

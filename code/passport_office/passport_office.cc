@@ -26,7 +26,7 @@ PassportOffice::PassportOffice(
     int num_passport_clerks, int num_cashier_clerks)
     : manager_thread_("manager thread"),
       clerks_(clerk_types::Size, std::vector<Clerk*>()),
-      breaking_clerks_lock_("breaking clerks lock") {
+      breaking_clerks_lock_(new Lock("breaking clerks lock")) {
   for (int i = 0; i < clerk_types::Size; ++i) {
     line_locks_.push_back(new Lock(std::to_string(i).c_str()));
   }
@@ -53,11 +53,11 @@ PassportOffice::PassportOffice(
 void PassportOffice::Start() {
   manager_thread_.Fork(thread_runners::RunManager, manager_);
   
-  for (const auto& clerk_list : clerks_) {
-    for (Clerk* clerk : clerk_list) {
+  for (int i = 0; i < clerks_.size(); ++i) {
+    for (int j = 0; j < clerks_[i].size(); ++j) {
       Thread* thread = new Thread("clerk thread");
       thread_list_.push_back(thread);
-      thread->Fork(thread_runners::RunClerk, clerk);
+      thread->Fork(thread_runners::RunClerk, clerks_[i][j]);
     }
   }
 }

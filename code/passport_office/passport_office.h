@@ -12,13 +12,13 @@
 
 namespace clerk_types {
 
-typedef enum {
+enum Type {
   kApplication = 0,
   kPicture,
   kPassport,
   kCashier,
   Size,
-} Type;
+};
 
 }  // namespace clerk_types
 
@@ -34,9 +34,9 @@ class PassportOffice {
     for (int i = 0; i < thread_list_.size(); ++i) {
       delete thread_list_[i];
     }
-    for (auto& clerk_list : clerks_) {
-      for (Clerk* clerk : clerk_list) {
-        delete clerk;
+    for (int i = 0; i < clerks_.size(); ++i) {
+      for (int j = 0; j < clerks_[i].size(); ++j) {
+        delete clerks_[i][j];
       }
     }
     delete manager_;
@@ -51,13 +51,12 @@ class PassportOffice {
 
   std::vector<Lock*> line_locks_;
   std::vector<std::vector<Clerk*>> clerks_;
-  std::vector<Clerk*> breaking_clerks_;
 
+  std::vector<Clerk*> breaking_clerks_;
   Lock* breaking_clerks_lock_;
  private:
   Thread manager_thread_;
   std::vector<Thread*> thread_list_;
-
 };
 
 #endif  // PASSPORT_OFFICE_PASSPORT_OFFICE_H_
