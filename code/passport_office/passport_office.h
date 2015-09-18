@@ -44,6 +44,7 @@ class PassportOffice {
   
   void Start();
 
+  // Creates and forks a new thread for the new member being added.
   void AddNewCustomer(Customer* customer);
   void AddNewSenator(Senator* senator);
 
@@ -51,9 +52,11 @@ class PassportOffice {
 
   std::vector<Lock*> line_locks_;
   std::vector<std::vector<Clerk*>> clerks_;
-
+  std::vector<std::vector<int>> line_counts_;
   std::vector<Clerk*> breaking_clerks_;
+
   Lock* breaking_clerks_lock_;
+  Lock* senator_lock_;
  private:
   Thread manager_thread_;
   std::vector<Thread*> thread_list_;
