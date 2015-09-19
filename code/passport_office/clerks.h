@@ -29,7 +29,8 @@ class Clerk {
  	Lock regular_line_lock_;
  	Condition regular_line_lock_cv_;
  	Lock wakeup_lock_;
- 	Conditon wakeup_lock_cv;
+ 	Conditon wakeup_lock_cv_;
+ 	Customer* current_customer_;
  private:
  	void print_signalled_customer();
  	void print_received_ssn(std::string ssn);

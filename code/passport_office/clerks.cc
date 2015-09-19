@@ -44,24 +44,19 @@ void Clerk::print_coming_off_break() {
 }
 
 void Clerk::get_next_customer() {
-	Customer* current;
 	lines_lock_->Acquire();
 	if (passport_office_->bribe_line_counts_[type_][identifier_] > 0) {
 		bribe_line_cv_.signal(bribe_line_lock);
 		state_ = clerk_states_::kBusy;
 		print_signalled_customer();
-		current = ???; 
 	} else if (passport_office_->line_counts_[type_][identifier_] > 0) {
 		regular_line_cv.signal(regular_line_lock);
 		state_ = clerk_states_::kBusy;
 		print_signalled_customer();
-		current = ???; 
 	} else {
 		state_ = clerk_states_::kAvailable;
-		current = null;
 	}
 	lines_lock_->Release();
-	return current;
 }
 
 ApplicationClerk::ApplicationClerk(PassportOffice* passport_office, int identifier) 
@@ -72,19 +67,19 @@ ApplicationClerk::ApplicationClerk(PassportOffice* passport_office, int identifi
 
 void ApplicationClerk::Run() {
 	while (true) {
-		Customer * current_customer = get_next_customer();
-	 	while (current_customer != NULL) {
+		get_next_customer();
+	 	while (state_ == clerk_states_::kBusy) {
 
 	 		// Take Customer's SSN and verify passport.
-	 		std::string ssn = current_customer->ssn();
+	 		std::string ssn = current_customer_->ssn();
 	 		print_received_ssn(ssn);
-	 		current_customer->verify_passport();
+	 		current_customer_->verify_passport();
 	 		std::cout << clerk_type_ << " [" << identifier_ 
 	 				<< "] has recorded a completed application for Customer " << ssn << std::endl;
 
 	 		// Collect bribe money.
-	 		if (current_customer->has_bribed()) {
-	 			int bribe = current_customer->GiveBribe();
+	 		if (current_customer_->has_bribed()) {
+	 			int bribe = current_customer_->GiveBribe();
 	 			collected_money_ += bribe;
 	 			std::cout << clerk_type_ << " [" << identifier_ << "] has received $" << bribe 
 	 					<< " from Customer " << ssn << std::endl;
@@ -97,10 +92,10 @@ void ApplicationClerk::Run() {
 	 		}
 
 	 		// Wakeup customer wait condition.
-	 		current_customer->WakeUp();
+	 		current_customer_->WakeUp();
 
 	 		// Get next customer.
-	 		current_customer = get_next_customer();
+	 		get_next_customer();
 	 	}
 
 	 	// Wait until woken up.
@@ -118,19 +113,19 @@ PictureClerk::PictureClerk(PassportOffice* passport_office, int identifier)
 
 void PictureClerk::Run() {
 	while (true) {
-		Customer * current_customer = get_next_customer();
-	 	while (current_customer != NULL) {
+		get_next_customer();
+	 	while (state_ == clerk_states_::kBusy) {
 
-	 		std::string ssn = current_customer->ssn();
+	 		std::string ssn = current_customer_->ssn();
 	 		print_received_ssn();
 	 		// Take Customer's picture until they like the picture.
-	 		bool picture_accepted = current_customer->GetPictureTaken();
+	 		bool picture_accepted = current_customer_->GetPictureTaken();
 	 		std::cout << clerk_type_ << " [" << identifier_ << "] has taken a picture of Customer " << ssn 
 	 				<< std::endl;
 	 		while (!picture_accepted) {
 	 			std::cout << clerk_type_ << " [" << identifier_ << "] has been told that Customer[" << ssn
 	 					<< "] does not like their picture" << std::endl;
-	 			picture_accepted = current_customer->GetPictureTaken();
+	 			picture_accepted = current_customer_->GetPictureTaken();
 	 			td::cout << clerk_type_ << " [" << identifier_ << "] has taken a picture of Customer " 
 	 					<< ssn << std::endl;
 	 		}
@@ -138,11 +133,11 @@ void PictureClerk::Run() {
 	 		// Certify passport.
 	 		std::cout << clerk_type_ << " [" << identifier_ << "] has been told that Customer[" << ssn 
 	 				<< "] does like their picture" << std::endl;
-	 		current_customer->set_picture_taken();
+	 		current_customer_->set_picture_taken();
 
 	 		// Collect bribe money.
-	 		if (current_customer->has_bribed()) {
-	 			collected_money_ += current_customer->GiveBribe();
+	 		if (current_customer_->has_bribed()) {
+	 			collected_money_ += current_customer_->GiveBribe();
 	 		}
 
 	 		// Random delay.
@@ -152,10 +147,10 @@ void PictureClerk::Run() {
 	 		}
 
 	 		// Wakeup customer wait condition.
-	 		current_customer->WakeUp();
+	 		current_customer_->WakeUp();
 
 	 		// Get next customer.
-	 		current_customer = get_next_customer();
+	 		get_next_customer();
 	 	}
 
 	 	// Wait until woken up.
@@ -173,13 +168,13 @@ PassportClerk::PassportClerk(PassportOffice* passport_office, int identifier)
 
 void PassportClerk::Run() {
 	while (true) {
-		Customer * current_customer = get_next_customer();
-	 	while (current_customer != NULL) {
-	 		std::string ssn = current_customer->ssn();
+		get_next_customer();
+	 	while (state_ == clerk_states_::kBusy) {
+	 		std::string ssn = current_customer_->ssn();
 	 		print_received_ssn(ssn);
 
 	 		// Check to make sure their picture has been taken and passport verified.
-	 		if (!current_customer->picture_taken() || !current_customer->passport_verified()) {
+	 		if (!current_customer_->picture_taken() || !current_customer_->passport_verified()) {
 	 			/* TODO (swillard13): Punish */
 	 			std::cout << clerk_type_ << " [" << identifier_ << "] has determined that Customer[" 
 	 					<< ssn << "] does not have both their application and picture completed" << std::endl;
@@ -187,7 +182,7 @@ void PassportClerk::Run() {
 	 		std::cout << clerk_type_ << " [" << identifier_ << "] has determined that Customer[" << ssn 
 	 				<< "] does have both their application and picture completed" << std::endl;
 	 		
-	 		current_customer->set_certified();
+	 		current_customer_->set_certified();
 	 		std::cout << clerk_type_ << " [" << identifier_ << "] has recorded Customer[" << ssn 
 	 				<< "] passport documentation" << std::endl;
 
@@ -198,10 +193,10 @@ void PassportClerk::Run() {
 	 		}
 
 	 		// Wakeup customer wait condition.
-	 		current_customer->WakeUp();
+	 		current_customer_->WakeUp();
 
 	 		// Get next customer.
-	 		current_customer = get_next_customer();
+	 		get_next_customer();
 	 	}
 
 	 	// Wait until woken up.
@@ -219,16 +214,16 @@ CashierClerk::CashierClerk(PassportOffice* passport_office, int identifier)
 
 void CashierClerk::Run() {
 	while (true) {
-		Customer * current_customer = get_next_customer();
-	 	while (current_customer != NULL) {
-	 		std::string ssn = current_customer->ssn();
+		get_next_customer();
+	 	while (state_ == clerk_states_::kBusy) {
+	 		std::string ssn = current_customer_->ssn();
 	 		print_received_ssn(ssn);
 
 	 		// Collect application fee.
-	 		collected_money_ += current_customer->GiveApplicationFee();
+	 		collected_money_ += current_customer_->GiveApplicationFee();
 
 	 		// Check to make sure they have been certified.
-	 		if (!current_customer->certified()) {
+	 		if (!current_customer_->certified()) {
 	 			/* TODO (swillard13): Punish */
 	 			std::cout << clerk_type_ << " [" << identifier_ << "] has received the $100 from Customer[" << ssn << "] before certification. They are to go to the back of my line." << std::endl;
 	 		}
@@ -236,8 +231,8 @@ void CashierClerk::Run() {
 
 
 	 		// Collect bribe money.
-	 		if (current_customer->has_bribed()) {
-	 			collected_money_ += current_customer->GiveBribe();
+	 		if (current_customer_->has_bribed()) {
+	 			collected_money_ += current_customer_->GiveBribe();
 	 		}
 
 	 		// Give customer passport.
@@ -253,10 +248,10 @@ void CashierClerk::Run() {
 	 		}
 
 	 		// Wakeup customer wait condition.
-	 		current_customer->WakeUp();
+	 		current_customer_->WakeUp();
 
 	 		// Get next customer.
-	 		current_customer = get_next_customer();
+	 		get_next_customer();
 	 	}
 
 	 	// Wait until woken up.
