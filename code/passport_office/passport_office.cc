@@ -34,22 +34,22 @@ PassportOffice::PassportOffice(
   }
   
   for (int i = 0; i < num_application_clerks; ++i) {
-    clerks_[clerk_types::kApplication].push_back(new ApplicationClerk(this));
+    clerks_[clerk_types::kApplication].push_back(new ApplicationClerk(this, i));
     line_counts_[clerk_types::kApplication].push_back(0);
   }
 
   for (int i = 0; i < num_picture_clerks; ++i) {
-    clerks_[clerk_types::kPicture].push_back(new PictureClerk(this));
+    clerks_[clerk_types::kPicture].push_back(new PictureClerk(this, i));
     line_counts_[clerk_types::kPicture].push_back(0);
   }
 
   for (int i = 0; i < num_passport_clerks; ++i) {
-    clerks_[clerk_types::kPassport].push_back(new PassportClerk(this));
+    clerks_[clerk_types::kPassport].push_back(new PassportClerk(this, i));
     line_counts_[clerk_types::kPassport].push_back(0);
   }
 
   for (int i = 0; i < num_cashier_clerks; ++i) {
-    clerks_[clerk_types::kCashier].push_back(new CashierClerk(this));
+    clerks_[clerk_types::kCashier].push_back(new CashierClerk(this, i));
     line_counts_[clerk_types::kCashier].push_back(0);
   }
 
