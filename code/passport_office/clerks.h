@@ -4,6 +4,16 @@
 #include "synch.h";
 #include "string.h";
 
+namespace clerk_states {
+
+enum State {
+  kAvailable = 0,
+  kBusy,
+  kOnBreak,
+};
+
+}  // namespace clerk_states
+
 class Clerk {
  public:
  	Clerk(PassportOffice* passport_office, int identifier);
@@ -11,6 +21,15 @@ class Clerk {
  	int CollectMoney();
  	void WakeUp();
  	virtual void Run() = 0;
+
+ 	Lock lines_lock_;
+ 	Condition lines_lock_cv_;
+ 	Lock bribe_line_lock_;
+ 	Condition bribe_line_lock_cv_;
+ 	Lock regular_line_lock_;
+ 	Condition regular_line_lock_cv_;
+ 	Lock wakeup_lock_;
+ 	Conditon wakeup_lock_cv;
  private:
  	void print_signalled_customer();
  	void print_received_ssn(std::string ssn);
@@ -19,10 +38,9 @@ class Clerk {
  	void get_next_customer();
  	PassportOffice* passport_office_;
  	string clerk_type_;
+ 	clerk_type_::Type type_;
  	int collected_money_;
  	int identifier_;
- 	Lock wakeup_condition_lock_;
- 	Condition wakeup_condition_;
 };
 
 class ApplicationClerk : Clerk {

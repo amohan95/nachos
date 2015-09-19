@@ -3,8 +3,14 @@
 #include "stdlib.h";
 
 Clerk::Clerk(PassportOffice * passport_office, int identifier) 
-		: wakeup_condition_("Clerk Wakeup Condition"), 
-		wakeup_condition_lock_("Clerk Wakeup Condition Lock"),
+		: lines_lock_cv_("Clerk Lines Condition"), 
+		lines_lock_("Clerk Lines Lock"),
+		bribe_line_lock_cv_("Clerk Bribe Line Condition"), 
+		bribe_line_lock_("Clerk Bribe Line Lock"),
+		regular_line_lock_cv_("Clerk Regular Line Condition"), 
+		regular_line_lock_("Clerk Regular Line Lock"),
+		wakeup_lock_cv_("Clerk Wakeup Condition"),
+		wakeup_lock_("Clerk Wakeup Lock")),
 		passport_office_(passport_office),
 		collected_money_(0),
 		identifier_(identifier),
@@ -19,16 +25,14 @@ int Clerk::CollectMoney() {
 	return money;
 }
 
-void Clerk::WakeUp() {
-	wakeup_conditon_.Signal(wakeup_conditon_lock_);
-}
-
 void Clerk::print_signalled_customer() {
-	std::cout << clerk_type_ << " [" << identifier_ << "] has signalled a Customer to come to their counter." << std::endl; 
+	std::cout << clerk_type_ << " [" << identifier_ 
+			<< "] has signalled a Customer to come to their counter." << std::endl; 
 }
 
 void Clerk::print_received_ssn(string ssn {
-	std::cout << clerk_type_ << " [" << identifier_ << "] has received SSN " << ssn << " from Customer " << ssn << std::endl;
+	std::cout << clerk_type_ << " [" << identifier_ << "] has received SSN " << ssn 
+			<< " from Customer " << ssn << std::endl;
 }
 
 void Clerk::print_going_on_break() {
@@ -40,13 +44,30 @@ void Clerk::print_coming_off_break() {
 }
 
 void Clerk::get_next_customer() {
-	//TODO(rwillard): signal customer
-	print_signalled_customer(); 
+	Customer* current;
+	lines_lock_->Acquire();
+	if (passport_office_->bribe_line_counts_[type_][identifier_] > 0) {
+		bribe_line_cv_.signal(bribe_line_lock);
+		state_ = clerk_states_::kBusy;
+		print_signalled_customer();
+		current = ???; 
+	} else if (passport_office_->line_counts_[type_][identifier_] > 0) {
+		regular_line_cv.signal(regular_line_lock);
+		state_ = clerk_states_::kBusy;
+		print_signalled_customer();
+		current = ???; 
+	} else {
+		state_ = clerk_states_::kAvailable;
+		current = null;
+	}
+	lines_lock_->Release();
+	return current;
 }
 
 ApplicationClerk::ApplicationClerk(PassportOffice* passport_office, int identifier) 
 		: super(passport_office, identifier),
-		clerk_type_("ApplicationClerk") {
+		clerk_type_("ApplicationClerk"),
+		type(clerk_types::kApplication) {
 }
 
 void ApplicationClerk::Run() {
@@ -58,13 +79,15 @@ void ApplicationClerk::Run() {
 	 		std::string ssn = current_customer->ssn();
 	 		print_received_ssn(ssn);
 	 		current_customer->verify_passport();
-	 		std::cout << clerk_type_ << " [" << identifier_ << "] has recorded a completed application for Customer " << ssn << std::endl;
+	 		std::cout << clerk_type_ << " [" << identifier_ 
+	 				<< "] has recorded a completed application for Customer " << ssn << std::endl;
 
 	 		// Collect bribe money.
 	 		if (current_customer->has_bribed()) {
 	 			int bribe = current_customer->GiveBribe();
 	 			collected_money_ += bribe;
-	 			std::cout << clerk_type_ << " [" << identifier_ << "] has received $" << bribe << " from Customer " << ssn << std::endl;
+	 			std::cout << clerk_type_ << " [" << identifier_ << "] has received $" << bribe 
+	 					<< " from Customer " << ssn << std::endl;
 	 		}
 
 	 		// Random delay.
@@ -82,14 +105,15 @@ void ApplicationClerk::Run() {
 
 	 	// Wait until woken up.
 	 	print_going_on_break();
-	 	wakeup_conditon_.Wait(wakeup_conditon_lock_);
+	 	wakeup_lock_cv_.Wait(wakeup_lock_);
 	 	print_coming_off_break();
 	}
 }
 
 PictureClerk::PictureClerk(PassportOffice* passport_office, int identifier) 
 		: super(passport_office, identifier),
-		clerk_type_("PictureClerk") {
+		clerk_type_("PictureClerk"),
+		type(clerk_types::kPicture) {
 }
 
 void PictureClerk::Run() {
@@ -101,15 +125,19 @@ void PictureClerk::Run() {
 	 		print_received_ssn();
 	 		// Take Customer's picture until they like the picture.
 	 		bool picture_accepted = current_customer->GetPictureTaken();
-	 		std::cout << clerk_type_ << " [" << identifier_ << "] has taken a picture of Customer " << ssn << std::endl;
+	 		std::cout << clerk_type_ << " [" << identifier_ << "] has taken a picture of Customer " << ssn 
+	 				<< std::endl;
 	 		while (!picture_accepted) {
-	 			std::cout << clerk_type_ << " [" << identifier_ << "] has been told that Customer[" << ssn << "] does not like their picture" << std::endl;
+	 			std::cout << clerk_type_ << " [" << identifier_ << "] has been told that Customer[" << ssn
+	 					<< "] does not like their picture" << std::endl;
 	 			picture_accepted = current_customer->GetPictureTaken();
-	 			td::cout << clerk_type_ << " [" << identifier_ << "] has taken a picture of Customer " << ssn << std::endl;
+	 			td::cout << clerk_type_ << " [" << identifier_ << "] has taken a picture of Customer " 
+	 					<< ssn << std::endl;
 	 		}
 
 	 		// Certify passport.
-	 		std::cout << clerk_type_ << " [" << identifier_ << "] has been told that Customer[" << ssn << "] does like their picture" << std::endl;
+	 		std::cout << clerk_type_ << " [" << identifier_ << "] has been told that Customer[" << ssn 
+	 				<< "] does like their picture" << std::endl;
 	 		current_customer->set_picture_taken();
 
 	 		// Collect bribe money.
@@ -132,14 +160,15 @@ void PictureClerk::Run() {
 
 	 	// Wait until woken up.
 	 	print_going_on_break();
-	 	wakeup_conditon_.Wait(wakeup_conditon_lock_);
+	 	wakeup_lock_cv_.Wait(wakeup_lock_);
 	 	print_coming_off_break();
 	}
 }
 
 PassportClerk::PassportClerk(PassportOffice* passport_office, int identifier) 
 		: super(passport_office, identifier),
-		clerk_type_("PassportClerk") {
+		clerk_type_("PassportClerk"),
+		type(clerk_types::kPassport) {
 }
 
 void PassportClerk::Run() {
@@ -152,12 +181,15 @@ void PassportClerk::Run() {
 	 		// Check to make sure their picture has been taken and passport verified.
 	 		if (!current_customer->picture_taken() || !current_customer->passport_verified()) {
 	 			/* TODO (swillard13): Punish */
-	 			std::cout << clerk_type_ << " [" << identifier_ << "] has determined that Customer[" << ssn << "] does not have both their application and picture completed" << std::endl;
+	 			std::cout << clerk_type_ << " [" << identifier_ << "] has determined that Customer[" 
+	 					<< ssn << "] does not have both their application and picture completed" << std::endl;
 	 		}
-	 		std::cout << clerk_type_ << " [" << identifier_ << "] has determined that Customer[" << ssn << "] does have both their application and picture completed" << std::endl;
+	 		std::cout << clerk_type_ << " [" << identifier_ << "] has determined that Customer[" << ssn 
+	 				<< "] does have both their application and picture completed" << std::endl;
 	 		
 	 		current_customer->set_certified();
-	 		std::cout << clerk_type_ << " [" << identifier_ << "] has recorded Customer[" << ssn << "] passport documentation" << std::endl;
+	 		std::cout << clerk_type_ << " [" << identifier_ << "] has recorded Customer[" << ssn 
+	 				<< "] passport documentation" << std::endl;
 
 	 		// Random delay.
 	 		int random_time = rand() % 900 + 100;
@@ -174,14 +206,15 @@ void PassportClerk::Run() {
 
 	 	// Wait until woken up.
 	 	print_going_on_break();
-	 	wakeup_conditon_.Wait(wakeup_conditon_lock_);
+	 	wakeup_lock_cv_.Wait(wakeup_lock_);
 	 	print_coming_off_break();
 	}
 }
 
 CashierClerk::CashierClerk(PassportOffice* passport_office, int identifier) 
 		: super(passport_office, identifier),
-		clerk_type_("Cashier") {
+		clerk_type_("Cashier"),
+		type(clerk_types::kCashier) {
 }
 
 void CashierClerk::Run() {
@@ -228,7 +261,7 @@ void CashierClerk::Run() {
 
 	 	// Wait until woken up.
 	 	print_going_on_break();
-	 	wakeup_conditon_.Wait(wakeup_conditon_lock_);
+	 	wakeup_lock_cv_.Wait(wakeup_lock_);
 	 	print_coming_off_break();
 	}
 }
