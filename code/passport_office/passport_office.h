@@ -6,7 +6,6 @@
 #include "clerks.h"
 #include "customer.h"
 #include "manager.h"
-#include "senator.h"
 #include "../threads/synch.h"
 #include "../threads/thread.h"
 
@@ -52,11 +51,14 @@ class PassportOffice {
 
   std::vector<Lock*> line_locks_;
   std::vector<std::vector<Clerk*>> clerks_;
-  std::vector<std::vector<int>> line_counts_;
   std::vector<Clerk*> breaking_clerks_;
+
+  std::vector<std::vector<int>> line_counts_;
+  std::vector<std::vector<int>> bribe_line_counts_;
 
   Lock* breaking_clerks_lock_;
   Lock* senator_lock_;
+  Condition* senator_condition_;
  private:
   Thread manager_thread_;
   std::vector<Thread*> thread_list_;

@@ -9,6 +9,9 @@
 // All rights reserved.  See copyright.h for copyright notice and limitation 
 // of liability and disclaimer of warranty provisions.
 
+#include <iostream>
+#include <vector>
+
 #include "copyright.h"
 #include "system.h"
 //  Simple test cases for the threads assignment.
@@ -410,3 +413,89 @@ ThreadTest()
     SimpleThread(0);
 }
 
+#include "../passport_office/passport_office.h"
+
+void Problem2() {
+  int num_customers, num_senators, num_application_clerks, num_picture_clerks,
+      num_passport_clerks, num_cashier_clerks;
+  while (true) {
+    std::cout << "Number of customers to simulate: ";
+    std::cin >> num_customers;
+    if (num_customers < 0 || num_customers > 50) {
+      std::cout << "Invalid range for customers" << std::endl;
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  while (true) {
+    std::cout << "Number of senators to simulate: ";
+    std::cin >> num_senators;
+    if (num_senators < 0 || num_senators > 10) {
+      std::cout << "Invalid range for senators" << std::endl;
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  while (true) {
+    std::cout << "Number of application clerks to simulate: ";
+    std::cin >> num_application_clerks;
+    if (num_application_clerks < 1 || num_application_clerks > 5) {
+      std::cout << "Invalid range for application clerks" << std::endl;
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  while (true) {
+    std::cout << "Number of picture clerks to simulate: ";
+    std::cin >> num_picture_clerks;
+    if (num_picture_clerks < 1 || num_picture_clerks > 5) {
+      std::cout << "Invalid range for picture clerks" << std::endl;
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  while (true) {
+    std::cout << "Number of passport clerks to simulate: ";
+    std::cin >> num_passport_clerks;
+    if (num_passport_clerks < 1 || num_passport_clerks > 5) {
+      std::cout << "Invalid range for passport clerks" << std::endl;
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  while (true) {
+    std::cout << "Number of cashier clerks to simulate: ";
+    std::cin >> num_cashier_clerks;
+    if (num_cashier_clerks < 1 || num_cashier_clerks > 5) {
+      std::cout << "Invalid range for cashier clerks" << std::endl;
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  PassportOffice* passport_office
+      = new PassportOffice(num_application_clerks, num_picture_clerks,
+                           num_passport_clerks, num_cashier_clerks);
+  passport_office->Start();
+  for (int i = 0; i < num_customers + num_senators; ++i) {
+    int next_customer_type = rand() % (num_customers + num_senators);
+    if (next_customer_type >= num_customers) {
+      passport_office->AddNewSenator(new Senator(passport_office));
+      --num_senators;
+    } else {
+      passport_office->AddNewCustomer(new Customer(passport_office));
+      --num_customers;
+    }
+  }
+}

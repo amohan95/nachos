@@ -108,7 +108,7 @@ class MutexLock {
     lock_->Release();
   }
  private:
-  Lock lock_;
+  Lock* lock_;
 };
 
 // The following class defines a "condition variable".  A condition

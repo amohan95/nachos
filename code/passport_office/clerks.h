@@ -17,22 +17,22 @@ class Clerk {
  	Condition wakeup_condition_;
 };
 
-class ApplicationClerk : Clerk {
+class ApplicationClerk : public Clerk {
  public:
  	void Run();
 };
 
-class PictureClerk : Clerk {
+class PictureClerk : public Clerk {
  public:
  	void Run();
 };
 
-class PassportClerk : Clerk {
+class PassportClerk : public Clerk {
  public:
  	void Run();
 };
 
-class CashierClerk : Clerk {
+class CashierClerk : public Clerk {
  public:
  	void Run();
 };
