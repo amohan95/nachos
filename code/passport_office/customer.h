@@ -30,11 +30,16 @@ class Customer {
   }
 
   bool CanBribe() const;
+  void GivePassportFee(Cashier* clerk);
+  std::string IdentifierString() const;
   void Run();
  private:
   static const uint32_t* INITIAL_MONEY_AMOUNTS;
   static const uint32_t NUM_INITIAL_MONEY_AMOUNTS = 4;
   static uint32_t CURRENT_UNUSED_SSN;
+
+  void GiveBribe(Clerk* clerk);
+  void PrintLineJoin(Clerk* clerk, bool bribed) const;
 
   bool certified_;
   bool done_;

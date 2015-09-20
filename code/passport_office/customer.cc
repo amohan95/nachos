@@ -1,4 +1,4 @@
-#include "Customer.h"
+#include "customer.h"
 
 #include <cstdlib>
 
@@ -22,6 +22,19 @@ bool Customer::CanBribe() const {
   return money() >= CLERK_BRIBE_AMOUNT + PASSPORT_FEE;
 }
 
+void GivePassportFee(Cashier* clerk) {
+  clerk->CollectApplicationFee(PASSPORT_FEE);
+  money -= PASSPORT_FEE;
+  std::cout << IdentifierString() << " has given " << clerk->IdentifierString()
+            << "$" << PASSPORT_FEE << '.' << std::endl;
+}
+
+std::string IdentifierString() const {
+  std::stringstream ss;
+  ss << "Customer [" << ssn() << ']';
+  return ss.str();
+}
+
 void Customer::Run() {
   while (!done_) {
     clerk_types::Type next_clerk;
@@ -35,7 +48,9 @@ void Customer::Run() {
       next_clerk = clerk_types::kCashier;
     } else {
       done_ = true;
+      continue;
     }
+    Clerk* clerk = NULL;
     passport_office_->line_locks_[next_clerk]->Acquire();
     uint32_t shortest = 0;
     for (uint32_t i = 1; i < passport_office_->line_counts_[next_clerk].size(); ++i) {
@@ -44,6 +59,7 @@ void Customer::Run() {
         shortest = i;
       }
     }
+    bool bribed = false;
     if (CanBribe()) {
       uint32_t bribe_shortest = 0;
       for (uint32_t i = 1; i < passport_office_->bribe_line_counts_[next_clerk].size(); ++i) {
@@ -54,16 +70,33 @@ void Customer::Run() {
       }
       if (passport_office_->bribe_line_counts[next_clerk][bribe_shortest]
           < passport_office_->line_counts_[next_clerk][shortest]) {
-        money -= CLERK_BRIBE_AMOUNT;
+        clerk = passport_office_->clerks_[next_clerk][bribe_shortest];
+        GiveBribe(clerk);
+        bribed = true;
         ++passport_office_->bribe_line_counts_[next_clerk][bribe_shortest];
       } else {
+        clerk = passport_office_->clerks_[next_clerk][shortest];
         ++passport_office_->line_counts_[next_clerk][shortest];
       }
     } else {
+      clerk = passport_office_->clerks_[next_clerk][shortest];
       ++passport_office_->line_counts_[next_clerk][shortest];
     }
+    clerk->wakeup_lock_->Acquire();
     passport_office_->line_locks_[next_clerk]->Release();
-    wakeup_condition_->Wait(wakeup_lock_);
+    PrintLineJoin(clerk, bribed);
+    clerk->wakeup_lock_cv_->Wait(clerk->wakeup_lock_);
+    clerk->wakeup_lock_->Release();
   }
+  std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
 }
 
+void Customer::GiveBribe(Clerk* clerk) {
+  clerk->CollectBribe(CLERK_BRIBE_AMOUNT);
+  money -= CLERK_BRIBE_AMOUNT;
+}
+
+void Customer::PrintLineJoin(Clerk* clerk, bool bribed) const {
+  std::cout << IdentifierString() << " has gotten in " << (bribed ? "bribe" : "regular")
+            << " line for " << clerk->IdentifierString() << "." << std::endl;
+}
