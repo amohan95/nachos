@@ -63,6 +63,7 @@ void Clerk::Run() {
 	 		std::cout << clerk_type_ << " [" << identifier_ << "] has received SSN " << ssn 
 			<< " from Customer " << ssn << std::endl;
 	 		
+	 		// Do work specific to the type of clerk.
 	 		ClerkWork();
 
 	 		// Random delay.
@@ -73,7 +74,6 @@ void Clerk::Run() {
 
 	 		// Wakeup customer.
 	 		wakeup_lock_cv_.Signal(wakeup_lock_);
-
 	 		wakeup_lock_.Release();
 
 	 		// Get next customer.
@@ -120,9 +120,7 @@ void PictureClerk::ClerkWork() {
 				<< ssn << std::endl;
 	}
 
-	// Certify passport.
-	std::cout << clerk_type_ << " [" << identifier_ << "] has been told that Customer[" << ssn 
-			<< "] does like their picture" << std::endl;
+	// Set picture taken.
 	current_customer_->set_picture_taken();
 
 	// Collect bribe money.
