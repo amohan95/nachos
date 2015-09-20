@@ -30,7 +30,9 @@ class Clerk {
  	Condition regular_line_lock_cv_;
  	Lock wakeup_lock_;
  	Conditon wakeup_lock_cv_;
- 	Customer* current_customer_;
+ 	std::string customer_ssn_;
+ 	int customer_money_;
+ 	bool customer_input_;
  private:
  	void get_next_customer();
  	virtual void ClerkWork() = 0;
