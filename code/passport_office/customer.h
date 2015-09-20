@@ -42,7 +42,6 @@ class Customer {
   void PrintLineJoin(Clerk* clerk, bool bribed) const;
 
   bool certified_;
-  bool done_;
   uint32_t money_;
   bool passport_verified_;
   bool picture_taken_;

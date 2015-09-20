@@ -8,7 +8,6 @@ uint32_t Customer::CURRENT_UNUSED_SSN = 0;
 
 Customer::Customer() :
   certified_(false),
-  done_(false),
   money_(INITIAL_MONEY_AMOUNTS[rand() % NUM_INITIAL_MONEY_AMOUNTS]),
   passport_verified_(false),
   picture_taken_(false),
@@ -36,7 +35,7 @@ std::string IdentifierString() const {
 }
 
 void Customer::Run() {
-  while (!done_) {
+  while (!passport_verified() || !picture_taken() || !certified()) {
     clerk_types::Type next_clerk;
     if (!passport_verified() && !picture_taken()) {
       next_clerk = rand() % 2; // either kApplication (0) or kPicture (1)
@@ -47,8 +46,8 @@ void Customer::Run() {
     } else if (!certified()) {
       next_clerk = clerk_types::kCashier;
     } else {
-      done_ = true;
-      continue;
+      std::cerr << IdentifierString() << " is in an illegal state. Killing thread." << std::endl;
+      return;
     }
     Clerk* clerk = NULL;
     passport_office_->line_locks_[next_clerk]->Acquire();
