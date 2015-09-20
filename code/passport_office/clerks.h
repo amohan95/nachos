@@ -1,8 +1,9 @@
 #ifndef PASSPORT_OFFICE_CLERKS_H
 #define PASSPORT_OFFICE_CLERKS_H
 
-#include "synch.h";
-#include "string.h";
+#include "../threads/synch.h"
+#include "string.h"
+#include "passport_office.h"
 
 namespace clerk_states {
 
@@ -19,8 +20,7 @@ class Clerk {
  	Clerk(PassportOffice* passport_office, int identifier);
  	~Clerk();
  	int CollectMoney();
- 	void WakeUp();
- 	virtual void Run() = 0;
+ 	void Run();
 
  	Lock lines_lock_;
  	Condition lines_lock_cv_;
@@ -32,11 +32,8 @@ class Clerk {
  	Conditon wakeup_lock_cv_;
  	Customer* current_customer_;
  private:
- 	void print_signalled_customer();
- 	void print_received_ssn(std::string ssn);
- 	void print_going_on_break();
- 	void print_coming_off_break();
  	void get_next_customer();
+ 	virtual void ClerkWork() = 0;
  	PassportOffice* passport_office_;
  	string clerk_type_;
  	clerk_type_::Type type_;
@@ -47,25 +44,25 @@ class Clerk {
 class ApplicationClerk : Clerk {
  public:
  	ApplicationClerk(PassportOffice* passport_office, int identifier);
- 	void Run();
+ 	void ClerkWork();
 };
 
 class PictureClerk : Clerk {
  public:
  	PictureClerk(PassportOffice* passport_office, int identifier);
- 	void Run();
+ 	void ClerkWork();
 };
 
 class PassportClerk : Clerk {
  public:
  	PassportClerk(PassportOffice* passport_office, int identifier);
- 	void Run();
+ 	void ClerkWork();
 };
 
 class CashierClerk : Clerk {
  public:
  	CashierClerk(PassportOffice* passport_office, int identifier);
- 	void Run();
+ 	void ClerkWork();
 };
 
 #endif // PASSPORT_OFFICE_CLERK_H
