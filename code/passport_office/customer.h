@@ -7,6 +7,9 @@
 
 #include "passport_office.h"
 
+#define CLERK_BRIBE_AMOUNT 500
+#define PASSPORT_FEE 100
+
 class Customer {
  public:
   Customer();
@@ -26,6 +29,7 @@ class Customer {
     picture_taken_ = picture_taken__;
   }
 
+  bool CanBribe() const;
   void Run();
  private:
   static const uint32_t* INITIAL_MONEY_AMOUNTS;
@@ -35,7 +39,6 @@ class Customer {
   bool certified_;
   bool done_;
   uint32_t money_;
-  Lock money_lock_;
   bool passport_verified_;
   bool picture_taken_;
   const uint32_t ssn_;

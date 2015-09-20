@@ -18,6 +18,10 @@ Customer::Customer() :
 Customer::~Customer() {
 }
 
+bool Customer::CanBribe() const {
+  return money() >= CLERK_BRIBE_AMOUNT + PASSPORT_FEE;
+}
+
 void Customer::Run() {
   while (!done_) {
     clerk_types::Type next_clerk;
@@ -34,14 +38,31 @@ void Customer::Run() {
     }
     passport_office_->line_locks_[next_clerk]->Acquire();
     uint32_t shortest = 0;
-    for (uint32_t i = 0; i < passport_office_->lines_.size(); ++i) {
-      if (passport_office_->lines_[i].size() < passport_office_->lines_[shortest].size()) {
+    for (uint32_t i = 1; i < passport_office_->line_counts_[next_clerk].size(); ++i) {
+      if (passport_office_->line_counts_[next_clerk][i]
+          < passport_office_->line_counts_[next_clerk][shortest]) {
         shortest = i;
       }
     }
+    if (CanBribe()) {
+      uint32_t bribe_shortest = 0;
+      for (uint32_t i = 1; i < passport_office_->bribe_line_counts_[next_clerk].size(); ++i) {
+        if (passport_office_->bribe_line_counts_[next_clerk][i]
+            < passport_office_->bribe_line_counts[next_clerk][bribe_shortest]) {
+          bribe_shortest = i;
+        }
+      }
+      if (passport_office_->bribe_line_counts[next_clerk][bribe_shortest]
+          < passport_office_->line_counts_[next_clerk][shortest]) {
+        money -= CLERK_BRIBE_AMOUNT;
+        ++passport_office_->bribe_line_counts_[next_clerk][bribe_shortest];
+      } else {
+        ++passport_office_->line_counts_[next_clerk][shortest];
+      }
+    } else {
+      ++passport_office_->line_counts_[next_clerk][shortest];
+    }
     passport_office_->line_locks_[next_clerk]->Release();
-
-    passport_office->lines_[shortest].push_back(this);
     wakeup_condition_->Wait(wakeup_lock_);
   }
 }
