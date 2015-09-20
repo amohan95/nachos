@@ -1,4 +1,4 @@
-#include "Manager.h"
+#include "manager.h"
 
 #include "../machine/timer.h"
 
@@ -19,28 +19,32 @@ void Manager::PrintMoneyReport(int32_t dummy) const {
     money_[passport_office_->clerks[i]->type()] += m;
     passport_office_->clerks[i]->CollectMoney(m);
   }
-  std::cout << "$$$ Money Report $$$" << std::endl;
   uint32_t total = 0;
   for (uint32_t i = 0; i < clerk_types::Size; ++i) {
     total += money_[i];
-    std::cout << Clerk::NameForClerkType(i) << ": $"
-              << money_[i] << std:endl;
+    std::cout << "Manager has counted a total of $[" << money_[i] << "] for "
+              << Clerk::NameForClerkType(i) << 's' << std::endl;
   }
-  std::cout << "Total: $" << total << std::endl;
+  std::cout << "Manager has counted a total of $[" << total
+            <<  "] for the passport office" << std::endl;
 }
 
 void Manager::Run() {
   running_ = true;
   Timer report_timer(std::bind(&PrintMoneyReport, this), 0);
   while(running_) {
+    wakeup_condition_lock_.Acquire();
     wakeup_condition_.Wait(wakeup_condition_lock_);
     passport_office_->breaking_clerks_lock_->Acquire();
     uint32_t n = passport_office_->breaking_clerks_.size();
     for (uint32_t i = 0; i < n; ++i) {
       Clerk* clerk = passport_office_->breaking_clerks_[i];
       passport_office_->line_locks_[clerk->type()]->Acquire();
-      if (clerk->line_.size() > CLERK_WAKEUP_THRESHOLD) {
+      if (clerk->GetNumCustomersInLine() > CLERK_WAKEUP_THRESHOLD) {
         clerk->WakeUp();
+        std::cout << "Manager has woken up a"
+                  << (clerk->type_ == clerk_types::kApplication ? "n " : " ")
+                  << Clerk::NameForClerkType(clerk->type_) << std::endl;
         passport_office_->breaking_clerks_->remove(i);
         --n;
       }
