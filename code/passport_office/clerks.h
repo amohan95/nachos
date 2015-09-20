@@ -34,7 +34,8 @@ class Clerk {
  	int customer_money_;
  	bool customer_input_;
  private:
- 	void get_next_customer();
+ 	void GetNextCustomer();
+ 	void CollectBribe();
  	virtual void ClerkWork() = 0;
  	PassportOffice* passport_office_;
  	string clerk_type_;
