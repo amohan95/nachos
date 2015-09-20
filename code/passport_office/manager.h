@@ -3,17 +3,18 @@
 
 #include "synch.h"
 
-#include <atomic>
-#include <cstdint>
+#include <stdint.h>
 #include <string>
 #include <vector>
 
-#include "passport_office.h"
 
 #define CLERK_WAKEUP_THRESHOLD 3
 #define MONEY_REPORT_INTERVAL 5000
 
-public:
+class PassportOffice;
+
+class Manager {
+ public:
   Manager(PassportOffice* passport_office);
   ~Manager();
 
