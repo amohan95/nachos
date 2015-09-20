@@ -219,6 +219,10 @@ utility.o: ../threads/utility.cc ../threads/copyright.h \
 threadtest.o: ../threads/threadtest.cc ../threads/copyright.h \
   ../threads/system.h ../threads/utility.h ../threads/bool.h \
   ../machine/sysdep.h ../threads/copyright.h \
+  ../passport_office/clerks.cc ../passport_office/clerks.h \
+  ../passport_office/customer.cc ../passport_office/customer.h \
+  ../passport_office/manager.cc ../passport_office/manager.h \
+  ../passport_office/passport_office.cc ../passport_office/passport_office.h \
   /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/include/stdio.h \
   /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/iostream \
   /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/vector \

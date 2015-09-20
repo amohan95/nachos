@@ -3,10 +3,11 @@
 #include <cstdlib>
 
 static const uint32_t INITIAL_MONEY_AMOUNTS_DATA = {100, 600, 1100, 1600};
-uint32_t* Customer::INITIAL_MONEY_AMOUNTS = INITIALI_MONEY_AMOUNTS_DATA;
+uint32_t* Customer::INITIAL_MONEY_AMOUNTS = INITIAL_MONEY_AMOUNTS_DATA;
 uint32_t Customer::CURRENT_UNUSED_SSN = 0;
 
-Customer::Customer() :
+Customer::Customer(PassportOffice* passport_office) :
+  passport_office_(passport_office),
   certified_(false),
   money_(INITIAL_MONEY_AMOUNTS[rand() % NUM_INITIAL_MONEY_AMOUNTS]),
   passport_verified_(false),

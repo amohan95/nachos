@@ -19,6 +19,11 @@ void RunCustomer(int arg) {
   customer->Run();
 }
 
+void RunSenator(int arg) {
+  Senator* senator = (Senator*) arg;
+  senator->Run();
+}
+
 }
 
 PassportOffice::PassportOffice(
@@ -76,6 +81,6 @@ void PassportOffice::AddNewCustomer(Customer* customer) {
 
 void PassportOffice::AddNewSenator(Senator* senator) {
   Thread* thread = new Thread("senator thread");
-  thread->Fork(thread_runners::RunCustomer, senator);
+  thread->Fork(thread_runners::RunSenator, senator);
   thread_list_.push_back(thread);
 }

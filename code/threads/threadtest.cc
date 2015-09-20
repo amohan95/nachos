@@ -414,6 +414,9 @@ ThreadTest()
 }
 
 #include "../passport_office/passport_office.h"
+#include "../passport_office/customer.h"
+#include "../passport_office/manager.h"
+#include "../passport_office/clerks.h"
 
 void Problem2() {
   int num_customers, num_senators, num_application_clerks, num_picture_clerks,

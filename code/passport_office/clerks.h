@@ -6,6 +6,14 @@
 #include "../threads/synch.h"
 #include "passport_office.h"
 
+class Lock;
+class Condition;
+class PassportOffice;
+
+namespace clerk_types {
+enum Type : unsigned int;
+}
+
 namespace clerk_states {
 
 enum State {
@@ -30,11 +38,11 @@ class Clerk {
  	Lock regular_line_lock_;
  	Condition regular_line_lock_cv_;
  	Lock wakeup_lock_;
- 	Conditon wakeup_lock_cv_;
+ 	Condition wakeup_lock_cv_;
  	std::string customer_ssn_;
  	int customer_money_;
  	bool customer_input_;
- private:
+ protected:
  	void GetNextCustomer();
  	void CollectBribe();
  	virtual void ClerkWork() = 0;

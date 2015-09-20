@@ -12,7 +12,7 @@
 
 class Customer {
  public:
-  Customer();
+  Customer(PassportOffice* passport_office);
   virtual ~Customer();
 
   inline bool certified() const { return certified_; }
@@ -41,6 +41,7 @@ class Customer {
   void GiveBribe(Clerk* clerk);
   void PrintLineJoin(Clerk* clerk, bool bribed) const;
 
+  PassportOffice* passport_office_;
   bool certified_;
   uint32_t money_;
   bool passport_verified_;
