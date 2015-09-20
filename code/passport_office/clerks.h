@@ -1,8 +1,9 @@
 #ifndef PASSPORT_OFFICE_CLERKS_H
 #define PASSPORT_OFFICE_CLERKS_H
 
+#include <string>
+
 #include "../threads/synch.h"
-#include "string.h"
 #include "passport_office.h"
 
 namespace clerk_states {
@@ -38,8 +39,9 @@ class Clerk {
  	void CollectBribe();
  	virtual void ClerkWork() = 0;
  	PassportOffice* passport_office_;
- 	string clerk_type_;
- 	clerk_type_::Type type_;
+ 	std::string clerk_type_;
+ 	clerk_types::Type type_;
+  clerk_states::State state_;
  	int collected_money_;
  	int identifier_;
 };

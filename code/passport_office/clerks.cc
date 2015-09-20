@@ -12,6 +12,7 @@ Clerk::Clerk(PassportOffice * passport_office, int identifier)
 		wakeup_lock_cv_("Clerk Wakeup Condition"),
 		wakeup_lock_("Clerk Wakeup Lock"))
 		clerk_type_("Clerk"),
+		state_(clerk_states::kAvailable),
 		collected_money_(0),
 		customer_ssn_(""),
 		customer_money_(0),
@@ -31,17 +32,17 @@ int Clerk::CollectMoney() {
 void Clerk::GetNextCustomer() {
 	lines_lock_->Acquire();
 	if (passport_office_->bribe_line_counts_[type_][identifier_] > 0) {
-		bribe_line_cv_.signal(bribe_line_lock);
-		state_ = clerk_states_::kBusy;
+		bribe_line_cv_.Signal(bribe_line_lock_);
+		state_ = clerk_states::kBusy;
 		std::cout << clerk_type_ << " [" << identifier_ 
 			<< "] has signalled a Customer to come to their counter." << std::endl; 
 	} else if (passport_office_->line_counts_[type_][identifier_] > 0) {
-		regular_line_cv.signal(regular_line_lock);
-		state_ = clerk_states_::kBusy;
+		regular_line_cv_.Signal(regular_line_lock_);
+		state_ = clerk_states::kBusy;
 		std::cout << clerk_type_ << " [" << identifier_ 
 			<< "] has signalled a Customer to come to their counter." << std::endl; 
 	} else {
-		state_ = clerk_states_::kAvailable;
+		state_ = clerk_states::kAvailable;
 	}
 	lines_lock_->Release();
 }
@@ -52,7 +53,7 @@ void Clerk::CollectBribe() {
 		wakeup_lock_cv_.Signal(wakeup_lock_);
 		wakeup_lock_cv_.Wait(wakeup_lock_);
 		int bribe = cutomer_money_;
-		cutomer_money_ = 0;
+		customer_money_ = 0;
 		collected_money_ += bribe;
 		std::cout << clerk_type_ << " [" << identifier_ << "] has received $" << bribe 
 				<< " from Customer " << customer_ssn_ << std::endl;
@@ -60,7 +61,7 @@ void Clerk::CollectBribe() {
 }
 
 ApplicationClerk::ApplicationClerk(PassportOffice* passport_office, int identifier) 
-		: super(passport_office, identifier),
+		: Clerk(passport_office, identifier),
 		clerk_type_("ApplicationClerk"),
 		type(clerk_types::kApplication) {
 }
@@ -68,7 +69,7 @@ ApplicationClerk::ApplicationClerk(PassportOffice* passport_office, int identifi
 void Clerk::Run() {
 	while (true) {
 		GetNextCustomer();
-	 	while (state_ == clerk_states_::kBusy) {
+	 	while (state_ == clerk_states::kBusy) {
 	 		wakeup_lock_.Acquire();
 
 	 		// Wait for customer to come to counter and give SSN.
@@ -114,7 +115,7 @@ void ApplicationClerk::ClerkWork() {
 }
 
 PictureClerk::PictureClerk(PassportOffice* passport_office, int identifier) 
-		: super(passport_office, identifier),
+		: Clerk(passport_office, identifier),
 		clerk_type_("PictureClerk"),
 		type(clerk_types::kPicture) {
 }
@@ -147,7 +148,7 @@ void PictureClerk::ClerkWork() {
 }
 
 PassportClerk::PassportClerk(PassportOffice* passport_office, int identifier) 
-		: super(passport_office, identifier),
+		: Clerk(passport_office, identifier),
 		clerk_type_("PassportClerk"),
 		type(clerk_types::kPassport) {
 }
@@ -175,7 +176,7 @@ void PassportClerk::ClerkWork() {
 }
 
 CashierClerk::CashierClerk(PassportOffice* passport_office, int identifier) 
-		: super(passport_office, identifier),
+		: Clerk(passport_office, identifier),
 		clerk_type_("Cashier"),
 		type(clerk_types::kCashier) {
 }
