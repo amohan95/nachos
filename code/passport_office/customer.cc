@@ -2,15 +2,17 @@
 
 #include <cstdlib>
 
+static const uint32_t INITIAL_MONEY_AMOUNTS_DATA = {100, 600, 1100, 1600};
+uint32_t* Customer::INITIAL_MONEY_AMOUNTS = INITIALI_MONEY_AMOUNTS_DATA;
 uint32_t Customer::CURRENT_UNUSED_SSN = 0;
 
 Customer::Customer() :
   certified_(false),
   done_(false),
-  money_(INITIAL_MONEY_AMOUNTS[rand() % INITIAL_MONEY_AMOUNTS.size()]),
+  money_(INITIAL_MONEY_AMOUNTS[rand() % NUM_INITIAL_MONEY_AMOUNTS]),
   passport_verified_(false),
   picture_taken_(false),
-  ssn_(std::to_string(CURRENT_UNUSED_SSN++)) {
+  ssn_(CURRENT_UNUSED_SSN++) {
 }
 
 Customer::~Customer() {
