@@ -30,7 +30,7 @@ class Customer {
   }
 
   bool CanBribe() const;
-  void GivePassportFee(Cashier* clerk);
+  void GivePassportFee(CashierClerk* clerk);
   std::string IdentifierString() const;
   void Run();
  private:

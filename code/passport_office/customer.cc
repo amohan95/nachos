@@ -22,7 +22,7 @@ bool Customer::CanBribe() const {
   return money() >= CLERK_BRIBE_AMOUNT + PASSPORT_FEE;
 }
 
-void GivePassportFee(Cashier* clerk) {
+void GivePassportFee(CashierClerk* clerk) {
   clerk->CollectApplicationFee(PASSPORT_FEE);
   money -= PASSPORT_FEE;
   std::cout << IdentifierString() << " has given " << clerk->IdentifierString()
