@@ -171,7 +171,7 @@ void Condition::Wait(Lock* lock) {
   }
   if (lock != waiting_lock_) {
     DEBUG('E', "Error: Thread %s trying to use condition %s "
-               "with incorrect lock %s",
+               "with incorrect lock %s\n",
           currentThread->getName(), getName(), lock->getName());
     return;
   }
@@ -188,7 +188,7 @@ void Condition::Signal(Lock* lock) {
   }
   if (waiting_lock_ != lock) {
     DEBUG('E', "Error: Thread %s trying to use condition %s "
-               "with incorrect lock %s",
+               "with incorrect lock %s\n",
           currentThread->getName(), getName(), lock->getName());
     return;
   }
@@ -209,7 +209,7 @@ void Condition::Broadcast(Lock* lock) {
     }
     if (waiting_lock_ != lock) {
       DEBUG('E', "Error: Thread %s trying to use condition %s "
-                 "with incorrect lock %s",
+                 "with incorrect lock %s\n",
             currentThread->getName(), getName(), lock->getName());
       return;
     }

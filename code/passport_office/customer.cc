@@ -13,7 +13,9 @@ Customer::Customer(PassportOffice* passport_office) :
   certified_(false),
   passport_verified_(false),
   picture_taken_(false),
-  ssn_(CURRENT_UNUSED_SSN++) {
+  ssn_(CURRENT_UNUSED_SSN++),
+  wakeup_condition_lock_("customer wakeup condition lock"),
+  wakeup_condition_("customer wakeup condition") {
 }
 
 Customer::~Customer() {
