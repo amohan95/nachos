@@ -8,6 +8,8 @@ uint32_t Customer::CURRENT_UNUSED_SSN = 0;
 
 Customer::Customer(PassportOffice* passport_office) :
   money_(INITIAL_MONEY_AMOUNTS[rand() % NUM_INITIAL_MONEY_AMOUNTS]),
+  join_line_lock_("jll"),
+  join_line_lock_cv_("jllcv"),
   passport_office_(passport_office),
   bribed_(false),
   certified_(false),
@@ -18,6 +20,8 @@ Customer::Customer(PassportOffice* passport_office) :
 
 Customer::Customer(PassportOffice* passport_office, uint32_t money__) :
   money_(money__),
+  join_line_lock_("jll"),
+  join_line_lock_cv_("jllcv"),
   passport_office_(passport_office),
   bribed_(false),
   certified_(false),
@@ -78,23 +82,26 @@ void Customer::Run() {
           < passport_office_->line_counts_[next_clerk][shortest]) {
         clerk = passport_office_->clerks_[next_clerk][bribe_shortest];
         bribed_ = true;
-        clerk->lines_lock_.Acquire();
+//        clerk->lines_lock_.Acquire();
         ++passport_office_->bribe_line_counts_[next_clerk][bribe_shortest];
-        clerk->lines_lock_.Release();
+//        clerk->lines_lock_.Release();
       } else {
         clerk = passport_office_->clerks_[next_clerk][shortest];
-        clerk->lines_lock_.Acquire();
+//        clerk->lines_lock_.Acquire();
         ++passport_office_->line_counts_[next_clerk][shortest];
-        clerk->lines_lock_.Release();
+//        clerk->lines_lock_.Release();
       }
     } else {
       clerk = passport_office_->clerks_[next_clerk][shortest];
-      clerk->lines_lock_.Acquire();
+//      clerk->lines_lock_.Acquire();
       ++passport_office_->line_counts_[next_clerk][shortest];
-      clerk->lines_lock_.Release();
+//      clerk->lines_lock_.Release();
     }
     passport_office_->line_locks_[next_clerk]->Release();
 		PrintLineJoin(clerk, bribed_);
+    join_line_lock_.Acquire();
+    join_line_lock_cv_.Signal(&join_line_lock_);
+    join_line_lock_.Release();
 		clerk->JoinLine(bribed_);
 		clerk->customer_ssn_ = ssn();
 		std::cout << IdentifierString() << " has given SSN [" << ssn() << "] to "
@@ -125,6 +132,9 @@ void Customer::Run() {
     clerk->wakeup_lock_.Release();
   }
   std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
+  passport_office_->customer_count_lock_.Acquire();
+  --passport_office_->customer_count_;
+  passport_office_->customer_count_lock_.Release();
 }
 
 void Customer::GiveBribe(Clerk* clerk) {

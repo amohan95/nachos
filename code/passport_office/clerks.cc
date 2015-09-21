@@ -23,8 +23,8 @@ Clerk::Clerk(PassportOffice* passport_office, int identifier) :
     money_lock_("Clerk Money Lock"),
     customer_money_(0),
     customer_input_(false),
-    passport_office_(passport_office),
     state_(clerk_states::kAvailable),
+    passport_office_(passport_office),
     collected_money_(0),
     identifier_(identifier) {
 }
@@ -53,6 +53,7 @@ void Clerk::JoinLine(bool bribe) {
 	} else {
 		regular_line_lock_.Acquire();
 		regular_line_lock_cv_.Wait(&regular_line_lock_);
+		std::cerr << "Customer signalled" << std::endl;
 		regular_line_lock_.Release();
 	}
 }
@@ -63,15 +64,20 @@ int Clerk::GetNumCustomersInLine() const {
 }
 
 void Clerk::GetNextCustomer() {
-  lines_lock_.Acquire();
+//  lines_lock_.Acquire();
+	passport_office_->line_locks_[type_]->Acquire();
 	if (passport_office_->bribe_line_counts_[type_][identifier_] > 0) {
+		bribe_line_lock_.Acquire();
     bribe_line_lock_cv_.Signal(&bribe_line_lock_);
+		bribe_line_lock_.Release();
     state_ = clerk_states::kBusy;
     std::cout << clerk_type_ << " [" << identifier_ 
       << "] has signalled a Customer to come to their counter." << std::endl;
     passport_office_->bribe_line_counts_[type_][identifier_]--;
   } else if (passport_office_->line_counts_[type_][identifier_] > 0) {
+		regular_line_lock_.Acquire();
     regular_line_lock_cv_.Signal(&regular_line_lock_);
+		regular_line_lock_.Release();
     state_ = clerk_states::kBusy;
     std::cout << clerk_type_ << " [" << identifier_ 
       << "] has signalled a Customer to come to their counter." << std::endl;
@@ -79,7 +85,8 @@ void Clerk::GetNextCustomer() {
   } else {
     state_ = clerk_states::kOnBreak;
   }
-	lines_lock_.Release();
+	// lines_lock_.Release();
+	passport_office_->line_locks_[type_]->Release();
 }
 
 void Clerk::Run() {
@@ -128,8 +135,11 @@ void Clerk::Run() {
     // Wait until woken up.
     std::cout << clerk_type_ << " [" << identifier_ << "] is going on break" 
         << std::endl;
+		passport_office_->breaking_clerks_lock_->Acquire();
     passport_office_->breaking_clerks_.push_back(this);
+		passport_office_->breaking_clerks_lock_->Release();
     wakeup_lock_cv_.Wait(&wakeup_lock_);
+		state_ = clerk_states::kAvailable;
     std::cout << clerk_type_ << " [" << identifier_ << "] is coming off break" 
         << std::endl;
   }

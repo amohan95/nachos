@@ -32,11 +32,11 @@ class Clerk {
   bool customer_input_;
   std::string clerk_type_;
   clerk_types::Type type_;
+  clerk_states::State state_;
  protected:
   void GetNextCustomer();
   virtual void ClerkWork() = 0;
   PassportOffice* passport_office_;
-  clerk_states::State state_;
   int collected_money_;
   int identifier_;
 };

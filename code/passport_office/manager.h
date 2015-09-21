@@ -21,6 +21,8 @@ class Manager {
   Manager(PassportOffice* passport_office);
   ~Manager();
 
+	inline void set_running(bool running__) { running_ = running__; }
+
   void Run();
   void WakeUp();
 

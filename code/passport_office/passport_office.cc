@@ -35,6 +35,8 @@ PassportOffice::PassportOffice(
       bribe_line_counts_(clerk_types::Size, std::vector<int>()),
       breaking_clerks_lock_(new Lock("breaking clerks lock")),
       senator_lock_(new Lock("senator lock")),
+      customer_count_lock_("customer count lock"),
+      customer_count_(0),
       manager_thread_("manager thread") {
   // std::stringstream ss;
   for (int i = 0; i < clerk_types::Size; ++i) {
@@ -92,7 +94,6 @@ PassportOffice::PassportOffice(
 
 void PassportOffice::Start() {
   manager_thread_.Fork(thread_runners::RunManager, (int) manager_);
-
   for (unsigned i = 0; i < clerks_.size(); ++i) {
     for (unsigned j = 0; j < clerks_[i].size(); ++j) {
       Thread* thread = new Thread("clerk thread");
@@ -103,19 +104,47 @@ void PassportOffice::Start() {
 }
 
 void PassportOffice::Stop() {
- for (unsigned int i = 0 ; i < thread_list_.size(); ++i) {
-  thread_list_[i]->Finish();
- }
+  while (customer_count_ > 0) {
+    bool done = true;
+    for (unsigned int i = 0; i < clerks_.size(); ++i) {
+      for (unsigned int j = 0; j < clerks_[i].size(); ++j) {
+        if (clerks_[i][j]->state_ != clerk_states::kOnBreak) {
+          done = false;
+        }
+      }
+    }
+    if (done) {
+      break;
+    } else {
+      for (int i = 0; i < 100; ++i) {
+        currentThread->Yield();
+      }
+    }
+  }
+  manager_->set_running(false);
+  manager_->wakeup_condition_lock_.Acquire();
+  manager_->wakeup_condition_.Signal(&manager_->wakeup_condition_lock_);
+  manager_->wakeup_condition_lock_.Release();
+  /*for (unsigned int i = 0 ; i < thread_list_.size(); ++i) {
+    thread_list_[i]->Finish();
+  }
+  manager_thread_.Finish();*/
 }
 
 void PassportOffice::AddNewCustomer(Customer* customer) {
   Thread* thread = new Thread("customer thread");
   thread->Fork(thread_runners::RunCustomer, (int) customer);
   thread_list_.push_back(thread);
+  customer_count_lock_.Acquire();
+  ++customer_count_;
+  customer_count_lock_.Release();
 }
 
 void PassportOffice::AddNewSenator(Senator* senator) {
   Thread* thread = new Thread("senator thread");
   thread->Fork(thread_runners::RunSenator, (int) senator);
   thread_list_.push_back(thread);
+  customer_count_lock_.Acquire();
+  ++customer_count_;
+  customer_count_lock_.Release();
 }
