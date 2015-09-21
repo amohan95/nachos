@@ -41,6 +41,8 @@ class Customer {
   std::string IdentifierString() const;
   void Run();
   uint32_t money_;
+	Lock join_line_lock_;
+	Condition join_line_lock_cv_;
  private:
   static const uint32_t NUM_INITIAL_MONEY_AMOUNTS = 4;
 	static const uint32_t* INITIAL_MONEY_AMOUNTS;
