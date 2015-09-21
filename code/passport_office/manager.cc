@@ -46,6 +46,7 @@ void Manager::Run() {
   while(running_) {
     wakeup_condition_lock_.Acquire();
     wakeup_condition_.Wait(&wakeup_condition_lock_);
+    wakeup_condition_lock_.Release();
 		if (!running_) {
 			break;
 		}

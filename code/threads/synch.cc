@@ -213,6 +213,9 @@ void Condition::Signal(Lock* lock) {
     waiting_lock_ = NULL;
   } else {
     Thread* to_wake = RemoveFromWaitQueue();
+    if (to_wake == NULL) {
+      printf("Thread is null.\n");
+    }
     scheduler->ReadyToRun(to_wake);
   }
 }
@@ -232,7 +235,7 @@ void Condition::Broadcast(Lock* lock) {
       return;
     }
   }
-  while (!lock->wait_queue().empty()) {
+  while (!wait_queue_.empty()) {
     Signal(lock);
   }
 }

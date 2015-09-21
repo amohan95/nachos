@@ -35,9 +35,9 @@ PassportOffice::PassportOffice(
       bribe_line_counts_(clerk_types::Size, std::vector<int>()),
       breaking_clerks_lock_(new Lock("breaking clerks lock")),
       senator_lock_(new Lock("senator lock")),
+      senator_condition_(new Condition("senator condition")),
       customer_count_lock_("customer count lock"),
       manager_thread_("manager thread") {
-  // std::stringstream ss;
   for (int i = 0; i < clerk_types::Size; ++i) {
     char* name = new char[80];
     sprintf(name, "Line Lock %d", i);
