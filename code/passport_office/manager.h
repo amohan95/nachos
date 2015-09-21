@@ -29,6 +29,7 @@ class Manager {
   Condition wakeup_condition_;
   Lock wakeup_condition_lock_;
  private:
+	uint32_t elapsed_;
   std::vector<uint32_t> money_;
   PassportOffice* passport_office_;
   bool running_;

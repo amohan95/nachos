@@ -35,6 +35,7 @@ class Customer {
   inline void set_picture_taken() {
     picture_taken_ = true;
   }
+	inline void set_running(bool running__) { running_ = running__; }
 
   bool CanBribe() const;
 	inline bool has_bribed() const { return bribed_; }
@@ -57,6 +58,7 @@ class Customer {
   bool completed_application_;
   bool passport_verified_;
   bool picture_taken_;
+	bool running_;
   const uint32_t ssn_;
 };
 

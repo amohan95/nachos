@@ -36,7 +36,6 @@ PassportOffice::PassportOffice(
       breaking_clerks_lock_(new Lock("breaking clerks lock")),
       senator_lock_(new Lock("senator lock")),
       customer_count_lock_("customer count lock"),
-      customer_count_(0),
       manager_thread_("manager thread") {
   // std::stringstream ss;
   for (int i = 0; i < clerk_types::Size; ++i) {
@@ -104,7 +103,7 @@ void PassportOffice::Start() {
 }
 
 void PassportOffice::Stop() {
-  while (customer_count_ > 0) {
+  while (customers_.size() > 0) {
     bool done = true;
     for (unsigned int i = 0; i < clerks_.size(); ++i) {
       for (unsigned int j = 0; j < clerks_[i].size(); ++j) {
@@ -121,6 +120,21 @@ void PassportOffice::Stop() {
       }
     }
   }
+  for (std::set<Customer*>::iterator itr = customers_.begin(); itr != customers_.end(); ++itr) {
+    (*itr)->set_running(false);
+  }
+  for (unsigned int i = 0; i < clerks_.size(); ++i) {
+    line_locks_[i]->Acquire();
+    for (unsigned int j = 0; j < clerks_[i].size(); ++j) {
+      clerks_[i][j]->regular_line_lock_.Acquire();
+      clerks_[i][j]->regular_line_lock_cv_.Broadcast(&clerks_[i][j]->regular_line_lock_);
+      clerks_[i][j]->regular_line_lock_.Release();
+      clerks_[i][j]->bribe_line_lock_.Acquire();
+      clerks_[i][j]->bribe_line_lock_cv_.Broadcast(&clerks_[i][j]->bribe_line_lock_);
+      clerks_[i][j]->bribe_line_lock_.Release();
+    }
+    line_locks_[i]->Release();
+  }
   manager_->set_running(false);
   manager_->wakeup_condition_lock_.Acquire();
   manager_->wakeup_condition_.Signal(&manager_->wakeup_condition_lock_);
@@ -136,7 +150,7 @@ void PassportOffice::AddNewCustomer(Customer* customer) {
   thread->Fork(thread_runners::RunCustomer, (int) customer);
   thread_list_.push_back(thread);
   customer_count_lock_.Acquire();
-  ++customer_count_;
+  customers_.insert(customer);
   customer_count_lock_.Release();
 }
 
@@ -145,6 +159,6 @@ void PassportOffice::AddNewSenator(Senator* senator) {
   thread->Fork(thread_runners::RunSenator, (int) senator);
   thread_list_.push_back(thread);
   customer_count_lock_.Acquire();
-  ++customer_count_;
+  customers_.insert(senator);
   customer_count_lock_.Release();
 }

@@ -15,6 +15,7 @@ Customer::Customer(PassportOffice* passport_office) :
   certified_(false),
   passport_verified_(false),
   picture_taken_(false),
+  running_(false),
   ssn_(CURRENT_UNUSED_SSN++) {
 }
 
@@ -27,6 +28,7 @@ Customer::Customer(PassportOffice* passport_office, uint32_t money__) :
   certified_(false),
   passport_verified_(false),
   picture_taken_(false),
+  running_(false),
   ssn_(CURRENT_UNUSED_SSN++){
 }
 
@@ -44,7 +46,8 @@ std::string Customer::IdentifierString() const {
 }
 
 void Customer::Run() {
-  while (!passport_verified() || !picture_taken() || !completed_application() || !certified()) {
+  running_ = true;
+  while (running_ && !passport_verified() || !picture_taken() || !completed_application() || !certified()) {
     bribed_ = false;
     clerk_types::Type next_clerk;
     if (!completed_application() && !picture_taken()) {
@@ -63,20 +66,26 @@ void Customer::Run() {
     printf("Trying to acquire clerk lock: %s\n", 
            passport_office_->line_locks_[next_clerk]->getName());
     passport_office_->line_locks_[next_clerk]->Acquire();
-    uint32_t shortest = 0;
-    for (uint32_t i = 1; i < passport_office_->line_counts_[next_clerk].size(); ++i) {
-      if (passport_office_->line_counts_[next_clerk][i]
+    int32_t shortest = -1;
+    for (uint32_t i = 0; i < passport_office_->line_counts_[next_clerk].size(); ++i) {
+      if (shortest == -1 ||
+          passport_office_->line_counts_[next_clerk][i]
           < passport_office_->line_counts_[next_clerk][shortest]) {
         shortest = i;
       }
     }
     if (CanBribe()) {
-      uint32_t bribe_shortest = 0;
-      for (uint32_t i = 1; i < passport_office_->bribe_line_counts_[next_clerk].size(); ++i) {
-        if (passport_office_->bribe_line_counts_[next_clerk][i]
+      int32_t bribe_shortest = -1;
+      for (uint32_t i = 0; i < passport_office_->bribe_line_counts_[next_clerk].size(); ++i) {
+        if (bribe_shortest == -1 ||
+            passport_office_->bribe_line_counts_[next_clerk][i]
             < passport_office_->bribe_line_counts_[next_clerk][bribe_shortest]) {
           bribe_shortest = i;
         }
+      }
+      if (shortest == -1) {
+        set_running(false);
+        continue;
       }
       if (passport_office_->bribe_line_counts_[next_clerk][bribe_shortest]
           < passport_office_->line_counts_[next_clerk][shortest]) {
@@ -92,18 +101,27 @@ void Customer::Run() {
 //        clerk->lines_lock_.Release();
       }
     } else {
+      if (shortest == -1) {
+        set_running(false);
+        continue;
+      }
       clerk = passport_office_->clerks_[next_clerk][shortest];
 //      clerk->lines_lock_.Acquire();
       ++passport_office_->line_counts_[next_clerk][shortest];
 //      clerk->lines_lock_.Release();
     }
     passport_office_->line_locks_[next_clerk]->Release();
+    std::cerr << "Joining line for clerk " << clerk << std::endl;
 		PrintLineJoin(clerk, bribed_);
     join_line_lock_.Acquire();
     join_line_lock_cv_.Signal(&join_line_lock_);
     join_line_lock_.Release();
 		clerk->JoinLine(bribed_);
+    if (!running_) {
+      break;
+    }
 		clerk->customer_ssn_ = ssn();
+    clerk->current_customer_ = this;
 		std::cout << IdentifierString() << " has given SSN [" << ssn() << "] to "
 							<< clerk->IdentifierString() << '.' << std::endl;
     clerk->wakeup_lock_.Acquire();
@@ -131,9 +149,13 @@ void Customer::Run() {
     }
     clerk->wakeup_lock_.Release();
   }
-  std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
+  if (passport_verified()) {
+    std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
+  } else {
+    std::cerr << IdentifierString() << " terminated early." << std::endl;
+  }
   passport_office_->customer_count_lock_.Acquire();
-  --passport_office_->customer_count_;
+  passport_office_->customers_.erase(this);
   passport_office_->customer_count_lock_.Release();
 }
 
@@ -145,5 +167,5 @@ void Customer::GiveBribe(Clerk* clerk) {
 
 void Customer::PrintLineJoin(Clerk* clerk, bool bribed) const {
   std::cout << IdentifierString() << " has gotten in " << (bribed ? "bribe" : "regular")
-            << " line for " << clerk->clerk_type_ << "." << std::endl;
+            << " line for " << Clerk::NameForClerkType(clerk->type_)  << "." << std::endl;
 }
