@@ -273,6 +273,16 @@ void t5_t2() {
     t5_l1.Release();
 }
 
+#include "../passport_office/utilities.h"
+#include "../passport_office/passport_office.h"
+#include "../passport_office/clerks.h"
+#include "../passport_office/customer.h"
+#include "../passport_office/manager.h"
+#include "../passport_office/passport_office.cc"
+#include "../passport_office/clerks.cc"
+#include "../passport_office/customer.cc"
+#include "../passport_office/manager.cc"
+
 // --------------------------------------------------
 // TestSuite()
 //     This is the main thread of the test suite.  It runs the
@@ -376,16 +386,32 @@ void TestSuite() {
 
     printf("##################################");
     printf("Starting Test 1 - Customers always take the shortest line, but no 2 customers ever choose the same shortest line at the same time");
-    /*PassportOffice* po = new PassportOffice(0, 0, 0, 0);
+    PassportOffice* po = new PassportOffice(0, 0, 0, 0);
     po->Start();
-    Customer* c1 = new Customer(po), c2 = new Customer(po);
+    Customer* c1 = new Customer(po);
+    Customer* c2 = new Customer(po);
     po->AddNewCustomer(c1);
     po->AddNewCustomer(c2);
     delete po;
     delete c1;
     delete c2;
-    */
-    printf("Starting Test 2");
+
+    printf("Starting Test 2 - Managers only read one from one Clerk's total money received, at a time.");
+    po = new PassportOffice(1, 1, 1, 1);
+    c1 = new Customer(po, 600);
+    c2 = new Customer(po, 600);
+    Customer* c3 = new Customer(po, 600);
+    Customer* c4 = new Customer(po, 600);
+    po->AddNewCustomer(c1);
+    po->AddNewCustomer(c2);
+    po->AddNewCustomer(c3);
+    po->AddNewCustomer(c4);
+    po->Start();
+    delete po;
+    delete c1;
+    delete c2;
+    delete c3;
+    delete c4;
 }
 #endif
 
@@ -426,16 +452,6 @@ ThreadTest()
     t->Fork(SimpleThread, 1);
     SimpleThread(0);
 }
-
-#include "../passport_office/utilities.h"
-#include "../passport_office/passport_office.h"
-#include "../passport_office/clerks.h"
-#include "../passport_office/customer.h"
-#include "../passport_office/manager.h"
-#include "../passport_office/passport_office.cc"
-#include "../passport_office/clerks.cc"
-#include "../passport_office/customer.cc"
-#include "../passport_office/manager.cc"
 
 void Problem2() {
   int num_customers, num_senators, num_application_clerks, num_picture_clerks,

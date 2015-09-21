@@ -8,7 +8,17 @@ uint32_t Customer::CURRENT_UNUSED_SSN = 0;
 
 Customer::Customer(PassportOffice* passport_office) :
   money_(INITIAL_MONEY_AMOUNTS[rand() % NUM_INITIAL_MONEY_AMOUNTS]),
-  passport_office_(passport_office),
+  passport_office_(passport_office_),
+  bribed_(false),
+  certified_(false),
+  passport_verified_(false),
+  picture_taken_(false),
+  ssn_(CURRENT_UNUSED_SSN++) {
+}
+
+Customer::Customer(PassportOffice* passport_office, uint32_t money__) :
+  money_(money__),
+  passport_office_(passport_office_),
   bribed_(false),
   certified_(false),
   passport_verified_(false),

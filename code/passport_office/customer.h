@@ -17,6 +17,7 @@ class CashierClerk;
 class Customer {
  public:
   Customer(PassportOffice* passport_office);
+	Customer(PassportOffice* passport_office, uint32_t money);
   virtual ~Customer();
 
   inline bool certified() const { return certified_; }
@@ -39,8 +40,6 @@ class Customer {
 	inline bool has_bribed() const { return bribed_; }
   std::string IdentifierString() const;
   void Run();
-  Lock wakeup_condition_lock_;
-  Condition wakeup_condition_;
   uint32_t money_;
  private:
   static const uint32_t NUM_INITIAL_MONEY_AMOUNTS = 4;

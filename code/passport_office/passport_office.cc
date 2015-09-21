@@ -29,12 +29,12 @@ void RunSenator(int arg) {
 
 PassportOffice::PassportOffice(
     int num_application_clerks, int num_picture_clerks,
-    int num_passport_clerks, int num_cashier_clerks)
-    : manager_thread_("manager thread"),
+    int num_passport_clerks, int num_cashier_clerks) :
       clerks_(clerk_types::Size, std::vector<Clerk*>()),
       line_counts_(clerk_types::Size, std::vector<int>()),
       breaking_clerks_lock_(new Lock("breaking clerks lock")),
-      senator_lock_(new Lock("senator lock")) {
+      senator_lock_(new Lock("senator lock")),
+      manager_thread_("manager thread") {
   for (int i = 0; i < clerk_types::Size; ++i) {
     char c[1] = {i + '0'};
     line_locks_.push_back(new Lock(c));
