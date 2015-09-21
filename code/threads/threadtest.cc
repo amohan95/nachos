@@ -13,6 +13,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <deque>
 
 #include "copyright.h"
 #include "system.h"
