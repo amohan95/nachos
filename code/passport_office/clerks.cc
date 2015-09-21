@@ -51,12 +51,14 @@ void Clerk::GetNextCustomer() {
     bribe_line_lock_cv_.Signal(&bribe_line_lock_);
     state_ = clerk_states::kBusy;
     std::cout << clerk_type_ << " [" << identifier_ 
-      << "] has signalled a Customer to come to their counter." << std::endl; 
+      << "] has signalled a Customer to come to their counter." << std::endl;
+    passport_office_->bribe_line_counts_[type_][identifier_]--;
   } else if (passport_office_->line_counts_[type_][identifier_] > 0) {
     regular_line_lock_cv_.Signal(&regular_line_lock_);
     state_ = clerk_states::kBusy;
     std::cout << clerk_type_ << " [" << identifier_ 
       << "] has signalled a Customer to come to their counter." << std::endl;
+    passport_office_->line_counts_[type_][identifier_]--;
   } else {
     state_ = clerk_states::kOnBreak;
   }
