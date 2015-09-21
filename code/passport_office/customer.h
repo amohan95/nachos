@@ -43,6 +43,7 @@ class Customer {
   uint32_t money_;
  private:
   static const uint32_t NUM_INITIAL_MONEY_AMOUNTS = 4;
+	static const uint32_t* INITIAL_MONEY_AMOUNTS;
   static uint32_t CURRENT_UNUSED_SSN;
 
   void GiveBribe(Clerk* clerk);
