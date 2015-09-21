@@ -2,6 +2,16 @@
 #include "customer.h"
 #include <stdlib.h>
 
+const char* Clerk::NameForClerkType(clerk_types::Type type) {
+	static const* char* NAMES[] = {
+		"ApplicationClerk",
+		"PictureClerk",
+		"PassportClerk",
+		"Cashier"
+	};
+	return NAMES[type];
+}
+
 Clerk::Clerk(PassportOffice * passport_office, int identifier) 
 		: lines_lock_cv_("Clerk Lines Condition"), 
 		lines_lock_("Clerk Lines Lock"),

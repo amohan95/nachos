@@ -9,6 +9,7 @@ class Customer;
 
 class Clerk {
  public:
+	static const char* NameForClerkType(clerk_types::Type type);
  	Clerk(PassportOffice* passport_office, int identifier);
  	virtual ~Clerk();
  	int CollectMoney();
