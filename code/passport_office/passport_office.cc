@@ -32,6 +32,7 @@ PassportOffice::PassportOffice(
     int num_passport_clerks, int num_cashier_clerks) :
       clerks_(clerk_types::Size, std::vector<Clerk*>()),
       line_counts_(clerk_types::Size, std::vector<int>()),
+      bribe_line_counts_(clerk_types::Size, std::vector<int>()),
       breaking_clerks_lock_(new Lock("breaking clerks lock")),
       senator_lock_(new Lock("senator lock")),
       manager_thread_("manager thread") {
@@ -43,21 +44,25 @@ PassportOffice::PassportOffice(
   for (int i = 0; i < num_application_clerks; ++i) {
     clerks_[clerk_types::kApplication].push_back(new ApplicationClerk(this, i));
     line_counts_[clerk_types::kApplication].push_back(0);
+    bribe_line_counts_[clerk_types::kApplication].push_back(0);
   }
 
   for (int i = 0; i < num_picture_clerks; ++i) {
     clerks_[clerk_types::kPicture].push_back(new PictureClerk(this, i));
     line_counts_[clerk_types::kPicture].push_back(0);
+    bribe_line_counts_[clerk_types::kPicture].push_back(0);
   }
 
   for (int i = 0; i < num_passport_clerks; ++i) {
     clerks_[clerk_types::kPassport].push_back(new PassportClerk(this, i));
     line_counts_[clerk_types::kPassport].push_back(0);
+    bribe_line_counts_[clerk_types::kPassport].push_back(0);
   }
 
   for (int i = 0; i < num_cashier_clerks; ++i) {
     clerks_[clerk_types::kCashier].push_back(new CashierClerk(this, i));
     line_counts_[clerk_types::kCashier].push_back(0);
+    bribe_line_counts_[clerk_types::kCashier].push_back(0);  
   }
 
   manager_ = new Manager(this);
