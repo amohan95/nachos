@@ -40,6 +40,7 @@ class Customer {
   void Run();
   Lock wakeup_condition_lock_;
   Condition wakeup_condition_;
+  uint32_t money_;
  private:
   static const uint32_t NUM_INITIAL_MONEY_AMOUNTS = 4;
   static uint32_t CURRENT_UNUSED_SSN;
@@ -50,7 +51,6 @@ class Customer {
   PassportOffice* passport_office_;
   bool certified_;
   bool completed_application_;
-  uint32_t money_;
   bool passport_verified_;
   bool picture_taken_;
   const uint32_t ssn_;

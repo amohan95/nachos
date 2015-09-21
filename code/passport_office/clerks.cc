@@ -62,21 +62,6 @@ void Clerk::GetNextCustomer() {
 	lines_lock_.Release();
 }
 
-void Clerk::CollectBribe() {
-	// Collect bribe money.
-	if (current_customer_->has_bribed()) {
-		wakeup_lock_cv_.Signal(&wakeup_lock_);
-		wakeup_lock_cv_.Wait(&wakeup_lock_);
-		int bribe = customer_money_;
-		customer_money_ = 0;
-		money_lock_.Acquire()
-		collected_money_ += bribe;
-		money_lock_.Release()
-		std::cout << clerk_type_ << " [" << identifier_ << "] has received $" << bribe 
-				<< " from Customer " << customer_ssn_ << std::endl;
-	}
-}
-
 ApplicationClerk::ApplicationClerk(PassportOffice* passport_office, int identifier) 
 		: Clerk(passport_office, identifier),
 		clerk_type_("ApplicationClerk"),
@@ -98,6 +83,19 @@ void Clerk::Run() {
 	 		
 	 		// Do work specific to the type of clerk.
 	 		ClerkWork();
+			
+			// Collect bribe money.
+			if (current_customer_->has_bribed()) {
+				wakeup_lock_cv_.Signal(&wakeup_lock_);
+				wakeup_lock_cv_.Wait(&wakeup_lock_);
+				int bribe = customer_money_;
+				customer_money_ = 0;
+				money_lock_.Acquire()
+				collected_money_ += bribe;
+				money_lock_.Release()
+				std::cout << clerk_type_ << " [" << identifier_ << "] has received $" << bribe 
+						<< " from Customer " << customer_ssn_ << std::endl;
+			}
 
 	 		// Random delay.
 	 		int random_time = rand() % 80 + 20;
@@ -128,8 +126,6 @@ void ApplicationClerk::ClerkWork() {
 	current_customer_->verify_passport();
 	std::cout << clerk_type_ << " [" << identifier_ 
 			<< "] has recorded a completed application for Customer " << customer_ssn_ << std::endl;
-
-	CollectBribe();
 }
 
 PictureClerk::PictureClerk(PassportOffice* passport_office, int identifier) 
@@ -161,8 +157,6 @@ void PictureClerk::ClerkWork() {
 
 	// Set picture taken.
 	current_customer_->set_picture_taken();
-
-	CollectBribe();
 }
 
 PassportClerk::PassportClerk(PassportOffice* passport_office, int identifier) 
@@ -179,7 +173,6 @@ void PassportClerk::ClerkWork() {
 
 	// Check to make sure their picture has been taken and passport verified.
 	if (!picture_taken_and_passport_verified) {
-		/* TODO (swillard13): Punish */
 		std::cout << clerk_type_ << " [" << identifier_ << "] has determined that Customer[" 
 				<< customer_ssn_ << "] does not have both their application and picture completed" << std::endl;
 	} else {
@@ -190,7 +183,6 @@ void PassportClerk::ClerkWork() {
 		std::cout << clerk_type_ << " [" << identifier_ << "] has recorded Customer[" << customer_ssn_ 
 				<< "] passport documentation" << std::endl;
 	}
-
 }
 
 CashierClerk::CashierClerk(PassportOffice* passport_office, int identifier) 
@@ -215,15 +207,18 @@ void CashierClerk::ClerkWork() {
 
 	// Check to make sure they have been certified.
 	if (!certified) {
-		/* TODO (swillard13): Punish */
 		std::cout << clerk_type_ << " [" << identifier_ << "] has received the $100 from Customer[" 
 				<< customer_ssn_ << "] before certification. They are to go to the back of my line." 
 				<< std::endl;
+
+		// Give money back.
+		money_lock_.Acquire()
+		collected_money_ -= 100;
+		money_lock_.Release()
+		current_customer_->money_ += 100;
 	} else {
 		std::cout << clerk_type_ << " [" << identifier_ << "] has received the $100 from Customer[" 
 			<< customer_ssn_ << "] after certification." << std::endl;
-
-		CollectBribe();
 
 		// Give customer passport.
 		std::cout << clerk_type_ << " [" << identifier_ << "] has provided Customer[" << customer_ssn_ << "] their completed passport." << std::endl;
