@@ -132,18 +132,25 @@ void Customer::Run() {
         break;
       case clerk_types::kPicture:
         clerk->customer_input_ = (rand() % 10) > 6;
+        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+        clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
         break;
       case clerk_types::kCashier:
         clerk->customer_money_ = PASSPORT_FEE;
+        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+        clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
+        clerk->customer_input_ = true;
+        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+        clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
         break;
       case clerk_types::kPassport:
         clerk->customer_input_ = true;
+        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+        clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
         break;
       case clerk_types::Size:
         break;
     }
-    clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
-    clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
     if (bribed_) {
       GiveBribe(clerk);
     }
