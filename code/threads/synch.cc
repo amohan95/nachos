@@ -189,13 +189,14 @@ void Condition::Signal(Lock* lock) {
   if (waiting_lock_ != lock) {
     DEBUG('E', "Error: Thread %s trying to use condition %s "
                "with incorrect lock %s\n",
-          currentThread->getName(), getName(), lock->getName());
+          currentThread->getName(), getName(), lock ? lock->getName() : "null");
     return;
   }
-  Thread* to_wake = lock->RemoveFromWaitQueue();
-  scheduler->ReadyToRun(to_wake);
   if (lock->wait_queue().IsEmpty()) {
     waiting_lock_ = NULL;
+  } else {
+    Thread* to_wake = lock->RemoveFromWaitQueue();
+    scheduler->ReadyToRun(to_wake);
   }
 }
 

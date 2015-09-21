@@ -86,6 +86,9 @@ main(int argc, char **argv)
     DEBUG('t', "Entering main");
     (void) Initialize(argc, argv);
 
+
+    for (argc--, argv++; argc > 0; argc -= argCount, argv += argCount) {
+  argCount = 1;
 #ifdef THREADS
     if (!strcmp(*argv, "-T")) {
       ThreadTest();
@@ -94,9 +97,6 @@ main(int argc, char **argv)
       Problem2();
     }
 #endif
-
-    for (argc--, argv++; argc > 0; argc -= argCount, argv += argCount) {
-	argCount = 1;
         if (!strcmp(*argv, "-z"))               // print copyright
             printf (copyright);
 #ifdef USER_PROGRAM
@@ -149,8 +149,6 @@ main(int argc, char **argv)
         }
 #endif // NETWORK
     }
-
-    ThreadTest();
     currentThread->Finish();	// NOTE: if the procedure "main" 
 				// returns, then the program "nachos"
 				// will exit (as any other normal program
