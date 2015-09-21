@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 const char* Clerk::NameForClerkType(clerk_types::Type type) {
-	static const* char* NAMES[] = {
+	static const char* NAMES[] = {
 		"ApplicationClerk",
 		"PictureClerk",
 		"PassportClerk",
@@ -21,6 +21,7 @@ Clerk::Clerk(PassportOffice * passport_office, int identifier)
 		regular_line_lock_("Clerk Regular Line Lock"),
 		wakeup_lock_cv_("Clerk Wakeup Condition"),
 		wakeup_lock_("Clerk Wakeup Lock"),
+		money_lock_("Clerk Money Lock"),
 		state_(clerk_states::kAvailable),
 		collected_money_(0),
 		customer_money_(0),
@@ -32,7 +33,7 @@ Clerk::Clerk(PassportOffice * passport_office, int identifier)
 Clerk::~Clerk() {}
 
 int Clerk::CollectMoney() {
-	money_lock_.Acquire()
+	money_lock_.Acquire();
 	int money = collected_money_;
 	collected_money_ = 0;
 	money_lock_.Release();
@@ -63,9 +64,9 @@ void Clerk::GetNextCustomer() {
 }
 
 ApplicationClerk::ApplicationClerk(PassportOffice* passport_office, int identifier) 
-		: Clerk(passport_office, identifier),
-		clerk_type_("ApplicationClerk"),
-		type_(clerk_types::kApplication) {
+		: Clerk(passport_office, identifier) {
+		clerk_type_ = "ApplicationClerk";
+		type_ = clerk_types::kApplication;
 }
 
 void Clerk::Run() {
@@ -129,9 +130,9 @@ void ApplicationClerk::ClerkWork() {
 }
 
 PictureClerk::PictureClerk(PassportOffice* passport_office, int identifier) 
-		: Clerk(passport_office, identifier),
-		clerk_type_("PictureClerk"),
-		type_(clerk_types::kPicture) {
+		: Clerk(passport_office, identifier) {
+		clerk_type_ = "PictureClerk";
+		type_ = clerk_types::kPicture;
 }
 
 void PictureClerk::ClerkWork() {
@@ -160,9 +161,9 @@ void PictureClerk::ClerkWork() {
 }
 
 PassportClerk::PassportClerk(PassportOffice* passport_office, int identifier) 
-		: Clerk(passport_office, identifier),
-		clerk_type_("PassportClerk"),
-		type_(clerk_types::kPassport) {
+		: Clerk(passport_office, identifier) {
+		clerk_type_ = "PassportClerk";
+		type_ = clerk_types::kPassport;
 }
 
 void PassportClerk::ClerkWork() {
@@ -186,19 +187,19 @@ void PassportClerk::ClerkWork() {
 }
 
 CashierClerk::CashierClerk(PassportOffice* passport_office, int identifier) 
-		: Clerk(passport_office, identifier),
-		clerk_type_("Cashier"),
-		type_(clerk_types::kCashier) {
+		: Clerk(passport_office, identifier) {
+		clerk_type_ = "Cashier";
+		type_ = clerk_types::kCashier;
 }
 
 void CashierClerk::ClerkWork() {
 	// Collect application fee.
 	wakeup_lock_cv_.Signal(&wakeup_lock_);
 	wakeup_lock_cv_.Wait(&wakeup_lock_);
-	money_lock_.Acquire()
+	money_lock_.Acquire();
 	collected_money_ += customer_money_;
 	customer_money_ = 0;
-	money_lock_.Release()
+	money_lock_.Release();
 
 	// Wait for the customer to show you that they are certified.
 	wakeup_lock_cv_.Signal(&wakeup_lock_);
