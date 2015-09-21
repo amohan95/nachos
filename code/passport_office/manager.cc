@@ -41,11 +41,13 @@ void Manager::Run() {
       Clerk* clerk = passport_office_->breaking_clerks_[i];
       passport_office_->line_locks_[clerk->type()]->Acquire();
       if (clerk->GetNumCustomersInLine() > CLERK_WAKEUP_THRESHOLD) {
-        clerk->WakeUp();
+				clerk->wakeup_lock_.Acquire();
+				clerk->wakeup_lock_cv_.Signal(clerk->wakeup_lock_);
+				clerk->wakeup_lock_.Release();
         std::cout << "Manager has woken up a"
                   << (clerk->type_ == clerk_types::kApplication ? "n " : " ")
                   << Clerk::NameForClerkType(clerk->type_) << std::endl;
-        passport_office_->breaking_clerks_->remove(i);
+        passport_office_->breaking_clerks_->erase(passport_office_->breaking_clerks_.begin() + i);
         --n;
       }
       passport_office_->line_locks_[clerk->type()]->Release();

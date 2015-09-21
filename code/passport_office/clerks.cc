@@ -90,12 +90,16 @@ void Clerk::Run() {
 	 		wakeup_lock_cv_.Signal(wakeup_lock_);
 	 		wakeup_lock_.Release();
 
+			passport_office_->manager_->wakeup_lock_.Acquire();
+			passport_office_->manager_->wakeup_lock_condition_.Signal(passport_office_->manager_->wakeup_lock);
+			passport_office_->manager_->wakeup_lock.Release();
 	 		// Get next customer.
 	 		GetNextCustomer();
 	 	}
 
 	 	// Wait until woken up.
 	 	std::cout << clerk_type_ << " [" << identifier_ << "] is going on break" << std::endl;
+		passport_office_->breaking_clerks_.push_back(this);
 	 	wakeup_lock_cv_.Wait(wakeup_lock_);
 	 	std::cout << clerk_type_ << " [" << identifier_ << "] is coming off break" << std::endl;
 	}
