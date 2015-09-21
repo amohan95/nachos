@@ -36,19 +36,18 @@ std::string IdentifierString() const {
 }
 
 void Customer::Run() {
-  while (!passport_verified() || !picture_taken() || !certified()) {
+  while (!passport_verified() || !picture_taken() || !completed_application_() || !certified()) {
     clerk_types::Type next_clerk;
-    if (!passport_verified() && !picture_taken()) {
+    if (!completed_application() && !picture_taken()) {
       next_clerk = rand() % 2; // either kApplication (0) or kPicture (1)
-    } else if (!passport_verified()) {
+    } else if (!completed_application()) {
       next_clerk = clerk_types::kApplication;
     } else if (!picture_taken()) {
       next_clerk = clerk_types::kPicture;
     } else if (!certified()) {
       next_clerk = clerk_types::kCashier;
     } else {
-      std::cerr << IdentifierString() << " is in an illegal state. Killing thread." << std::endl;
-      return;
+      next_clerk = clerk_types::kPassport;
     }
     Clerk* clerk = NULL;
     passport_office_->line_locks_[next_clerk]->Acquire();
@@ -71,7 +70,6 @@ void Customer::Run() {
       if (passport_office_->bribe_line_counts[next_clerk][bribe_shortest]
           < passport_office_->line_counts_[next_clerk][shortest]) {
         clerk = passport_office_->clerks_[next_clerk][bribe_shortest];
-        GiveBribe(clerk);
         bribed = true;
         ++passport_office_->bribe_line_counts_[next_clerk][bribe_shortest];
       } else {
@@ -82,18 +80,42 @@ void Customer::Run() {
       clerk = passport_office_->clerks_[next_clerk][shortest];
       ++passport_office_->line_counts_[next_clerk][shortest];
     }
-    clerk->wakeup_lock_->Acquire();
     passport_office_->line_locks_[next_clerk]->Release();
-    PrintLineJoin(clerk, bribed);
-    clerk->wakeup_lock_cv_->Wait(clerk->wakeup_lock_);
-    clerk->wakeup_lock_->Release();
+		PrintLineJoin(clerk, bribed);
+		clerk->JoinLine(bribed);
+		clerk->customer_ssn_ = ssn();
+		std::cout << IdentifierString() << " has given SSN [" ssn() "] to "
+							<< clerk->IdentifierString() << '.' << std::endl;
+    clerk->wakeup_lock_.Acquire();
+    clerk->wakeup_lock_cv_.Signal(clerk->wakeup_lock_);
+    clerk->wakeup_lock_cv_.Wait(clerk->wakeup_lock_);
+    switch (next_clerk) {
+      case kApplication:
+        break;
+      case kPicture:
+        clerk->customer_input_ = (rand() % 10) > 6;
+        break;
+      case kCashier:
+        clerk->customer_money_ = PASSPORT_FEE;
+        break;
+      case kPassport:
+        clerk->customer_input_ = true;
+        break;
+    }
+    clerk->wakeup_lock_cv_.Signal(clerk->wakeup_lock_);
+    clerk->wakeup_lock_cv_.Wait(clerk_->wakeup_lock_);
+    if (bribed) {
+      GiveBribe(clerk);
+    }
+    clerk->wakeup_lock_.Release();
   }
   std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
 }
 
 void Customer::GiveBribe(Clerk* clerk) {
-  clerk->CollectBribe(CLERK_BRIBE_AMOUNT);
-  money -= CLERK_BRIBE_AMOUNT;
+  clerk->customer_money_ = CLERK_BRIBE_AMOUNT;
+  clerk->wakeup_lock_cv_.Signal(clerk->wakeup_lock_);
+  clerk->wakeup_lock_cv_.Wait(clerk->wakeup_lock_);
 }
 
 void Customer::PrintLineJoin(Clerk* clerk, bool bribed) const {
