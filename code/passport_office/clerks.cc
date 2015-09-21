@@ -32,8 +32,10 @@ Clerk::Clerk(PassportOffice * passport_office, int identifier)
 Clerk::~Clerk() {}
 
 int Clerk::CollectMoney() {
+	money_lock_.Acquire()
 	int money = collected_money_;
 	collected_money_ = 0;
+	money_lock_.Release();
 	return money;
 }
 
@@ -67,7 +69,9 @@ void Clerk::CollectBribe() {
 		wakeup_lock_cv_.Wait(&wakeup_lock_);
 		int bribe = customer_money_;
 		customer_money_ = 0;
+		money_lock_.Acquire()
 		collected_money_ += bribe;
+		money_lock_.Release()
 		std::cout << clerk_type_ << " [" << identifier_ << "] has received $" << bribe 
 				<< " from Customer " << customer_ssn_ << std::endl;
 	}
@@ -199,8 +203,10 @@ void CashierClerk::ClerkWork() {
 	// Collect application fee.
 	wakeup_lock_cv_.Signal(&wakeup_lock_);
 	wakeup_lock_cv_.Wait(&wakeup_lock_);
+	money_lock_.Acquire()
 	collected_money_ += customer_money_;
 	customer_money_ = 0;
+	money_lock_.Release()
 
 	// Wait for the customer to show you that they are certified.
 	wakeup_lock_cv_.Signal(&wakeup_lock_);

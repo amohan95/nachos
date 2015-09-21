@@ -30,6 +30,7 @@ class Clerk {
  	bool customer_input_;
  	std::string clerk_type_;
  	clerk_types::Type type_;
+ 	Lock money_lock_;
  protected:
   void GetNextCustomer();
   void CollectBribe();
