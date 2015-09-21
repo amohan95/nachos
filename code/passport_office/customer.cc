@@ -15,6 +15,7 @@ Customer::Customer(PassportOffice* passport_office) :
   certified_(false),
   passport_verified_(false),
   picture_taken_(false),
+  running_(false),
   ssn_(CURRENT_UNUSED_SSN++) {
 }
 
@@ -27,6 +28,7 @@ Customer::Customer(PassportOffice* passport_office, uint32_t money__) :
   certified_(false),
   passport_verified_(false),
   picture_taken_(false),
+  running_(false),
   ssn_(CURRENT_UNUSED_SSN++){
 }
 
@@ -44,7 +46,8 @@ std::string Customer::IdentifierString() const {
 }
 
 void Customer::Run() {
-  while (!passport_verified() || !picture_taken() || !completed_application() || !certified()) {
+  running_ = true;
+  while (running_ && !passport_verified() || !picture_taken() || !completed_application() || !certified()) {
     bribed_ = false;
     clerk_types::Type next_clerk;
     if (!completed_application() && !picture_taken()) {
@@ -100,6 +103,9 @@ void Customer::Run() {
     join_line_lock_cv_.Signal(&join_line_lock_);
     join_line_lock_.Release();
 		clerk->JoinLine(bribed_);
+    if (!running_) {
+      break;
+    }
 		clerk->customer_ssn_ = ssn();
 		std::cout << IdentifierString() << " has given SSN [" << ssn() << "] to "
 							<< clerk->IdentifierString() << '.' << std::endl;
@@ -128,9 +134,13 @@ void Customer::Run() {
     }
     clerk->wakeup_lock_.Release();
   }
-  std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
+  if (passport_verified()) {
+    std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
+  } else {
+    std::cerr << IdentifierString() << " terminated early." << std::endl;
+  }
   passport_office_->customer_count_lock_.Acquire();
-  --passport_office_->customer_count_;
+  passport_office_->customers_.erase(this);
   passport_office_->customer_count_lock_.Release();
 }
 

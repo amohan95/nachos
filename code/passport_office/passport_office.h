@@ -2,6 +2,7 @@
 #define PASSPORT_OFFICE_PASSPORT_OFFICE_H_
 
 #include <vector>
+#include <set>
 #include <string>
 
 #include "../threads/synch.h"
@@ -50,7 +51,7 @@ class PassportOffice {
   Lock* senator_lock_;
   Condition* senator_condition_;
 	Lock customer_count_lock_;
-	int customer_count_;
+	std::set<Customer*> customers_;
  private:
   Thread manager_thread_;
   std::vector<Thread*> thread_list_;

@@ -53,7 +53,6 @@ void Clerk::JoinLine(bool bribe) {
 	} else {
 		regular_line_lock_.Acquire();
 		regular_line_lock_cv_.Wait(&regular_line_lock_);
-		std::cerr << "Customer signalled" << std::endl;
 		regular_line_lock_.Release();
 	}
 }
@@ -67,20 +66,20 @@ void Clerk::GetNextCustomer() {
 //  lines_lock_.Acquire();
 	passport_office_->line_locks_[type_]->Acquire();
 	if (passport_office_->bribe_line_counts_[type_][identifier_] > 0) {
+    std::cout << clerk_type_ << " [" << identifier_
+      << "] has signalled a Customer to come to their counter." << std::endl;
 		bribe_line_lock_.Acquire();
     bribe_line_lock_cv_.Signal(&bribe_line_lock_);
 		bribe_line_lock_.Release();
     state_ = clerk_states::kBusy;
-    std::cout << clerk_type_ << " [" << identifier_ 
-      << "] has signalled a Customer to come to their counter." << std::endl;
     passport_office_->bribe_line_counts_[type_][identifier_]--;
   } else if (passport_office_->line_counts_[type_][identifier_] > 0) {
+    std::cerr << clerk_type_ << " [" << identifier_
+      << "] has signalled a Customer to come to their counter." << std::endl;
 		regular_line_lock_.Acquire();
     regular_line_lock_cv_.Signal(&regular_line_lock_);
 		regular_line_lock_.Release();
     state_ = clerk_states::kBusy;
-    std::cout << clerk_type_ << " [" << identifier_ 
-      << "] has signalled a Customer to come to their counter." << std::endl;
     passport_office_->line_counts_[type_][identifier_]--;
   } else {
     state_ = clerk_states::kOnBreak;
@@ -92,56 +91,50 @@ void Clerk::GetNextCustomer() {
 void Clerk::Run() {
   while (true) {
     GetNextCustomer();
-    while (state_ == clerk_states::kBusy) {
-      wakeup_lock_.Acquire();
+		wakeup_lock_.Acquire();
+		if (state_ == clerk_states::kBusy) {
+			// Wait for customer to come to counter and give SSN.
+			wakeup_lock_cv_.Wait(&wakeup_lock_);
 
-      // Wait for customer to come to counter and give SSN.
-      wakeup_lock_cv_.Wait(&wakeup_lock_);
+			// Take Customer's SSN and verify passport.
+			std::cout << IdentifierString() << " has received SSN "
+								<< customer_ssn_ << " from Customer " << customer_ssn_
+								<< std::endl;
+			// Do work specific to the type of clerk.
+			ClerkWork();
 
-      // Take Customer's SSN and verify passport.
-      std::cout << clerk_type_ << " [" << identifier_ << "] has received SSN " 
-          << customer_ssn_ << " from Customer " << customer_ssn_ << std::endl;
-      
-      // Do work specific to the type of clerk.
-      ClerkWork();
-      
-      // Collect bribe money.
-      if (current_customer_->has_bribed()) {
-        wakeup_lock_cv_.Signal(&wakeup_lock_);
-        wakeup_lock_cv_.Wait(&wakeup_lock_);
-        int bribe = customer_money_;
-        customer_money_ = 0;
-        money_lock_.Acquire();
-        collected_money_ += bribe;
-        money_lock_.Release();
-        std::cout << clerk_type_ << " [" << identifier_ << "] has received $" 
-            << bribe << " from Customer " << customer_ssn_ << std::endl;
-      }
+			// Collect bribe money.
+			if (current_customer_->has_bribed()) {
+				wakeup_lock_cv_.Signal(&wakeup_lock_);
+				wakeup_lock_cv_.Wait(&wakeup_lock_);
+				int bribe = customer_money_;
+				customer_money_ = 0;
+				money_lock_.Acquire();
+				collected_money_ += bribe;
+				money_lock_.Release();
+				std::cout << IdentifierString() << " has received $"
+									<< bribe << " from Customer " << customer_ssn_
+									<< std::endl;
+			}
 
-      // Random delay.
-      int random_time = rand() % 80 + 20;
-      for (int i = 0; i < random_time; ++i) {
-        currentThread->Yield();
-      }
-
-      // Wakeup customer.
-      wakeup_lock_cv_.Signal(&wakeup_lock_);
-      wakeup_lock_.Release();
-
-      // Get next customer.
-      GetNextCustomer();
-    }
-
-    // Wait until woken up.
-    std::cout << clerk_type_ << " [" << identifier_ << "] is going on break" 
-        << std::endl;
-		passport_office_->breaking_clerks_lock_->Acquire();
-    passport_office_->breaking_clerks_.push_back(this);
-		passport_office_->breaking_clerks_lock_->Release();
-    wakeup_lock_cv_.Wait(&wakeup_lock_);
-		state_ = clerk_states::kAvailable;
-    std::cout << clerk_type_ << " [" << identifier_ << "] is coming off break" 
-        << std::endl;
+			// Random delay.
+			int random_time = rand() % 80 + 20;
+			for (int i = 0; i < random_time; ++i) {
+				currentThread->Yield();
+			}
+			// Wakeup customer.
+			wakeup_lock_cv_.Signal(&wakeup_lock_);
+		} else if (state_ == clerk_states::kOnBreak) {
+			// Wait until woken up.
+			std::cout << IdentifierString() << " is going on break" << std::endl;
+			passport_office_->breaking_clerks_lock_->Acquire();
+			passport_office_->breaking_clerks_.push_back(this);
+			passport_office_->breaking_clerks_lock_->Release();
+			wakeup_lock_cv_.Wait(&wakeup_lock_);
+			state_ = clerk_states::kAvailable;
+			std::cout << IdentifierString() << " is coming off break" << std::endl;
+		}
+		wakeup_lock_.Release();
   }
 }
 

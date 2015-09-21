@@ -283,6 +283,39 @@ void t5_t2() {
 #include "../passport_office/customer.cc"
 #include "../passport_office/manager.cc"
 
+void PTest1() {
+  printf("Starting Test 1 - Customers always take the shortest line, but no 2 customers ever choose the same shortest line at the same time\n");
+  PassportOffice po(0, 1, 0, 0);
+  po.Start();
+  Customer c1(&po);
+  Customer c2(&po);
+  po.AddNewCustomer(&c1);
+  c1.join_line_lock_.Acquire();
+  c1.join_line_lock_cv_.Wait(&c1.join_line_lock_);
+  c1.join_line_lock_.Release();
+  //po.AddNewCustomer(&c2);
+  //c2.join_line_lock_.Acquire();
+  //c2.join_line_lock_cv_.Wait(&c2.join_line_lock_);
+  //c2.join_line_lock_.Release();
+  po.Stop();
+  printf("Finished Test 1\n");
+}
+
+void PTest2() {
+  printf("Starting Test 2 - Managers only read one from one Clerk's total money received, at a time.\n");
+  PassportOffice po(1, 1, 1, 1);
+  Customer c1(&po, 600);
+  Customer c2(&po, 600);
+  Customer c3(&po, 600);
+  Customer c4(&po, 600);
+  po.Start();
+  po.AddNewCustomer(&c1);
+  po.AddNewCustomer(&c2);
+  po.AddNewCustomer(&c3);
+  po.AddNewCustomer(&c4);
+  po.Stop();
+  printf("Finished Test 2\n");
+}
 // --------------------------------------------------
 // TestSuite()
 //     This is the main thread of the test suite.  It runs the
@@ -385,41 +418,8 @@ void TestSuite() {
     t->Fork((VoidFunctionPtr)t5_t2,0);
 
     printf("##################################\n");
-    printf("Starting Test 1 - Customers always take the shortest line, but no 2 customers ever choose the same shortest line at the same time\n");
-    PassportOffice* po = new PassportOffice(1, 1, 0, 0);
-    po->Start();
-    Customer* c1 = new Customer(po);
-    Customer* c2 = new Customer(po);
-    po->AddNewCustomer(c1);
-    c1->join_line_lock_.Acquire();
-    c1->join_line_lock_cv_.Wait(&c1->join_line_lock_);
-    c1->join_line_lock_.Release();
-    po->AddNewCustomer(c2);
-    c2->join_line_lock_.Acquire();
-    c2->join_line_lock_cv_.Wait(&c2->join_line_lock_);
-    c2->join_line_lock_.Release();
-    printf("Finished Test 1\n");
-    po->Stop();
-    delete po;
-    delete c1;
-    delete c2;
-
-    printf("Starting Test 2 - Managers only read one from one Clerk's total money received, at a time.");
-    po = new PassportOffice(1, 1, 1, 1);
-    c1 = new Customer(po, 600);
-    c2 = new Customer(po, 600);
-    Customer* c3 = new Customer(po, 600);
-    Customer* c4 = new Customer(po, 600);
-    po->AddNewCustomer(c1);
-    po->AddNewCustomer(c2);
-    po->AddNewCustomer(c3);
-    po->AddNewCustomer(c4);
-    po->Start();
-    delete po;
-    delete c1;
-    delete c2;
-    delete c3;
-    delete c4;
+    PTest1();
+    PTest2();
 }
 #endif
 

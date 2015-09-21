@@ -1,12 +1,14 @@
 #include "manager.h"
 
 #include "../machine/timer.h"
+#include "../machine/stats.h"
 
 #include <iostream>
 
 Manager::Manager(PassportOffice* passport_office) :
 	wakeup_condition_("Manager Wakeup Lock Condition"),
   wakeup_condition_lock_("Manager Wakeup Lock"),
+	elapsed_(0),
   money_(clerk_types::Size, 0),
   passport_office_(passport_office),
   running_(false) {
@@ -17,7 +19,8 @@ Manager::~Manager() {
 
 void PrintMoneyReport(int manager) {
 	Manager* man = reinterpret_cast<Manager*>(manager);
-	if (!man->running_) {
+	man->elapsed_ += TimerTicks;
+	if (!man->running_ || man->elapsed_ < 5 * TimerTicks) {
 		return;
 	}
 	for (uint32_t j = 0; j < clerk_types::Size; ++j) {
@@ -34,6 +37,7 @@ void PrintMoneyReport(int manager) {
   }
   std::cout << "Manager has counted a total of $[" << total
             <<  "] for the passport office" << std::endl;
+	man->elapsed_ = 0;
 }
 
 void Manager::Run() {
