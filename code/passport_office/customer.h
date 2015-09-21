@@ -36,6 +36,7 @@ class Customer {
   }
 
   bool CanBribe() const;
+	inline bool has_bribed() const { return bribed_; }
   std::string IdentifierString() const;
   void Run();
   Lock wakeup_condition_lock_;
@@ -50,6 +51,7 @@ class Customer {
   void PrintLineJoin(Clerk* clerk, bool bribed) const;
 
   PassportOffice* passport_office_;
+	bool bribed_;
   bool certified_;
   bool completed_application_;
   bool passport_verified_;

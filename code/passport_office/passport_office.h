@@ -14,8 +14,8 @@ class PassportOffice {
  public:
   PassportOffice(int num_application_clerks, int num_picture_clerks,
                  int num_passport_clerks, int num_cashier_clerks);
-  
-  virtual ~PassportOffice() {
+
+	virtual ~PassportOffice() {
     for (unsigned i = 0; i < line_locks_.size(); ++i) {
       delete line_locks_[i];
     }
@@ -29,7 +29,7 @@ class PassportOffice {
     }
     delete manager_;
   }
-  
+
   void Start();
 	void Stop();
 

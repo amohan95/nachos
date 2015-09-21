@@ -14,25 +14,24 @@ class Clerk {
  	virtual ~Clerk();
  	int CollectMoney();
 	int GetNumCustomersInLine() const;
- 	void Run();
+  void Run();
 	void JoinLine(bool bribe);
 	std::string IdentifierString() const;
 
   Lock lines_lock_;
-  Condition lines_lock_cv_;
-  Lock bribe_line_lock_;
   Condition bribe_line_lock_cv_;
-  Lock regular_line_lock_;
+  Lock bribe_line_lock_;
   Condition regular_line_lock_cv_;
-  Lock wakeup_lock_;
+  Lock regular_line_lock_;
   Condition wakeup_lock_cv_;
+  Lock wakeup_lock_;
+  Lock money_lock_;
   uint32_t customer_ssn_;
   Customer* current_customer_;
   int customer_money_;
   bool customer_input_;
   std::string clerk_type_;
   clerk_types::Type type_;
-  Lock money_lock_;
  protected:
   void GetNextCustomer();
   virtual void ClerkWork() = 0;
