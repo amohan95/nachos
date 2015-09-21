@@ -5,6 +5,7 @@
 #include "utilities.h"
 
 class PassportOffice;
+class Customer;
 
 class Clerk {
  public:
@@ -22,14 +23,15 @@ class Clerk {
  	Lock wakeup_lock_;
  	Condition wakeup_lock_cv_;
  	std::string customer_ssn_;
+  Customer* current_customer_;
  	int customer_money_;
  	bool customer_input_;
- protected:
- 	void GetNextCustomer();
- 	void CollectBribe();
- 	virtual void ClerkWork() = 0;
- 	PassportOffice* passport_office_;
  	std::string clerk_type_;
+ protected:
+  void GetNextCustomer();
+  void CollectBribe();
+  virtual void ClerkWork() = 0;
+  PassportOffice* passport_office_;
  	clerk_types::Type type_;
   clerk_states::State state_;
  	int collected_money_;

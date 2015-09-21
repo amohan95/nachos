@@ -19,14 +19,14 @@ class Customer {
   Customer(PassportOffice* passport_office);
   virtual ~Customer();
 
-	inline bool certified() const { return certified_; }
+  inline bool certified() const { return certified_; }
   inline bool completed_application() const { return completed_application_; }
   inline uint32_t money() const { return money_; }
   inline bool passport_verified() const { return passport_verified_; }
   inline bool picture_taken() const { return picture_taken_; }
   inline uint32_t ssn() const { return ssn_; }
 
-	inline void set_certified(bool certified__) { certified_ = certified__; }
+  inline void set_certified(bool certified__) { certified_ = certified__; }
   inline void set_completed_application(bool completed_application__) { completed_application_ = completed_application__; }
   inline void set_passport_verified(bool passport_verified__) {
     passport_verified_ = passport_verified__;

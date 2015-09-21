@@ -257,6 +257,7 @@ interrupt.o: ../machine/interrupt.cc \
   /usr/include/iso/stdio_iso.h /usr/include/stdio_tag.h \
   /usr/include/stdio_impl.h /usr/include/iso/stdio_c99.h \
   /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/iostream \
+  /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/string \
   /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/sparc-sun-solaris2.10/bits/c++config.h \
   /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/sparc-sun-solaris2.10/bits/os_defines.h \
   /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/ostream \

@@ -1,8 +1,6 @@
 #include "customer.h"
 
 #include <cstdlib>
-#include <iostream>
-#include <sstream>
 
 static const uint32_t INITIAL_MONEY_AMOUNTS[4] = {100, 600, 1100, 1600};
 uint32_t Customer::CURRENT_UNUSED_SSN = 0;
@@ -28,7 +26,7 @@ bool Customer::CanBribe() const {
 void Customer::GivePassportFee(CashierClerk* clerk) {
   clerk->CollectApplicationFee(PASSPORT_FEE);
   money_ -= PASSPORT_FEE;
-  std::cout << IdentifierString() << " has given " << clerk->IdentifierString()
+  std::cout << IdentifierString() << " has given " << clerk->clerk_type_
             << "$" << PASSPORT_FEE << '.' << std::endl;
 }
 
@@ -39,7 +37,7 @@ std::string Customer::IdentifierString() const {
 }
 
 void Customer::Run() {
-  while (!passport_verified() || !picture_taken() || !completed_application_() || !certified()) {
+  while (!passport_verified() || !picture_taken() || !completed_application() || !certified()) {
     clerk_types::Type next_clerk;
     if (!completed_application() && !picture_taken()) {
       next_clerk = static_cast<clerk_types::Type>(rand() % 2); // either kApplication (0) or kPicture (1)

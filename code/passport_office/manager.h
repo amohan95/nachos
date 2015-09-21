@@ -21,11 +21,12 @@ class Manager {
   void PrintMoneyReport(int32_t dummy) const;
   void Run();
   void WakeUp();
+  
+  Condition wakeup_condition_;
+  Lock wakeup_condition_lock_;
  private:
   std::vector<uint32_t> money_;
   PassportOffice* passport_office_;
   bool running_;
-  Condition wakeup_condition_;
-  Lock wakeup_condition_lock_;
 };
 #endif

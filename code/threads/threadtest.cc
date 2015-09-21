@@ -11,6 +11,8 @@
 
 #include <iostream>
 #include <vector>
+#include <string>
+#include <sstream>
 
 #include "copyright.h"
 #include "system.h"
@@ -413,10 +415,15 @@ ThreadTest()
     SimpleThread(0);
 }
 
+#include "../passport_office/utilities.h"
 #include "../passport_office/passport_office.h"
+#include "../passport_office/clerks.h"
 #include "../passport_office/customer.h"
 #include "../passport_office/manager.h"
-#include "../passport_office/clerks.h"
+#include "../passport_office/passport_office.cc"
+#include "../passport_office/clerks.cc"
+#include "../passport_office/customer.cc"
+#include "../passport_office/manager.cc"
 
 void Problem2() {
   int num_customers, num_senators, num_application_clerks, num_picture_clerks,
