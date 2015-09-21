@@ -164,6 +164,16 @@ Condition::Condition(char* debug_name) : name(debug_name) { }
 
 Condition::~Condition() { }
 
+void Condition::AddToWaitQueue(Thread* thread) { 
+  wait_queue_.push_back(thread);
+}
+
+Thread* Condition::RemoveFromWaitQueue() {
+  Thread* retval = wait_queue_.front();
+  wait_queue_.pop_front();
+  return retval;
+}
+
 void Condition::Wait(Lock* lock) {
   InterruptSetter is;
   if (lock == NULL) {
@@ -180,7 +190,7 @@ void Condition::Wait(Lock* lock) {
           currentThread->getName(), getName(), lock->getName());
     return;
   }
-  lock->AddToWaitQueue(currentThread);
+  AddToWaitQueue(currentThread);
   lock->Release();
   currentThread->Sleep();
   lock->Acquire();
@@ -191,16 +201,18 @@ void Condition::Signal(Lock* lock) {
   if (waiting_lock_ == NULL) {
     return;
   }
+  printf("Lock %s is being signalled in thread %s.\n",
+         lock->getName(), currentThread->getName());
   if (waiting_lock_ != lock) {
     DEBUG('E', "Error: Thread %s trying to use condition %s "
                "with incorrect lock %s\n",
           currentThread->getName(), getName(), lock ? lock->getName() : "null");
     return;
   }
-  if (lock->wait_queue().empty()) {
+  if (wait_queue_.empty()) {
     waiting_lock_ = NULL;
   } else {
-    Thread* to_wake = lock->RemoveFromWaitQueue();
+    Thread* to_wake = RemoveFromWaitQueue();
     scheduler->ReadyToRun(to_wake);
   }
 }

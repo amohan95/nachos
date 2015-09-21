@@ -152,6 +152,9 @@ class Condition {
     ~Condition();     // deallocate the condition
     char* getName() { return (name); }
     
+    void AddToWaitQueue(Thread* thread);
+    Thread* RemoveFromWaitQueue();
+
     void Wait(Lock *conditionLock);   // these are the 3 operations on 
           // condition variables; releasing the 
           // lock and going to sleep are 
@@ -163,6 +166,7 @@ class Condition {
   private:
     char* name;
     Lock* waiting_lock_;
+    std::deque<Thread*> wait_queue_;
     // plus some other stuff you'll need to define
 };
 #endif // SYNCH_H
