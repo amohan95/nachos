@@ -31,6 +31,7 @@ class PassportOffice {
   }
   
   void Start();
+	void Stop();
 
   // Creates and forks a new thread for the new member being added.
   void AddNewCustomer(Customer* customer);

@@ -374,6 +374,18 @@ void TestSuite() {
     t = new Thread("t5_t2");
     t->Fork((VoidFunctionPtr)t5_t2,0);
 
+    printf("##################################");
+    printf("Starting Test 1 - Customers always take the shortest line, but no 2 customers ever choose the same shortest line at the same time");
+    /*PassportOffice* po = new PassportOffice(0, 0, 0, 0);
+    po->Start();
+    Customer* c1 = new Customer(po), c2 = new Customer(po);
+    po->AddNewCustomer(c1);
+    po->AddNewCustomer(c2);
+    delete po;
+    delete c1;
+    delete c2;
+    */
+    printf("Starting Test 2");
 }
 #endif
 
