@@ -40,28 +40,8 @@ PassportOffice::PassportOffice(
   // std::stringstream ss;
   for (int i = 0; i < clerk_types::Size; ++i) {
     char* name = new char[80];
-    sprintf(name, "Line Lock %d", i); 
-    printf("Assigning lock %d - %s\n", i, name);
-    Lock* fucking_lock = new Lock(name);
-    printf("Fucking lock: %s - %d\n", fucking_lock->getName(), fucking_lock);
-    line_locks_.push_back(fucking_lock);
-    printf("Line fucking lock[0]: %d\n", line_locks_[i]);
-  }
-   
-  // Lock* fucking_lock = new Lock("0");
-  // line_locks_.push_back(fucking_lock);
-
-  // Lock* fucking_lock1 = new Lock("1");
-  // line_locks_.push_back(fucking_lock1);
-
-  // Lock* fucking_lock2 = new Lock("2");
-  // line_locks_.push_back(fucking_lock2);
-
-  // Lock* fucking_lock3 = new Lock("3");
-  // line_locks_.push_back(fucking_lock3);
-
-  for (int i = 0; i < clerk_types::Size; ++i) {
-    printf("Line lock: %d - %s\n", line_locks_[i], line_locks_[i]->getName());
+    sprintf(name, "Line Lock %d", i);
+    line_locks_.push_back(new Lock(name));
   }
 
   for (int i = 0; i < num_application_clerks; ++i) {

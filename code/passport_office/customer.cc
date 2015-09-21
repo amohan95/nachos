@@ -62,7 +62,6 @@ void Customer::Run() {
       next_clerk = clerk_types::kPassport;
     }
     Clerk* clerk = NULL;
-    printf("LINE LOCK SIZE: %d\n", passport_office_->line_locks_.size());
     printf("Trying to acquire clerk lock: %s\n", 
            passport_office_->line_locks_[next_clerk]->getName());
     passport_office_->line_locks_[next_clerk]->Acquire();
