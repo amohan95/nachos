@@ -2,8 +2,7 @@
 
 #include <cstdlib>
 
-static const uint32_t INITIAL_MONEY_AMOUNTS_DATA[] = {100, 600, 1100, 1600};
-uint32_t* Customer::INITIAL_MONEY_AMOUNTS = INITIAL_MONEY_AMOUNTS_DATA;
+static const uint32_t INITIAL_MONEY_AMOUNTS[] = {100, 600, 1100, 1600};
 uint32_t Customer::CURRENT_UNUSED_SSN = 0;
 
 Customer::Customer(PassportOffice* passport_office) :
@@ -26,7 +25,7 @@ bool Customer::CanBribe() const {
 
 std::string Customer::IdentifierString() const {
   std::stringstream ss;
-  ss << "Customer [" << ssn() << ']';
+  ss << "Customer [" << ssn_ << ']';
   return ss.str();
 }
 
@@ -58,7 +57,7 @@ void Customer::Run() {
       uint32_t bribe_shortest = 0;
       for (uint32_t i = 1; i < passport_office_->bribe_line_counts_[next_clerk].size(); ++i) {
         if (passport_office_->bribe_line_counts_[next_clerk][i]
-            < passport_office_->bribe_line_counts[next_clerk][bribe_shortest]) {
+            < passport_office_->bribe_line_counts_[next_clerk][bribe_shortest]) {
           bribe_shortest = i;
         }
       }
@@ -77,23 +76,31 @@ void Customer::Run() {
     }
     passport_office_->line_locks_[next_clerk]->Release();
 		PrintLineJoin(clerk, bribed);
-		clerk->JoinLine(bribed);
-		clerk->customer_ssn_ = ssn();
-		std::cout << IdentifierString() << " has given SSN [" ssn() "] to "
+		if (bribed) {
+      clerk->bribe_line_lock_.Acquire();
+      clerk->bribe_line_lock_cv_.Wait(&clerk->bribe_line_lock_);
+      clerk->bribe_line_lock_.Release();
+    } else {
+      clerk->regular_line_lock_.Acquire();
+      clerk->regular_line_lock_cv_.Wait(&clerk->regular_line_lock_);
+      clerk->regular_line_lock_.Release();
+    }
+		clerk->customer_ssn_ = ssn_;
+		std::cout << IdentifierString() << " has given SSN [" ssn_ "] to "
 							<< clerk->IdentifierString() << '.' << std::endl;
     clerk->wakeup_lock_.Acquire();
     clerk->wakeup_lock_cv_.Signal(clerk->wakeup_lock_);
     clerk->wakeup_lock_cv_.Wait(clerk->wakeup_lock_);
     switch (next_clerk) {
-      case kApplication:
+      case clerk_types::kApplication:
         break;
-      case kPicture:
+      case clerk_types::kPicture:
         clerk->customer_input_ = (rand() % 10) > 6;
         break;
-      case kCashier:
+      case clerk_types::kCashier:
         clerk->customer_money_ = PASSPORT_FEE;
         break;
-      case kPassport:
+      case clerk_types::kPassport:
         clerk->customer_input_ = true;
         break;
     }
@@ -115,5 +122,5 @@ void Customer::GiveBribe(Clerk* clerk) {
 
 void Customer::PrintLineJoin(Clerk* clerk, bool bribed) const {
   std::cout << IdentifierString() << " has gotten in " << (bribed ? "bribe" : "regular")
-            << " line for " << clerk->IdentifierString() << "." << std::endl;
+            << " line for " << clerk->clerk_type_ << "." << std::endl;
 }

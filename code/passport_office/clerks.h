@@ -24,7 +24,7 @@ class Clerk {
  	Condition regular_line_lock_cv_;
  	Lock wakeup_lock_;
  	Condition wakeup_lock_cv_;
- 	std::string customer_ssn_;
+ 	uint32_t customer_ssn_;
   Customer* current_customer_;
  	int customer_money_;
  	bool customer_input_;

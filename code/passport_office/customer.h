@@ -26,18 +26,20 @@ class Customer {
   inline bool picture_taken() const { return picture_taken_; }
   inline uint32_t ssn() const { return ssn_; }
 
-  inline void set_certified(bool certified__) { certified_ = certified__; }
-  inline void set_completed_application(bool completed_application__) { completed_application_ = completed_application__; }
-  inline void set_passport_verified(bool passport_verified__) {
-    passport_verified_ = passport_verified__;
+  inline void set_certified() { certified_ = true; }
+  inline void set_completed_application() { completed_application_ = true; }
+  inline void set_passport_verified() {
+    passport_verified_ = true;
   }
-  inline void set_picture_taken(bool picture_taken__) {
-    picture_taken_ = picture_taken__;
+  inline void set_picture_taken() {
+    picture_taken_ = true;
   }
 
   bool CanBribe() const;
   std::string IdentifierString() const;
   void Run();
+  Lock wakeup_condition_lock_;
+  Condition wakeup_condition_;
  private:
   static const uint32_t NUM_INITIAL_MONEY_AMOUNTS = 4;
   static uint32_t CURRENT_UNUSED_SSN;
@@ -56,7 +58,7 @@ class Customer {
 
 class Senator : public Customer {
  public:
-	Senator(PassportOffice* passport_office) : Customer(passport_office) {}
+  Senator(PassportOffice* passport_office) : Customer(passport_office) {}
   virtual ~Senator() {}
 };
 #endif

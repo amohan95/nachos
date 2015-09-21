@@ -151,7 +151,7 @@ void PictureClerk::ClerkWork() {
 		wakeup_lock_cv_.Signal(&wakeup_lock_);
 		wakeup_lock_cv_.Wait(&wakeup_lock_);
 		picture_accepted = customer_input_;
-		td::cout << clerk_type_ << " [" << identifier_ << "] has taken a picture of Customer " 
+		std::cout << clerk_type_ << " [" << identifier_ << "] has taken a picture of Customer " 
 				<< customer_ssn_ << std::endl;
 	}
 
