@@ -56,9 +56,9 @@ void Clerk::GetNextCustomer() {
     regular_line_lock_cv_.Signal(&regular_line_lock_);
     state_ = clerk_states::kBusy;
     std::cout << clerk_type_ << " [" << identifier_ 
-      << "] has signalled a Customer to come to their counter." << std::endl; 
+      << "] has signalled a Customer to come to their counter." << std::endl;
   } else {
-    state_ = clerk_states::kAvailable;
+    state_ = clerk_states::kOnBreak;
   }
   lines_lock_.Release();
 }
