@@ -20,7 +20,7 @@ Manager::~Manager() {
 void PrintMoneyReport(int manager) {
 	Manager* man = reinterpret_cast<Manager*>(manager);
 	man->elapsed_ += TimerTicks;
-	if (!man->running_ || man->elapsed_ < 5 * TimerTicks) {
+	if (!man->running_ || man->elapsed_ < 200 * TimerTicks) {
 		return;
 	}
 	for (uint32_t j = 0; j < clerk_types::Size; ++j) {
