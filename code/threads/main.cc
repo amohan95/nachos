@@ -91,7 +91,7 @@ main(int argc, char **argv)
   argCount = 1;
 #ifdef THREADS
     if (!strcmp(*argv, "-T")) {
-      ThreadTest();
+      TestSuite();
     }
     if (!strcmp(*argv, "-P2")) {
       Problem2();

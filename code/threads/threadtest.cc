@@ -536,4 +536,5 @@ void Problem2() {
       --num_customers;
     }
   }
+  currentThread->Finish();
 }
