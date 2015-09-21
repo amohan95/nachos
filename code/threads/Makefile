@@ -24,6 +24,7 @@ main.o: ../threads/main.cc ../threads/copyright.h ../threads/utility.h \
   /usr/include/stdarg.h /usr/include/iso/stdarg_iso.h \
   /usr/include/sys/va_impl.h /usr/include/sys/va_list.h \
   /usr/include/sys/isa_defs.h /usr/include/iso/stdarg_c99.h \
+  /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/deque \
   /usr/include/sys/feature_tests.h /usr/include/sys/ccompile.h \
   /usr/include/iso/stdio_iso.h /usr/include/stdio_tag.h \
   /usr/include/stdio_impl.h /usr/include/iso/stdio_c99.h \
@@ -94,6 +95,7 @@ scheduler.o: ../threads/scheduler.cc ../threads/copyright.h \
 synch.o: ../threads/synch.cc ../threads/copyright.h ../threads/synch.h \
   ../threads/thread.h ../threads/utility.h ../threads/bool.h \
   ../machine/sysdep.h ../threads/copyright.h \
+  /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/deque \
   /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/include/stdio.h \
   /usr/include/stdarg.h /usr/include/iso/stdarg_iso.h \
   /usr/include/sys/va_impl.h /usr/include/sys/va_list.h \
@@ -226,6 +228,7 @@ threadtest.o: ../threads/threadtest.cc ../threads/copyright.h \
   /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/include/stdio.h \
   /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/iostream \
   /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/vector \
+  /usr/sfw/lib/gcc/sparc-sun-solaris2.10/3.4.3/../../../../include/c++/3.4.3/deque \
   /usr/include/stdarg.h /usr/include/iso/stdarg_iso.h \
   /usr/include/sys/va_impl.h /usr/include/sys/va_list.h \
   /usr/include/sys/isa_defs.h /usr/include/iso/stdarg_c99.h \

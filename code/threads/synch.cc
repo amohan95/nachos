@@ -110,8 +110,9 @@ class InterruptSetter {
 // Dummy functions -- so we can compile our later assignments 
 // Note -- without a correct implementation of Condition::Wait(), 
 // the test case in the network assignment won't work!
-Lock::Lock(char* debug_name)
-    : name(debug_name), lock_state_(LockState::kFree) {}
+Lock::Lock(char* debug_name) : lock_state_(LockState::kFree) {
+  name = debug_name;
+}
 
 Lock::~Lock() {}
 
@@ -119,9 +120,13 @@ bool Lock::IsHeldByCurrentThread() {
   return currentThread == lock_owner_;
 }
 
-void Lock::AddToWaitQueue(Thread* thread) { wait_queue_.Append(thread); }
+void Lock::AddToWaitQueue(Thread* thread) { wait_queue_.push_back(thread); }
 
-Thread* Lock::RemoveFromWaitQueue() { return (Thread*) wait_queue_.Remove(); }
+Thread* Lock::RemoveFromWaitQueue() {
+  Thread* retval = wait_queue_.front();
+  wait_queue_.pop_front();
+  return retval;
+}
 
 void Lock::Acquire() {
   InterruptSetter is;
@@ -145,7 +150,7 @@ void Lock::Release() {
           lock_owner_ ? lock_owner_->getName() : "null");
     return;
   }
-  if (!wait_queue_.IsEmpty()) {
+  if (!wait_queue_.empty()) {
     Thread* to_wake = RemoveFromWaitQueue();
     lock_owner_ = to_wake;
     scheduler->ReadyToRun(lock_owner_);
@@ -192,7 +197,7 @@ void Condition::Signal(Lock* lock) {
           currentThread->getName(), getName(), lock ? lock->getName() : "null");
     return;
   }
-  if (lock->wait_queue().IsEmpty()) {
+  if (lock->wait_queue().empty()) {
     waiting_lock_ = NULL;
   } else {
     Thread* to_wake = lock->RemoveFromWaitQueue();
@@ -215,7 +220,7 @@ void Condition::Broadcast(Lock* lock) {
       return;
     }
   }
-  while (!lock->wait_queue().IsEmpty()) {
+  while (!lock->wait_queue().empty()) {
     Signal(lock);
   }
 }

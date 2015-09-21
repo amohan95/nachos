@@ -12,7 +12,7 @@ const char* Clerk::NameForClerkType(clerk_types::Type type) {
   return NAMES[type];
 }
 
-Clerk::Clerk(PassportOffice * passport_office, int identifier) :
+Clerk::Clerk(PassportOffice* passport_office, int identifier) :
 		lines_lock_("Clerk Lines Lock"),
     bribe_line_lock_cv_("Clerk Bribe Line Condition"), 
     bribe_line_lock_("Clerk Bribe Line Lock"),

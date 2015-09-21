@@ -17,6 +17,8 @@
 #ifndef SYNCH_H
 #define SYNCH_H
 
+#include <deque>
+
 #include "copyright.h"
 #include "thread.h"
 #include "list.h"
@@ -80,7 +82,7 @@ class Lock {
   void AddToWaitQueue(Thread* thread);
   Thread* RemoveFromWaitQueue();
 
-  List& wait_queue() { return wait_queue_; }
+  std::deque<Thread*>& wait_queue() { return wait_queue_; }
 
   struct LockState {
     typedef enum {
@@ -93,7 +95,7 @@ class Lock {
   char* name;       // for debugging
   Thread* lock_owner_;
   LockState::Type lock_state_;
-  List wait_queue_;
+  std::deque<Thread*> wait_queue_;
 };
 
 // RAII lock class - acquires lock on initialization, releases on destructor.

@@ -8,7 +8,7 @@ uint32_t Customer::CURRENT_UNUSED_SSN = 0;
 
 Customer::Customer(PassportOffice* passport_office) :
   money_(INITIAL_MONEY_AMOUNTS[rand() % NUM_INITIAL_MONEY_AMOUNTS]),
-  passport_office_(passport_office_),
+  passport_office_(passport_office),
   bribed_(false),
   certified_(false),
   passport_verified_(false),
@@ -18,7 +18,7 @@ Customer::Customer(PassportOffice* passport_office) :
 
 Customer::Customer(PassportOffice* passport_office, uint32_t money__) :
   money_(money__),
-  passport_office_(passport_office_),
+  passport_office_(passport_office),
   bribed_(false),
   certified_(false),
   passport_verified_(false),
@@ -55,6 +55,9 @@ void Customer::Run() {
       next_clerk = clerk_types::kPassport;
     }
     Clerk* clerk = NULL;
+    printf("LINE LOCK SIZE: %d\n", passport_office_->line_locks_.size());
+    printf("Trying to acquire clerk lock: %s\n", 
+           passport_office_->line_locks_[next_clerk]->getName());
     passport_office_->line_locks_[next_clerk]->Acquire();
     uint32_t shortest = 0;
     for (uint32_t i = 1; i < passport_office_->line_counts_[next_clerk].size(); ++i) {
