@@ -7,7 +7,9 @@
 Manager::Manager(PassportOffice* passport_office) :
   money_(clerk_types::Size, 0),
   passport_office_(passport_office),
-  running_(false) {
+  running_(false),
+	wakeup_condition_("Manager Wakeup Lock Condition"),
+  wakeup_condition_lock_("Manager Wakeup Lock") {
 }
 
 Manager::~Manager() {
