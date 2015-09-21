@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "passport_office.h"
+#include "utilities.h"
 
 #define CLERK_BRIBE_AMOUNT 500
 #define PASSPORT_FEE 100
@@ -51,4 +52,8 @@ class Customer {
   Lock wakeup_condition_lock_;
 };
 
+class Senator : public Customer {
+  Senator(PassportOffice* passport_office) : Customer(passport_office) {}
+  virtual ~Senator() {}
+};
 #endif

@@ -4,25 +4,9 @@
 #include <string>
 
 #include "../threads/synch.h"
-#include "passport_office.h"
+#include "utilities.h"
 
-class Lock;
-class Condition;
 class PassportOffice;
-
-namespace clerk_types {
-enum Type : unsigned int;
-}
-
-namespace clerk_states {
-
-enum State {
-  kAvailable = 0,
-  kBusy,
-  kOnBreak,
-};
-
-}  // namespace clerk_states
 
 class Clerk {
  public:

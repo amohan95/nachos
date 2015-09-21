@@ -31,7 +31,7 @@ PassportOffice::PassportOffice(
     int num_passport_clerks, int num_cashier_clerks)
     : manager_thread_("manager thread"),
       clerks_(clerk_types::Size, std::vector<Clerk*>()),
-      line_counts_(clerk_types::Size, std::vector<int>())
+      line_counts_(clerk_types::Size, std::vector<int>()),
       breaking_clerks_lock_(new Lock("breaking clerks lock")),
       senator_lock_(new Lock("senator lock")) {
   for (int i = 0; i < clerk_types::Size; ++i) {
@@ -62,25 +62,25 @@ PassportOffice::PassportOffice(
 }
 
 void PassportOffice::Start() {
-  manager_thread_.Fork(thread_runners::RunManager, manager_);
+  manager_thread_.Fork(thread_runners::RunManager, (int) manager_);
   
-  for (int i = 0; i < clerks_.size(); ++i) {
-    for (int j = 0; j < clerks_[i].size(); ++j) {
+  for (unsigned i = 0; i < clerks_.size(); ++i) {
+    for (unsigned j = 0; j < clerks_[i].size(); ++j) {
       Thread* thread = new Thread("clerk thread");
       thread_list_.push_back(thread);
-      thread->Fork(thread_runners::RunClerk, clerks_[i][j]);
+      thread->Fork(thread_runners::RunClerk, (int) clerks_[i][j]);
     }
   }
 }
 
 void PassportOffice::AddNewCustomer(Customer* customer) {
   Thread* thread = new Thread("customer thread");
-  thread->Fork(thread_runners::RunCustomer, customer);
+  thread->Fork(thread_runners::RunCustomer, (int) customer);
   thread_list_.push_back(thread);
 }
 
 void PassportOffice::AddNewSenator(Senator* senator) {
   Thread* thread = new Thread("senator thread");
-  thread->Fork(thread_runners::RunSenator, senator);
+  thread->Fork(thread_runners::RunSenator, (int) senator);
   thread_list_.push_back(thread);
 }

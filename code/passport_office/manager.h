@@ -2,6 +2,7 @@
 #define PASSPORT_OFFICE_MANAGER_H
 
 #include "synch.h"
+#include "utilities.h"
 
 #include <stdint.h>
 #include <string>

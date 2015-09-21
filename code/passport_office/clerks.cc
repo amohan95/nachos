@@ -1,6 +1,6 @@
 #include "clerks.h"
 #include "customer.h"
-#include "stdlib.h"
+#include <stdlib.h>
 
 Clerk::Clerk(PassportOffice * passport_office, int identifier) 
 		: lines_lock_cv_("Clerk Lines Condition"), 
@@ -10,11 +10,9 @@ Clerk::Clerk(PassportOffice * passport_office, int identifier)
 		regular_line_lock_cv_("Clerk Regular Line Condition"), 
 		regular_line_lock_("Clerk Regular Line Lock"),
 		wakeup_lock_cv_("Clerk Wakeup Condition"),
-		wakeup_lock_("Clerk Wakeup Lock"))
-		clerk_type_("Clerk"),
+		wakeup_lock_("Clerk Wakeup Lock"),
 		state_(clerk_states::kAvailable),
 		collected_money_(0),
-		customer_ssn_(""),
 		customer_money_(0),
 		customer_input_(false),
 		passport_office_(passport_office),
