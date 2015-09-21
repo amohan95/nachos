@@ -2,7 +2,8 @@
 
 #include <cstdlib>
 
-static const uint32_t INITIAL_MONEY_AMOUNTS[4] = {100, 600, 1100, 1600};
+static const uint32_t INITIAL_MONEY_AMOUNTS_DATA[] = {100, 600, 1100, 1600};
+uint32_t* Customer::INITIAL_MONEY_AMOUNTS = INITIAL_MONEY_AMOUNTS_DATA;
 uint32_t Customer::CURRENT_UNUSED_SSN = 0;
 
 Customer::Customer(PassportOffice* passport_office) :
