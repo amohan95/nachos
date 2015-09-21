@@ -13,6 +13,7 @@ class Clerk {
  	Clerk(PassportOffice* passport_office, int identifier);
  	virtual ~Clerk();
  	int CollectMoney();
+	int GetNumCustomersInLine() const;
  	void Run();
 
  	Lock lines_lock_;
@@ -28,12 +29,12 @@ class Clerk {
  	int customer_money_;
  	bool customer_input_;
  	std::string clerk_type_;
+ 	clerk_types::Type type_;
  protected:
   void GetNextCustomer();
   void CollectBribe();
   virtual void ClerkWork() = 0;
   PassportOffice* passport_office_;
- 	clerk_types::Type type_;
   clerk_states::State state_;
  	int collected_money_;
  	int identifier_;

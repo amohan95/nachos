@@ -36,7 +36,6 @@ class Customer {
   }
 
   bool CanBribe() const;
-  void GivePassportFee(CashierClerk* clerk);
   std::string IdentifierString() const;
   void Run();
  private:
@@ -56,7 +55,8 @@ class Customer {
 };
 
 class Senator : public Customer {
-  Senator(PassportOffice* passport_office) : Customer(passport_office) {}
+ public:
+	Senator(PassportOffice* passport_office) : Customer(passport_office) {}
   virtual ~Senator() {}
 };
 #endif

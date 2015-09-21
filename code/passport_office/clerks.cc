@@ -37,6 +37,11 @@ int Clerk::CollectMoney() {
 	return money;
 }
 
+int Clerk::GetNumCustomersInLine() const {
+	return passport_office_->line_counts_[type_][identifier_] +
+		passport_office_->bribe_line_counts_[type_][identifier_];
+}
+
 void Clerk::GetNextCustomer() {
 	lines_lock_.Acquire();
 	if (passport_office_->bribe_line_counts_[type_][identifier_] > 0) {

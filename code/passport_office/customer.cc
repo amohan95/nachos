@@ -24,13 +24,6 @@ bool Customer::CanBribe() const {
   return money() >= CLERK_BRIBE_AMOUNT + PASSPORT_FEE;
 }
 
-void Customer::GivePassportFee(CashierClerk* clerk) {
-  clerk->CollectApplicationFee(PASSPORT_FEE);
-  money_ -= PASSPORT_FEE;
-  std::cout << IdentifierString() << " has given " << clerk->clerk_type_
-            << "$" << PASSPORT_FEE << '.' << std::endl;
-}
-
 std::string Customer::IdentifierString() const {
   std::stringstream ss;
   ss << "Customer [" << ssn() << ']';
