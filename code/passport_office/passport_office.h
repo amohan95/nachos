@@ -49,6 +49,8 @@ class PassportOffice {
   Lock* breaking_clerks_lock_;
   Lock* senator_lock_;
   Condition* senator_condition_;
+	Lock customer_count_lock_;
+	int customer_count_;
  private:
   Thread manager_thread_;
   std::vector<Thread*> thread_list_;

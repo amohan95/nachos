@@ -59,7 +59,6 @@ void Customer::Run() {
       next_clerk = clerk_types::kPassport;
     }
     Clerk* clerk = NULL;
-    std::cout << next_clerk << ' ' << passport_office_->line_locks_.size() << std::endl;
     passport_office_->line_locks_[next_clerk]->Acquire();
     uint32_t shortest = 0;
     for (uint32_t i = 1; i < passport_office_->line_counts_[next_clerk].size(); ++i) {
@@ -80,20 +79,20 @@ void Customer::Run() {
           < passport_office_->line_counts_[next_clerk][shortest]) {
         clerk = passport_office_->clerks_[next_clerk][bribe_shortest];
         bribed_ = true;
-        clerk->lines_lock_.Acquire();
+//        clerk->lines_lock_.Acquire();
         ++passport_office_->bribe_line_counts_[next_clerk][bribe_shortest];
-        clerk->lines_lock_.Release();
+//        clerk->lines_lock_.Release();
       } else {
         clerk = passport_office_->clerks_[next_clerk][shortest];
-        clerk->lines_lock_.Acquire();
+//        clerk->lines_lock_.Acquire();
         ++passport_office_->line_counts_[next_clerk][shortest];
-        clerk->lines_lock_.Release();
+//        clerk->lines_lock_.Release();
       }
     } else {
       clerk = passport_office_->clerks_[next_clerk][shortest];
-      clerk->lines_lock_.Acquire();
+//      clerk->lines_lock_.Acquire();
       ++passport_office_->line_counts_[next_clerk][shortest];
-      clerk->lines_lock_.Release();
+//      clerk->lines_lock_.Release();
     }
     passport_office_->line_locks_[next_clerk]->Release();
 		PrintLineJoin(clerk, bribed_);
@@ -130,6 +129,9 @@ void Customer::Run() {
     clerk->wakeup_lock_.Release();
   }
   std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
+  passport_office_->customer_count_lock_.Acquire();
+  --passport_office_->customer_count_;
+  passport_office_->customer_count_lock_.Release();
 }
 
 void Customer::GiveBribe(Clerk* clerk) {
