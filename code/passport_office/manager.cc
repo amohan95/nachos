@@ -15,17 +15,18 @@ Manager::Manager(PassportOffice* passport_office) :
 Manager::~Manager() {
 }
 
-void Manager::PrintMoneyReport(int32_t dummy) const {
+void PrintMoneyReport(int manager) {
+	Manager* man = reinterpret_cast<Manager*>(manager);
 	for (uint32_t j = 0; j < clerk_types::Size; ++j) {
-		for (uint32_t i = 0; i < passport_office_->clerks_.size(); ++i) {
-			uint32_t m = passport_office_->clerks_[j][i]->CollectMoney();
-			money_[passport_office_->clerks_[j][i]->type_] += m;
+		for (uint32_t i = 0; i < man->passport_office_->clerks_.size(); ++i) {
+			uint32_t m = man->passport_office_->clerks_[j][i]->CollectMoney();
+			man->money_[man->passport_office_->clerks_[j][i]->type_] += m;
 		}
 	}
   uint32_t total = 0;
   for (uint32_t i = 0; i < clerk_types::Size; ++i) {
-    total += money_[i];
-    std::cout << "Manager has counted a total of $[" << money_[i] << "] for "
+    total += man->money_[i];
+    std::cout << "Manager has counted a total of $[" << man->money_[i] << "] for "
               << Clerk::NameForClerkType(static_cast<clerk_types::Type>(i)) << 's' << std::endl;
   }
   std::cout << "Manager has counted a total of $[" << total
@@ -34,7 +35,7 @@ void Manager::PrintMoneyReport(int32_t dummy) const {
 
 void Manager::Run() {
   running_ = true;
-  Timer report_timer(std::bind(&PrintMoneyReport, this), 0);
+  Timer report_timer(&PrintMoneyReport, reinterpret_cast<int>(this), false);
   while(running_) {
     wakeup_condition_lock_.Acquire();
     wakeup_condition_.Wait(&wakeup_condition_lock_);

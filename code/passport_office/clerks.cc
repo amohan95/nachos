@@ -32,12 +32,30 @@ Clerk::Clerk(PassportOffice * passport_office, int identifier)
 
 Clerk::~Clerk() {}
 
+std::string IdentifierString() const {
+	std::stringstream ss;
+	ss << NameForClerkType(type_) << '[' << identifer_ << ']';
+	return ss.str();
+}
+
 int Clerk::CollectMoney() {
   money_lock_.Acquire();
   int money = collected_money_;
   collected_money_ = 0;
   money_lock_.Release();
   return money;
+}
+
+void Clerk::JoinLine(bool bribe) {
+	if (bribe) {
+		bribe_line_lock_.Acquire();
+		bribe_line_lock_cv_.wait(bribe_line_lock_);
+		bribe_line_lock_.Release();
+	} else {
+		regular_line_lock_.Acquire();
+		regular_line_lock_cv_.Wait(regular_line_lock_);
+		regular_line_lock_.Release();
+	}
 }
 
 int Clerk::GetNumCustomersInLine() const {

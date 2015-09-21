@@ -13,15 +13,17 @@
 
 class PassportOffice;
 
+void PrintMoneyReport(int manager);
+
 class Manager {
+ friend void PrintMoneyReport(int manager);
  public:
   Manager(PassportOffice* passport_office);
   ~Manager();
 
-  void PrintMoneyReport(int32_t dummy) const;
   void Run();
   void WakeUp();
-  
+
   Condition wakeup_condition_;
   Lock wakeup_condition_lock_;
  private:

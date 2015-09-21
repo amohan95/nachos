@@ -9,12 +9,14 @@ class Customer;
 
 class Clerk {
  public:
-  static const char* NameForClerkType(clerk_types::Type type);
-  Clerk(PassportOffice* passport_office, int identifier);
-  virtual ~Clerk();
-  int CollectMoney();
-  int GetNumCustomersInLine() const;
-  void Run();
+	static const char* NameForClerkType(clerk_types::Type type);
+ 	Clerk(PassportOffice* passport_office, int identifier);
+ 	virtual ~Clerk();
+ 	int CollectMoney();
+	int GetNumCustomersInLine() const;
+ 	void Run();
+	void JoinLine(bool bribe);
+	std::string IdentifierString() const;
 
   Lock lines_lock_;
   Condition lines_lock_cv_;
