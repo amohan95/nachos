@@ -2,18 +2,18 @@
 
 #include <cstdlib>
 
-static const uint32_t INITIAL_MONEY_AMOUNTS[] = {100, 600, 1100, 1600};
+static const uint32_t INITIAL_MONEY_AMOUNTS_DATA[] = {100, 600, 1100, 1600};
+const uint32_t* Customer::INITIAL_MONEY_AMOUNTS = INITIAL_MONEY_AMOUNTS_DATA;
 uint32_t Customer::CURRENT_UNUSED_SSN = 0;
 
 Customer::Customer(PassportOffice* passport_office) :
-  passport_office_(passport_office),
-  certified_(false),
   money_(INITIAL_MONEY_AMOUNTS[rand() % NUM_INITIAL_MONEY_AMOUNTS]),
+  passport_office_(passport_office),
+  bribed_(false),
+  certified_(false),
   passport_verified_(false),
   picture_taken_(false),
-  ssn_(CURRENT_UNUSED_SSN++),
-  wakeup_condition_("customer wakeup condition"),
-  wakeup_condition_lock_("customer wakeup lock") {
+  ssn_(CURRENT_UNUSED_SSN++) {
 }
 
 Customer::~Customer() {
@@ -31,6 +31,7 @@ std::string Customer::IdentifierString() const {
 
 void Customer::Run() {
   while (!passport_verified() || !picture_taken() || !completed_application() || !certified()) {
+    bribed_ = false;
     clerk_types::Type next_clerk;
     if (!completed_application() && !picture_taken()) {
       next_clerk = static_cast<clerk_types::Type>(rand() % 2); // either kApplication (0) or kPicture (1)
@@ -52,7 +53,6 @@ void Customer::Run() {
         shortest = i;
       }
     }
-    bool bribed = false;
     if (CanBribe()) {
       uint32_t bribe_shortest = 0;
       for (uint32_t i = 1; i < passport_office_->bribe_line_counts_[next_clerk].size(); ++i) {
@@ -61,36 +61,34 @@ void Customer::Run() {
           bribe_shortest = i;
         }
       }
-      if (passport_office_->bribe_line_counts[next_clerk][bribe_shortest]
+      if (passport_office_->bribe_line_counts_[next_clerk][bribe_shortest]
           < passport_office_->line_counts_[next_clerk][shortest]) {
         clerk = passport_office_->clerks_[next_clerk][bribe_shortest];
-        bribed = true;
+        bribed_ = true;
+        clerk->lines_lock_.Acquire();
         ++passport_office_->bribe_line_counts_[next_clerk][bribe_shortest];
+        clerk->lines_lock_.Release();
       } else {
         clerk = passport_office_->clerks_[next_clerk][shortest];
+        clerk->lines_lock_.Acquire();
         ++passport_office_->line_counts_[next_clerk][shortest];
+        clerk->lines_lock_.Release();
       }
     } else {
       clerk = passport_office_->clerks_[next_clerk][shortest];
+      clerk->lines_lock_.Acquire();
       ++passport_office_->line_counts_[next_clerk][shortest];
+      clerk->lines_lock_.Release();
     }
     passport_office_->line_locks_[next_clerk]->Release();
-		PrintLineJoin(clerk, bribed);
-		if (bribed) {
-      clerk->bribe_line_lock_.Acquire();
-      clerk->bribe_line_lock_cv_.Wait(&clerk->bribe_line_lock_);
-      clerk->bribe_line_lock_.Release();
-    } else {
-      clerk->regular_line_lock_.Acquire();
-      clerk->regular_line_lock_cv_.Wait(&clerk->regular_line_lock_);
-      clerk->regular_line_lock_.Release();
-    }
-		clerk->customer_ssn_ = ssn_;
-		std::cout << IdentifierString() << " has given SSN [" ssn_ "] to "
+		PrintLineJoin(clerk, bribed_);
+		clerk->JoinLine(bribed_);
+		clerk->customer_ssn_ = ssn();
+		std::cout << IdentifierString() << " has given SSN [" << ssn() << "] to "
 							<< clerk->IdentifierString() << '.' << std::endl;
     clerk->wakeup_lock_.Acquire();
-    clerk->wakeup_lock_cv_.Signal(clerk->wakeup_lock_);
-    clerk->wakeup_lock_cv_.Wait(clerk->wakeup_lock_);
+    clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+    clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
     switch (next_clerk) {
       case clerk_types::kApplication:
         break;
@@ -103,10 +101,12 @@ void Customer::Run() {
       case clerk_types::kPassport:
         clerk->customer_input_ = true;
         break;
+      case clerk_types::Size:
+        break;
     }
-    clerk->wakeup_lock_cv_.Signal(clerk->wakeup_lock_);
-    clerk->wakeup_lock_cv_.Wait(clerk_->wakeup_lock_);
-    if (bribed) {
+    clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+    clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
+    if (bribed_) {
       GiveBribe(clerk);
     }
     clerk->wakeup_lock_.Release();
@@ -116,8 +116,8 @@ void Customer::Run() {
 
 void Customer::GiveBribe(Clerk* clerk) {
   clerk->customer_money_ = CLERK_BRIBE_AMOUNT;
-  clerk->wakeup_lock_cv_.Signal(clerk->wakeup_lock_);
-  clerk->wakeup_lock_cv_.Wait(clerk->wakeup_lock_);
+  clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+  clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
 }
 
 void Customer::PrintLineJoin(Clerk* clerk, bool bribed) const {

@@ -36,6 +36,7 @@ class Customer {
   }
 
   bool CanBribe() const;
+	inline bool has_bribed() const { return bribed_; }
   std::string IdentifierString() const;
   void Run();
   Lock wakeup_condition_lock_;
@@ -43,12 +44,14 @@ class Customer {
   uint32_t money_;
  private:
   static const uint32_t NUM_INITIAL_MONEY_AMOUNTS = 4;
+	static const uint32_t* INITIAL_MONEY_AMOUNTS;
   static uint32_t CURRENT_UNUSED_SSN;
 
   void GiveBribe(Clerk* clerk);
   void PrintLineJoin(Clerk* clerk, bool bribed) const;
 
   PassportOffice* passport_office_;
+	bool bribed_;
   bool certified_;
   bool completed_application_;
   bool passport_verified_;

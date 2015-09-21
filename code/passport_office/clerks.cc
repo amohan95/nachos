@@ -12,9 +12,8 @@ const char* Clerk::NameForClerkType(clerk_types::Type type) {
   return NAMES[type];
 }
 
-Clerk::Clerk(PassportOffice * passport_office, int identifier) 
-    : lines_lock_cv_("Clerk Lines Condition"), 
-    lines_lock_("Clerk Lines Lock"),
+Clerk::Clerk(PassportOffice * passport_office, int identifier) :
+		lines_lock_("Clerk Lines Lock"),
     bribe_line_lock_cv_("Clerk Bribe Line Condition"), 
     bribe_line_lock_("Clerk Bribe Line Lock"),
     regular_line_lock_cv_("Clerk Regular Line Condition"), 
@@ -22,15 +21,21 @@ Clerk::Clerk(PassportOffice * passport_office, int identifier)
     wakeup_lock_cv_("Clerk Wakeup Condition"),
     wakeup_lock_("Clerk Wakeup Lock"),
     money_lock_("Clerk Money Lock"),
-    state_(clerk_states::kAvailable),
-    collected_money_(0),
     customer_money_(0),
     customer_input_(false),
     passport_office_(passport_office),
+    state_(clerk_states::kAvailable),
+    collected_money_(0),
     identifier_(identifier) {
 }
 
 Clerk::~Clerk() {}
+
+std::string Clerk::IdentifierString() const {
+	std::stringstream ss;
+	ss << NameForClerkType(type_) << '[' << identifier_ << ']';
+	return ss.str();
+}
 
 int Clerk::CollectMoney() {
   money_lock_.Acquire();
@@ -40,6 +45,18 @@ int Clerk::CollectMoney() {
   return money;
 }
 
+void Clerk::JoinLine(bool bribe) {
+	if (bribe) {
+		bribe_line_lock_.Acquire();
+		bribe_line_lock_cv_.Wait(&bribe_line_lock_);
+		bribe_line_lock_.Release();
+	} else {
+		regular_line_lock_.Acquire();
+		regular_line_lock_cv_.Wait(&regular_line_lock_);
+		regular_line_lock_.Release();
+	}
+}
+
 int Clerk::GetNumCustomersInLine() const {
   return passport_office_->line_counts_[type_][identifier_] +
     passport_office_->bribe_line_counts_[type_][identifier_];
@@ -47,7 +64,7 @@ int Clerk::GetNumCustomersInLine() const {
 
 void Clerk::GetNextCustomer() {
   lines_lock_.Acquire();
-  if (passport_office_->bribe_line_counts_[type_][identifier_] > 0) {
+	if (passport_office_->bribe_line_counts_[type_][identifier_] > 0) {
     bribe_line_lock_cv_.Signal(&bribe_line_lock_);
     state_ = clerk_states::kBusy;
     std::cout << clerk_type_ << " [" << identifier_ 
@@ -62,7 +79,7 @@ void Clerk::GetNextCustomer() {
   } else {
     state_ = clerk_states::kOnBreak;
   }
-  lines_lock_.Release();
+	lines_lock_.Release();
 }
 
 void Clerk::Run() {
@@ -87,9 +104,9 @@ void Clerk::Run() {
         wakeup_lock_cv_.Wait(&wakeup_lock_);
         int bribe = customer_money_;
         customer_money_ = 0;
-        money_lock_.Acquire()
+        money_lock_.Acquire();
         collected_money_ += bribe;
-        money_lock_.Release()
+        money_lock_.Release();
         std::cout << clerk_type_ << " [" << identifier_ << "] has received $" 
             << bribe << " from Customer " << customer_ssn_ << std::endl;
       }
@@ -129,7 +146,7 @@ void ApplicationClerk::ClerkWork() {
   // Wait for customer to put passport on counter.
   wakeup_lock_cv_.Signal(&wakeup_lock_);
   wakeup_lock_cv_.Wait(&wakeup_lock_);
-  current_customer_->verify_passport();
+  current_customer_->set_passport_verified();
   std::cout << clerk_type_ << " [" << identifier_ 
       << "] has recorded a completed application for Customer " 
       << customer_ssn_ << std::endl;
@@ -218,9 +235,9 @@ void CashierClerk::ClerkWork() {
         << std::endl;
 
     // Give money back.
-    money_lock_.Acquire()
+    money_lock_.Acquire();
     collected_money_ -= 100;
-    money_lock_.Release()
+    money_lock_.Release();
     current_customer_->money_ += 100;
   } else {
     std::cout << clerk_type_ << " [" << identifier_ 
