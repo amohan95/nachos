@@ -1,6 +1,7 @@
 #include "passport_office.h"
 
 #include <string>
+#include <cstdlib>
 
 namespace thread_runners {
   
@@ -35,7 +36,8 @@ PassportOffice::PassportOffice(
       breaking_clerks_lock_(new Lock("breaking clerks lock")),
       senator_lock_(new Lock("senator lock")) {
   for (int i = 0; i < clerk_types::Size; ++i) {
-    line_locks_.push_back(new Lock(std::to_string(i).c_str()));
+    char c[1] = {i + '0'};
+    line_locks_.push_back(new Lock(c));
   }
   
   for (int i = 0; i < num_application_clerks; ++i) {

@@ -2,14 +2,17 @@
 #define PASSPORT_OFFICE_CUSTOMER_H
 
 #include <stdint.h>
-#include <string>
 #include <vector>
 
-#include "passport_office.h"
+#include "../threads/synch.h"
 #include "utilities.h"
 
 #define CLERK_BRIBE_AMOUNT 500
 #define PASSPORT_FEE 100
+
+class PassportOffice;
+class Clerk;
+class CashierClerk;
 
 class Customer {
  public:
@@ -37,7 +40,6 @@ class Customer {
   std::string IdentifierString() const;
   void Run();
  private:
-  static const uint32_t* INITIAL_MONEY_AMOUNTS;
   static const uint32_t NUM_INITIAL_MONEY_AMOUNTS = 4;
   static uint32_t CURRENT_UNUSED_SSN;
 

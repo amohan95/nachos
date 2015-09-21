@@ -1,9 +1,10 @@
 #include "customer.h"
 
 #include <cstdlib>
+#include <iostream>
+#include <sstream>
 
-static const uint32_t INITIAL_MONEY_AMOUNTS_DATA = {100, 600, 1100, 1600};
-uint32_t* Customer::INITIAL_MONEY_AMOUNTS = INITIAL_MONEY_AMOUNTS_DATA;
+static const uint32_t INITIAL_MONEY_AMOUNTS[4] = {100, 600, 1100, 1600};
 uint32_t Customer::CURRENT_UNUSED_SSN = 0;
 
 Customer::Customer(PassportOffice* passport_office) :
@@ -12,7 +13,9 @@ Customer::Customer(PassportOffice* passport_office) :
   money_(INITIAL_MONEY_AMOUNTS[rand() % NUM_INITIAL_MONEY_AMOUNTS]),
   passport_verified_(false),
   picture_taken_(false),
-  ssn_(CURRENT_UNUSED_SSN++) {
+  ssn_(CURRENT_UNUSED_SSN++),
+  wakeup_condition_("customer wakeup condition"),
+  wakeup_condition_lock_("customer wakeup lock") {
 }
 
 Customer::~Customer() {
@@ -22,14 +25,14 @@ bool Customer::CanBribe() const {
   return money() >= CLERK_BRIBE_AMOUNT + PASSPORT_FEE;
 }
 
-void GivePassportFee(CashierClerk* clerk) {
+void Customer::GivePassportFee(CashierClerk* clerk) {
   clerk->CollectApplicationFee(PASSPORT_FEE);
-  money -= PASSPORT_FEE;
+  money_ -= PASSPORT_FEE;
   std::cout << IdentifierString() << " has given " << clerk->IdentifierString()
             << "$" << PASSPORT_FEE << '.' << std::endl;
 }
 
-std::string IdentifierString() const {
+std::string Customer::IdentifierString() const {
   std::stringstream ss;
   ss << "Customer [" << ssn() << ']';
   return ss.str();
@@ -39,7 +42,7 @@ void Customer::Run() {
   while (!passport_verified() || !picture_taken() || !completed_application_() || !certified()) {
     clerk_types::Type next_clerk;
     if (!completed_application() && !picture_taken()) {
-      next_clerk = rand() % 2; // either kApplication (0) or kPicture (1)
+      next_clerk = static_cast<clerk_types::Type>(rand() % 2); // either kApplication (0) or kPicture (1)
     } else if (!completed_application()) {
       next_clerk = clerk_types::kApplication;
     } else if (!picture_taken()) {

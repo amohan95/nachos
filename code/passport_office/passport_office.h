@@ -2,6 +2,7 @@
 #define PASSPORT_OFFICE_PASSPORT_OFFICE_H_
 
 #include <vector>
+#include <string>
 
 #include "../threads/synch.h"
 #include "clerks.h"

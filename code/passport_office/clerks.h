@@ -1,8 +1,6 @@
 #ifndef PASSPORT_OFFICE_CLERKS_H
 #define PASSPORT_OFFICE_CLERKS_H
 
-#include <string>
-
 #include "../threads/synch.h"
 #include "utilities.h"
 
