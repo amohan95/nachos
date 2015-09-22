@@ -286,19 +286,16 @@ void t5_t2() {
 
 void PTest1() {
   printf("Starting Test 1 - Customers always take the shortest line, but no 2 customers ever choose the same shortest line at the same time\n");
-  PassportOffice po(0, 1, 0, 0);
+  PassportOffice po(1, 1, 0, 0);
   po.Start();
   Customer c1(&po);
   Customer c2(&po);
   po.AddNewCustomer(&c1);
-  c1.join_line_lock_.Acquire();
-  c1.join_line_lock_cv_.Wait(&c1.join_line_lock_);
-  c1.join_line_lock_.Release();
-  //po.AddNewCustomer(&c2);
-  //c2.join_line_lock_.Acquire();
-  //c2.join_line_lock_cv_.Wait(&c2.join_line_lock_);
-  //c2.join_line_lock_.Release();
+  po.AddNewCustomer(&c2);
   po.Stop();
+  for (int i = 0; i < 1000; ++i) {
+    currentThread->Yield();
+  }
   printf("Finished Test 1\n");
 }
 
@@ -418,6 +415,9 @@ void TestSuite() {
     t = new Thread("t5_t2");
     t->Fork((VoidFunctionPtr)t5_t2,0);
 
+    for (i = 0; i < 500; ++i) {
+      currentThread->Yield();
+    }
     printf("##################################\n");
     PTest1();
     PTest2();

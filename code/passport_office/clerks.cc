@@ -26,7 +26,8 @@ Clerk::Clerk(PassportOffice* passport_office, int identifier) :
     state_(clerk_states::kAvailable),
     passport_office_(passport_office),
     collected_money_(0),
-    identifier_(identifier) {
+    identifier_(identifier),
+    running_(false) {
 }
 
 Clerk::~Clerk() {}
@@ -89,13 +90,14 @@ void Clerk::GetNextCustomer() {
 }
 
 void Clerk::Run() {
-  while (true) {
+  running_ = true;
+  while (running_) {
     GetNextCustomer();
 		wakeup_lock_.Acquire();
 		if (state_ == clerk_states::kBusy) {
 			// Wait for customer to come to counter and give SSN.
 			wakeup_lock_cv_.Wait(&wakeup_lock_);
-
+      std::cout << &wakeup_lock_cv_ << std::endl;
 			// Take Customer's SSN and verify passport.
 			std::cout << IdentifierString() << " has received SSN "
 								<< customer_ssn_ << " from Customer " << customer_ssn_
@@ -132,6 +134,9 @@ void Clerk::Run() {
 			passport_office_->breaking_clerks_lock_->Release();
 			wakeup_lock_cv_.Wait(&wakeup_lock_);
 			state_ = clerk_states::kAvailable;
+      if (!running_) {
+        break;
+      }
 			std::cout << IdentifierString() << " is coming off break" << std::endl;
 		}
 		wakeup_lock_.Release();

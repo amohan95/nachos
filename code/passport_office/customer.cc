@@ -47,7 +47,7 @@ std::string Customer::IdentifierString() const {
 
 void Customer::Run() {
   running_ = true;
-  while (running_ && !passport_verified() || !picture_taken() || !completed_application() || !certified()) {
+  while (running_ && (!passport_verified() || !picture_taken() || !completed_application() || !certified())) {
     bribed_ = false;
     clerk_types::Type next_clerk;
     if (!completed_application() && !picture_taken()) {
@@ -62,8 +62,6 @@ void Customer::Run() {
       next_clerk = clerk_types::kPassport;
     }
     Clerk* clerk = NULL;
-    printf("Trying to acquire clerk lock: %s\n", 
-           passport_office_->line_locks_[next_clerk]->getName());
     passport_office_->line_locks_[next_clerk]->Acquire();
     int32_t shortest = -1;
     for (uint32_t i = 0; i < passport_office_->line_counts_[next_clerk].size(); ++i) {
@@ -110,7 +108,6 @@ void Customer::Run() {
 //      clerk->lines_lock_.Release();
     }
     passport_office_->line_locks_[next_clerk]->Release();
-    std::cerr << "Joining line for clerk " << clerk << std::endl;
 		PrintLineJoin(clerk, bribed_);
     join_line_lock_.Acquire();
     join_line_lock_cv_.Signal(&join_line_lock_);
@@ -153,12 +150,16 @@ void Customer::Run() {
     if (bribed_) {
       GiveBribe(clerk);
     }
+    clerk->current_customer_ = NULL;
     clerk->wakeup_lock_.Release();
+  }
+  for (int i = 0; i < 1000; ++i) {
+    currentThread->Yield();
   }
   if (passport_verified()) {
     std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
   } else {
-    std::cerr << IdentifierString() << " terminated early." << std::endl;
+    std::cout << IdentifierString() << " terminated early." << std::endl;
   }
   passport_office_->customer_count_lock_.Acquire();
   passport_office_->customers_.erase(this);

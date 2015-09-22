@@ -160,7 +160,7 @@ void Lock::Release() {
   }
 }
 
-Condition::Condition(char* debug_name) : name(debug_name) { }
+Condition::Condition(char* debug_name) : name(debug_name), waiting_lock_(NULL) { }
 
 Condition::~Condition() { }
 
@@ -181,13 +181,15 @@ void Condition::Wait(Lock* lock) {
             currentThread->getName());    
     return;
   }
+
   if (waiting_lock_ == NULL) {
     waiting_lock_ = lock;
   }
   if (lock != waiting_lock_) {
-    DEBUG('E', "Error: Thread %s trying to use condition %s "
-               "with incorrect lock %s\n",
-          currentThread->getName(), getName(), lock->getName());
+    DEBUG('E', "Error: Thread %s trying to wait condition %s "
+               "with incorrect lock %s (waiting lock %s)\n",
+          currentThread->getName(), getName(), lock->getName(),
+          waiting_lock_->getName());
     return;
   }
   AddToWaitQueue(currentThread);
@@ -195,18 +197,17 @@ void Condition::Wait(Lock* lock) {
   currentThread->Sleep();
   lock->Acquire();
 }
-
 void Condition::Signal(Lock* lock) {
   InterruptSetter is;
+  DEBUG('Z', "Condition %s is being signalled by thread %s\n",
+      getName(), currentThread->getName());
   if (waiting_lock_ == NULL) {
     return;
   }
-  printf("Lock %s is being signalled in thread %s.\n",
-         lock->getName(), currentThread->getName());
   if (waiting_lock_ != lock) {
-    DEBUG('E', "Error: Thread %s trying to use condition %s "
-               "with incorrect lock %s\n",
-          currentThread->getName(), getName(), lock ? lock->getName() : "null");
+    DEBUG('E', "Error: Thread %s trying to signal condition %s "
+               "with incorrect lock %s (waiting lock %s)\n",
+          currentThread->getName(), getName(), lock ? lock->getName() : "null", waiting_lock_->getName());
     return;
   }
   if (wait_queue_.empty()) {
@@ -221,19 +222,24 @@ void Condition::Signal(Lock* lock) {
 }
 
 void Condition::Broadcast(Lock* lock) {
-  {
-    InterruptSetter is;
-    if (lock == NULL) {
-      DEBUG('E', "Error: Thread %s trying to wait on null lock\n",
-            currentThread->getName());    
-      return;
-    }
-    if (waiting_lock_ != lock) {
-      DEBUG('E', "Error: Thread %s trying to use condition %s "
-                 "with incorrect lock %s\n",
-            currentThread->getName(), getName(), lock->getName());
-      return;
-    }
+  DEBUG('Z', "Condition %s is being signalled by thread %s\n",
+      getName(), currentThread->getName());
+  InterruptSetter is;
+  if (waiting_lock_ == NULL) {
+    return;
+  }
+  if (lock == NULL) {
+    DEBUG('E', "Error: Thread %s trying to wait on null lock\n",
+          currentThread->getName());    
+    return;
+  }
+  if (waiting_lock_ != lock) {
+    DEBUG('E', "Error: Thread %s trying to broadcast "
+               "condition %s "
+               "with incorrect lock %s (waiting lock %s)\n",
+          currentThread->getName(), getName(), lock->getName(),
+          (waiting_lock_ == NULL) ? "null" : waiting_lock_->getName());
+    return;
   }
   while (!wait_queue_.empty()) {
     Signal(lock);

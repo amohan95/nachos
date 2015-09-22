@@ -18,6 +18,7 @@ class Clerk {
 	void JoinLine(bool bribe);
 	std::string IdentifierString() const;
 
+  inline void set_running(bool running__) { running_ = running__; }
   Lock lines_lock_;
   Condition bribe_line_lock_cv_;
   Lock bribe_line_lock_;
@@ -39,6 +40,7 @@ class Clerk {
   PassportOffice* passport_office_;
   int collected_money_;
   int identifier_;
+  bool running_;
 };
 
 class ApplicationClerk : public Clerk {

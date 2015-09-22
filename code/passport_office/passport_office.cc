@@ -112,6 +112,10 @@ void PassportOffice::Stop() {
       clerks_[i][j]->bribe_line_lock_.Acquire();
       clerks_[i][j]->bribe_line_lock_cv_.Broadcast(&clerks_[i][j]->bribe_line_lock_);
       clerks_[i][j]->bribe_line_lock_.Release();
+      clerks_[i][j]->set_running(false);
+      clerks_[i][j]->wakeup_lock_.Acquire();
+      clerks_[i][j]->wakeup_lock_cv_.Signal(&clerks_[i][j]->wakeup_lock_);
+      clerks_[i][j]->wakeup_lock_.Release();
     }
     line_locks_[i]->Release();
   }
