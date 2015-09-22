@@ -19,30 +19,38 @@ Manager::~Manager() {
 
 void PrintMoneyReport(int manager) {
 	Manager* man = reinterpret_cast<Manager*>(manager);
-	man->elapsed_ += TimerTicks;
-	if (!man->running_ || man->elapsed_ < 200 * TimerTicks) {
-		return;
-	}
-	for (uint32_t j = 0; j < clerk_types::Size; ++j) {
-		for (uint32_t i = 0; i < man->passport_office_->clerks_[j].size(); ++i) {
-			uint32_t m = man->passport_office_->clerks_[j][i]->CollectMoney();
-			man->money_[man->passport_office_->clerks_[j][i]->type_] += m;
-		}
-	}
-  uint32_t total = 0;
-  for (uint32_t i = 0; i < clerk_types::Size; ++i) {
-    total += man->money_[i];
-    std::cout << "Manager has counted a total of $" << man->money_[i] << " for "
-              << Clerk::NameForClerkType(static_cast<clerk_types::Type>(i)) << 's' << std::endl;
+  while (man->running_) {
+  	man->elapsed_ += 1;
+  	if (!man->running_) {
+  		return;
+  	}
+    if ((man->elapsed_ % 200)) {
+      for(int i = 0; i < 1000; ++i) {
+        currentThread->Yield();
+      }
+      continue;
+    }
+  	for (uint32_t j = 0; j < clerk_types::Size; ++j) {
+  		for (uint32_t i = 0; i < man->passport_office_->clerks_[j].size(); ++i) {
+  			uint32_t m = man->passport_office_->clerks_[j][i]->CollectMoney();
+  			man->money_[man->passport_office_->clerks_[j][i]->type_] += m;
+  		}
+  	}
+    uint32_t total = 0;
+    for (uint32_t i = 0; i < clerk_types::Size; ++i) {
+      total += man->money_[i];
+      std::cout << "Manager has counted a total of $" << man->money_[i] << " for "
+                << Clerk::NameForClerkType(static_cast<clerk_types::Type>(i)) << 's' << std::endl;
+    }
+    std::cout << "Manager has counted a total of $[" << total
+              <<  "] for the passport office" << std::endl;
   }
-  std::cout << "Manager has counted a total of $[" << total
-            <<  "] for the passport office" << std::endl;
-	man->elapsed_ = 0;
 }
 
 void Manager::Run() {
   running_ = true;
-  Timer report_timer(&PrintMoneyReport, reinterpret_cast<int>(this), false);
+  Thread* report_timer_thread = new Thread("Report timer thread");
+  report_timer_thread->Fork(&PrintMoneyReport, reinterpret_cast<int>(this));
   while(running_) {
     wakeup_condition_lock_.Acquire();
     wakeup_condition_.Wait(&wakeup_condition_lock_);
@@ -55,7 +63,7 @@ void Manager::Run() {
     for (uint32_t i = 0; i < n; ++i) {
       Clerk* clerk = passport_office_->breaking_clerks_[i];
       passport_office_->line_locks_[clerk->type_]->Acquire();
-      if (clerk->GetNumCustomersInLine() > CLERK_WAKEUP_THRESHOLD) {
+      if (clerk->GetNumCustomersInLine() >= CLERK_WAKEUP_THRESHOLD) {
 				clerk->wakeup_lock_.Acquire();
 				clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
 				clerk->wakeup_lock_.Release();
@@ -69,4 +77,5 @@ void Manager::Run() {
     }
     passport_office_->breaking_clerks_lock_->Release();
   }
+  report_timer_thread->Finish();
 }

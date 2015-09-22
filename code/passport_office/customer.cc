@@ -15,6 +15,7 @@ Customer::Customer(PassportOffice* passport_office) :
   certified_(false),
   passport_verified_(false),
   picture_taken_(false),
+  completed_application_(false),
   running_(false),
   ssn_(CURRENT_UNUSED_SSN++) {
 }
@@ -27,6 +28,7 @@ Customer::Customer(PassportOffice* passport_office, uint32_t money__) :
   bribed_(false),
   certified_(false),
   passport_verified_(false),
+  completed_application_(false),
   picture_taken_(false),
   running_(false),
   ssn_(CURRENT_UNUSED_SSN++){
@@ -57,9 +59,9 @@ void Customer::Run() {
     } else if (!picture_taken()) {
       next_clerk = clerk_types::kPicture;
     } else if (!certified()) {
-      next_clerk = clerk_types::kCashier;
-    } else {
       next_clerk = clerk_types::kPassport;
+    } else {
+      next_clerk = clerk_types::kCashier;
     }
     Clerk* clerk = NULL;
     passport_office_->line_locks_[next_clerk]->Acquire();
@@ -81,6 +83,7 @@ void Customer::Run() {
         }
       }
       if (shortest == -1) {
+        std::cout << "no clerks exist for: " << next_clerk << std::endl;
         set_running(false);
         continue;
       }
@@ -99,6 +102,7 @@ void Customer::Run() {
       }
     } else {
       if (shortest == -1) {
+        std::cout << "no clerks exist for: " << next_clerk << std::endl;
         set_running(false);
         continue;
       }
@@ -107,6 +111,7 @@ void Customer::Run() {
       ++passport_office_->line_counts_[next_clerk][shortest];
 //      clerk->lines_lock_.Release();
     }
+    passport_office_->manager_->wakeup_condition_.Signal(&passport_office_->manager_->wakeup_condition_lock_);
     passport_office_->line_locks_[next_clerk]->Release();
 		PrintLineJoin(clerk, bribed_);
     join_line_lock_.Acquire();
@@ -114,6 +119,7 @@ void Customer::Run() {
     join_line_lock_.Release();
 		clerk->JoinLine(bribed_);
     if (!running_) {
+      std::cout << "not running" << std::endl;
       break;
     }
 		clerk->customer_ssn_ = ssn();
@@ -127,7 +133,7 @@ void Customer::Run() {
       case clerk_types::kApplication:
         break;
       case clerk_types::kPicture:
-        clerk->customer_input_ = (rand() % 10) > 6;
+        clerk->customer_input_ = (rand() % 10) > 0;
         clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
         clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
         break;
@@ -150,7 +156,6 @@ void Customer::Run() {
     if (bribed_) {
       GiveBribe(clerk);
     }
-    clerk->current_customer_ = NULL;
     clerk->wakeup_lock_.Release();
   }
   for (int i = 0; i < 1000; ++i) {
@@ -168,6 +173,7 @@ void Customer::Run() {
 
 void Customer::GiveBribe(Clerk* clerk) {
   clerk->customer_money_ = CLERK_BRIBE_AMOUNT;
+  money_ -= CLERK_BRIBE_AMOUNT;
   clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
   clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
 }

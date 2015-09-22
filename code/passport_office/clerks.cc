@@ -154,7 +154,7 @@ void ApplicationClerk::ClerkWork() {
   // Wait for customer to put passport on counter.
   wakeup_lock_cv_.Signal(&wakeup_lock_);
   wakeup_lock_cv_.Wait(&wakeup_lock_);
-  current_customer_->set_passport_verified();
+  current_customer_->set_completed_application();
   std::cout << clerk_type_ << " [" << identifier_ 
       << "] has recorded a completed application for Customer " 
       << customer_ssn_ << std::endl;
@@ -182,6 +182,9 @@ void PictureClerk::ClerkWork() {
   } else {
     // Set picture taken.
     current_customer_->set_picture_taken();
+        std::cout << clerk_type_ << " [" << identifier_ 
+        << "] has been told that Customer[" << customer_ssn_ 
+        << "] does like their picture" << std::endl;
   }
 }
 
@@ -261,5 +264,7 @@ void CashierClerk::ClerkWork() {
     std::cout << clerk_type_ << " [" << identifier_ 
         << "] has recorded that Customer[" << customer_ssn_ 
         << "] has been given their completed passport." << std::endl;
+
+    current_customer_->set_passport_verified();
   }
 }

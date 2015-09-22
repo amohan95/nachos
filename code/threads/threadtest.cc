@@ -292,10 +292,10 @@ void PTest1() {
   Customer c2(&po);
   po.AddNewCustomer(&c1);
   po.AddNewCustomer(&c2);
-  po.Stop();
   for (int i = 0; i < 1000; ++i) {
     currentThread->Yield();
   }
+  po.Stop();
   printf("Finished Test 1\n");
 }
 
@@ -311,6 +311,9 @@ void PTest2() {
   po.AddNewCustomer(&c2);
   po.AddNewCustomer(&c3);
   po.AddNewCustomer(&c4);
+  for (int i = 0; i < 10000000; ++i) {
+    currentThread->Yield();
+  }
   po.Stop();
   printf("Finished Test 2\n");
 }

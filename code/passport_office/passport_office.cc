@@ -83,6 +83,7 @@ void PassportOffice::Start() {
 }
 
 void PassportOffice::Stop() {
+  printf("STOP\n");
   while (customers_.size() > 0) {
     bool done = true;
     for (unsigned int i = 0; i < clerks_.size(); ++i) {
