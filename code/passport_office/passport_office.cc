@@ -37,6 +37,8 @@ PassportOffice::PassportOffice(
       senator_lock_(new Lock("senator lock")),
       senator_condition_(new Condition("senator condition")),
       customer_count_lock_("customer count lock"),
+      num_customers_waiting_lock_("customer waiting counter"),
+      num_customers_waiting_(0),
       manager_thread_("manager thread") {
   for (int i = 0; i < clerk_types::Size; ++i) {
     char* name = new char[80];
@@ -85,7 +87,38 @@ void PassportOffice::Start() {
   }
 }
 
+void PassportOffice::WaitOnFinish() {
+  while (customers_.size() > 0) {
+    for (int i = 0; i < 400; ++i) {
+      currentThread->Yield();
+    }
+    num_customers_waiting_lock_.Acquire();
+    if (customers_.size() == num_customers_waiting_) {
+      num_customers_waiting_lock_.Release();
+      bool done = true;
+      breaking_clerks_lock_->Acquire();
+      for (unsigned int i = 0; i < clerks_.size(); ++i) {
+        line_locks_[i]->Acquire();
+        for (unsigned int j = 0; j < clerks_[i].size(); ++j) {
+          if (clerks_[i][j]->state_ != clerk_states::kOnBreak ||
+              line_counts_[i][j] >= CLERK_WAKEUP_THRESHOLD) {
+            done = false;
+            break;
+          }
+        }
+        line_locks_[i]->Release();
+        if (done) break;
+      }
+      breaking_clerks_lock_->Release();
+      if (done) return;
+    } else {
+      num_customers_waiting_lock_.Release();
+    }
+  }
+}
+
 void PassportOffice::Stop() {
+  printf("Attempting to stop passport office.\n");
   while (customers_.size() > 0) {
     bool done = true;
     breaking_clerks_lock_->Acquire();
@@ -131,6 +164,7 @@ void PassportOffice::Stop() {
   for (int i = 0; i < 100000; ++i) {
     currentThread->Yield();
   }
+  printf("Stopped passport office.\n");
   /*for (unsigned int i = 0 ; i < thread_list_.size(); ++i) {
     thread_list_[i]->Finish();
   }

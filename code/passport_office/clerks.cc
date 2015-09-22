@@ -183,7 +183,7 @@ void PictureClerk::ClerkWork() {
   } else {
     // Set picture taken.
     current_customer_->set_picture_taken();
-        std::cout << clerk_type_ << " [" << identifier_ 
+    std::cout << clerk_type_ << " [" << identifier_ 
         << "] has been told that Customer[" << customer_ssn_ 
         << "] does like their picture" << std::endl;
   }

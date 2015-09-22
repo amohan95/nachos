@@ -117,7 +117,15 @@ void Customer::Run() {
 //    join_line_lock_.Acquire();
 //    join_line_lock_cv_.Signal(&join_line_lock_);
 //    join_line_lock_.Release();
+    passport_office_->num_customers_waiting_lock_.Acquire();
+    ++passport_office_->num_customers_waiting_;
+    passport_office_->num_customers_waiting_lock_.Release();
+
 		clerk->JoinLine(bribed_);
+    passport_office_->num_customers_waiting_lock_.Acquire();
+    --passport_office_->num_customers_waiting_;
+    passport_office_->num_customers_waiting_lock_.Release();
+
     if (!running_) {
       break;
     }
@@ -160,7 +168,6 @@ void Customer::Run() {
       clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
       clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
     }
-//    std::cout << IdentifierString() << " setting current_customer_ NULL for " << clerk->IdentifierString() << std::endl;
     clerk->current_customer_ = NULL;
     clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
     clerk->wakeup_lock_.Release();

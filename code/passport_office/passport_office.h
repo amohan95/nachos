@@ -32,6 +32,7 @@ class PassportOffice {
   }
 
   void Start();
+  void WaitOnFinish();
 	void Stop();
 
   // Creates and forks a new thread for the new member being added.
@@ -52,6 +53,9 @@ class PassportOffice {
   Condition* senator_condition_;
 	Lock customer_count_lock_;
 	std::set<Customer*> customers_;
+
+  Lock num_customers_waiting_lock_;
+  unsigned int num_customers_waiting_;
  private:
   Thread manager_thread_;
   std::vector<Thread*> thread_list_;

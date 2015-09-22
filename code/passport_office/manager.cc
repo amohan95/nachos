@@ -20,22 +20,12 @@ Manager::~Manager() {
 void PrintMoneyReport(int manager) {
 	Manager* man = reinterpret_cast<Manager*>(manager);
   while (man->running_) {
-  	man->elapsed_ += 1;
-  	if (!man->running_) {
-  		return;
-  	}
-    if ((man->elapsed_ % 200)) {
-      for(int i = 0; i < 1000; ++i) {
-        currentThread->Yield();
+    for (uint32_t j = 0; j < clerk_types::Size; ++j) {
+      for (uint32_t i = 0; i < man->passport_office_->clerks_[j].size(); ++i) {
+        uint32_t m = man->passport_office_->clerks_[j][i]->CollectMoney();
+        man->money_[man->passport_office_->clerks_[j][i]->type_] += m;
       }
-      continue;
     }
-  	for (uint32_t j = 0; j < clerk_types::Size; ++j) {
-  		for (uint32_t i = 0; i < man->passport_office_->clerks_[j].size(); ++i) {
-  			uint32_t m = man->passport_office_->clerks_[j][i]->CollectMoney();
-  			man->money_[man->passport_office_->clerks_[j][i]->type_] += m;
-  		}
-  	}
     uint32_t total = 0;
     for (uint32_t i = 0; i < clerk_types::Size; ++i) {
       total += man->money_[i];
@@ -45,7 +35,13 @@ void PrintMoneyReport(int manager) {
     std::cout << "Manager has counted a total of $" << total
               <<  " for the passport office" << std::endl;
     std::cout << "Passport Office has " << man->passport_office_->customers_.size() << " customers remaining." << std::endl;
+
+    for(int i = 0; i < 200; ++i) {
+      if (!man->running_) return;
+      currentThread->Yield();
+    }
   }
+  currentThread->Finish();
 }
 
 void Manager::Run() {
@@ -79,4 +75,5 @@ void Manager::Run() {
     }
     passport_office_->breaking_clerks_lock_->Release();
   }
+  delete report_timer_thread;
 }
