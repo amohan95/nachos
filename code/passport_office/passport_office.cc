@@ -75,7 +75,10 @@ void PassportOffice::Start() {
   manager_thread_.Fork(thread_runners::RunManager, (int) manager_);
   for (unsigned i = 0; i < clerks_.size(); ++i) {
     for (unsigned j = 0; j < clerks_[i].size(); ++j) {
-      Thread* thread = new Thread(const_cast<char*>(clerks_[i][j]->IdentifierString().c_str()));
+      std::string id = clerks_[i][j]->IdentifierString();
+      char* id_str = new char[id.length()];
+      std::strcpy(id_str, id.c_str());
+      Thread* thread = new Thread(id_str);
       thread_list_.push_back(thread);
       thread->Fork(thread_runners::RunClerk, (int) clerks_[i][j]);
     }
@@ -123,6 +126,9 @@ void PassportOffice::Stop() {
   manager_->wakeup_condition_lock_.Acquire();
   manager_->wakeup_condition_.Signal(&manager_->wakeup_condition_lock_);
   manager_->wakeup_condition_lock_.Release();
+  for (int i = 0; i < 100000; ++i) {
+    currentThread->Yield();
+  }
   /*for (unsigned int i = 0 ; i < thread_list_.size(); ++i) {
     thread_list_[i]->Finish();
   }
@@ -130,7 +136,10 @@ void PassportOffice::Stop() {
 }
 
 void PassportOffice::AddNewCustomer(Customer* customer) {
-  Thread* thread = new Thread(const_cast<char*>(customer->IdentifierString().c_str()));
+  std::string id = customer->IdentifierString();
+  char* id_str = new char[id.length()];
+  std::strcpy(id_str, id.c_str());
+  Thread* thread = new Thread(id_str);
   thread->Fork(thread_runners::RunCustomer, (int) customer);
   thread_list_.push_back(thread);
   customer_count_lock_.Acquire();

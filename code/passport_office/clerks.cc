@@ -107,7 +107,6 @@ void Clerk::Run() {
 
 			// Collect bribe money.
 			if (current_customer_->has_bribed()) {
-				wakeup_lock_cv_.Signal(&wakeup_lock_);
 				wakeup_lock_cv_.Wait(&wakeup_lock_);
 				int bribe = customer_money_;
 				customer_money_ = 0;
@@ -117,15 +116,15 @@ void Clerk::Run() {
 				std::cout << IdentifierString() << " has received $"
 									<< bribe << " from Customer " << customer_ssn_
 									<< std::endl;
+        wakeup_lock_cv_.Signal(&wakeup_lock_);
 			}
-
+      wakeup_lock_cv_.Wait(&wakeup_lock_);
 			// Random delay.
 			int random_time = rand() % 80 + 20;
 			for (int i = 0; i < random_time; ++i) {
 				currentThread->Yield();
 			}
 			// Wakeup customer.
-			wakeup_lock_cv_.Signal(&wakeup_lock_);
 		} else if (state_ == clerk_states::kOnBreak) {
       wakeup_lock_.Acquire();
 			// Wait until woken up.
@@ -159,6 +158,7 @@ void ApplicationClerk::ClerkWork() {
   std::cout << clerk_type_ << " [" << identifier_ 
       << "] has recorded a completed application for Customer " 
       << customer_ssn_ << std::endl;
+  wakeup_lock_cv_.Signal(&wakeup_lock_);
 }
 
 PictureClerk::PictureClerk(PassportOffice* passport_office, int identifier) 
@@ -169,11 +169,11 @@ PictureClerk::PictureClerk(PassportOffice* passport_office, int identifier)
 
 void PictureClerk::ClerkWork() {
   // Take Customer's picture and wait to hear if they like it.
+  std::cout << clerk_type_ << " [" << identifier_ 
+      << "] has taken a picture of Customer " << customer_ssn_ << std::endl;
   wakeup_lock_cv_.Signal(&wakeup_lock_);
   wakeup_lock_cv_.Wait(&wakeup_lock_);
   bool picture_accepted = customer_input_;
-  std::cout << clerk_type_ << " [" << identifier_ 
-      << "] has taken a picture of Customer " << customer_ssn_ << std::endl;
 
   // If they don't like their picture don't set their picture to taken.  They go back in line.
   if (!picture_accepted) {
@@ -187,6 +187,7 @@ void PictureClerk::ClerkWork() {
         << "] has been told that Customer[" << customer_ssn_ 
         << "] does like their picture" << std::endl;
   }
+  wakeup_lock_cv_.Signal(&wakeup_lock_);
 }
 
 PassportClerk::PassportClerk(PassportOffice* passport_office, int identifier) 
@@ -217,6 +218,7 @@ void PassportClerk::ClerkWork() {
         << "] has recorded Customer[" << customer_ssn_ 
         << "] passport documentation" << std::endl;
   }
+  wakeup_lock_cv_.Signal(&wakeup_lock_);
 }
 
 CashierClerk::CashierClerk(PassportOffice* passport_office, int identifier) 
@@ -268,4 +270,6 @@ void CashierClerk::ClerkWork() {
 
     current_customer_->set_passport_verified();
   }
+  wakeup_lock_cv_.Signal(&wakeup_lock_);
+
 }

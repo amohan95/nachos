@@ -44,6 +44,7 @@ void PrintMoneyReport(int manager) {
     }
     std::cout << "Manager has counted a total of $" << total
               <<  " for the passport office" << std::endl;
+    std::cout << "Passport Office has " << man->passport_office_->customers_.size() << " customers remaining." << std::endl;
   }
 }
 
@@ -77,5 +78,4 @@ void Manager::Run() {
     }
     passport_office_->breaking_clerks_lock_->Release();
   }
-  report_timer_thread->Finish();
 }

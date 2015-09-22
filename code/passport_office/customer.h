@@ -49,7 +49,6 @@ class Customer {
 	static const uint32_t* INITIAL_MONEY_AMOUNTS;
   static uint32_t CURRENT_UNUSED_SSN;
 
-  void GiveBribe(Clerk* clerk);
   void PrintLineJoin(Clerk* clerk, bool bribed) const;
 
   PassportOffice* passport_office_;

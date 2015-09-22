@@ -155,9 +155,14 @@ void Customer::Run() {
         break;
     }
     if (bribed_) {
-      GiveBribe(clerk);
+      clerk->customer_money_ = CLERK_BRIBE_AMOUNT;
+      money_ -= CLERK_BRIBE_AMOUNT;
+      clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+      clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
     }
+    std::cout << IdentifierString() << " setting current_customer_ NULL for " << clerk->IdentifierString() << std::endl;
     clerk->current_customer_ = NULL;
+    clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
     clerk->wakeup_lock_.Release();
   }
   if (passport_verified()) {
@@ -168,13 +173,6 @@ void Customer::Run() {
   passport_office_->customer_count_lock_.Acquire();
   passport_office_->customers_.erase(this);
   passport_office_->customer_count_lock_.Release();
-}
-
-void Customer::GiveBribe(Clerk* clerk) {
-  clerk->customer_money_ = CLERK_BRIBE_AMOUNT;
-  money_ -= CLERK_BRIBE_AMOUNT;
-  clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
-  clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
 }
 
 void Customer::PrintLineJoin(Clerk* clerk, bool bribed) const {
