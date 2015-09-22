@@ -181,7 +181,8 @@ void Condition::Wait(Lock* lock) {
             currentThread->getName());    
     return;
   }
-
+  DEBUG('Z', "Condition %s is being waited on by thread %s\n",
+      getName(), currentThread->getName());
   if (waiting_lock_ == NULL) {
     waiting_lock_ = lock;
   }

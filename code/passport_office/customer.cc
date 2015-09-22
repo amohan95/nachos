@@ -13,9 +13,9 @@ Customer::Customer(PassportOffice* passport_office) :
   passport_office_(passport_office),
   bribed_(false),
   certified_(false),
+  completed_application_(false),
   passport_verified_(false),
   picture_taken_(false),
-  completed_application_(false),
   running_(false),
   ssn_(CURRENT_UNUSED_SSN++) {
 }
@@ -27,8 +27,8 @@ Customer::Customer(PassportOffice* passport_office, uint32_t money__) :
   passport_office_(passport_office),
   bribed_(false),
   certified_(false),
-  passport_verified_(false),
   completed_application_(false),
+  passport_verified_(false),
   picture_taken_(false),
   running_(false),
   ssn_(CURRENT_UNUSED_SSN++){
@@ -114,12 +114,11 @@ void Customer::Run() {
     passport_office_->manager_->wakeup_condition_.Signal(&passport_office_->manager_->wakeup_condition_lock_);
     passport_office_->line_locks_[next_clerk]->Release();
 		PrintLineJoin(clerk, bribed_);
-    join_line_lock_.Acquire();
-    join_line_lock_cv_.Signal(&join_line_lock_);
-    join_line_lock_.Release();
+//    join_line_lock_.Acquire();
+//    join_line_lock_cv_.Signal(&join_line_lock_);
+//    join_line_lock_.Release();
 		clerk->JoinLine(bribed_);
     if (!running_) {
-      std::cout << "not running" << std::endl;
       break;
     }
 		clerk->customer_ssn_ = ssn();
@@ -131,6 +130,8 @@ void Customer::Run() {
     clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
     switch (next_clerk) {
       case clerk_types::kApplication:
+        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+        clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
         break;
       case clerk_types::kPicture:
         clerk->customer_input_ = (rand() % 10) > 0;
@@ -158,9 +159,6 @@ void Customer::Run() {
     }
     clerk->current_customer_ = NULL;
     clerk->wakeup_lock_.Release();
-  }
-  for (int i = 0; i < 1000; ++i) {
-    currentThread->Yield();
   }
   if (passport_verified()) {
     std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;

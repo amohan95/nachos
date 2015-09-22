@@ -42,8 +42,8 @@ void PrintMoneyReport(int manager) {
       std::cout << "Manager has counted a total of $" << man->money_[i] << " for "
                 << Clerk::NameForClerkType(static_cast<clerk_types::Type>(i)) << 's' << std::endl;
     }
-    std::cout << "Manager has counted a total of $[" << total
-              <<  "] for the passport office" << std::endl;
+    std::cout << "Manager has counted a total of $" << total
+              <<  " for the passport office" << std::endl;
   }
 }
 

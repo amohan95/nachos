@@ -34,7 +34,7 @@ Clerk::~Clerk() {}
 
 std::string Clerk::IdentifierString() const {
 	std::stringstream ss;
-	ss << NameForClerkType(type_) << '[' << identifier_ << ']';
+	ss << NameForClerkType(type_) << " [" << identifier_ << ']';
 	return ss.str();
 }
 
@@ -70,6 +70,7 @@ void Clerk::GetNextCustomer() {
     std::cout << clerk_type_ << " [" << identifier_
       << "] has signalled a Customer to come to their counter." << std::endl;
 		bribe_line_lock_.Acquire();
+    wakeup_lock_.Acquire();
     bribe_line_lock_cv_.Signal(&bribe_line_lock_);
 		bribe_line_lock_.Release();
     state_ = clerk_states::kBusy;
@@ -77,7 +78,8 @@ void Clerk::GetNextCustomer() {
   } else if (passport_office_->line_counts_[type_][identifier_] > 0) {
     std::cerr << clerk_type_ << " [" << identifier_
       << "] has signalled a Customer to come to their counter." << std::endl;
-		regular_line_lock_.Acquire();
+    regular_line_lock_.Acquire();
+		wakeup_lock_.Acquire();
     regular_line_lock_cv_.Signal(&regular_line_lock_);
 		regular_line_lock_.Release();
     state_ = clerk_states::kBusy;
@@ -93,11 +95,9 @@ void Clerk::Run() {
   running_ = true;
   while (running_) {
     GetNextCustomer();
-		wakeup_lock_.Acquire();
 		if (state_ == clerk_states::kBusy) {
 			// Wait for customer to come to counter and give SSN.
 			wakeup_lock_cv_.Wait(&wakeup_lock_);
-      std::cout << &wakeup_lock_cv_ << std::endl;
 			// Take Customer's SSN and verify passport.
 			std::cout << IdentifierString() << " has received SSN "
 								<< customer_ssn_ << " from Customer " << customer_ssn_
@@ -127,6 +127,7 @@ void Clerk::Run() {
 			// Wakeup customer.
 			wakeup_lock_cv_.Signal(&wakeup_lock_);
 		} else if (state_ == clerk_states::kOnBreak) {
+      wakeup_lock_.Acquire();
 			// Wait until woken up.
 			std::cout << IdentifierString() << " is going on break" << std::endl;
 			passport_office_->breaking_clerks_lock_->Acquire();
@@ -151,8 +152,8 @@ ApplicationClerk::ApplicationClerk(
 }
 
 void ApplicationClerk::ClerkWork() {
-  // Wait for customer to put passport on counter.
   wakeup_lock_cv_.Signal(&wakeup_lock_);
+  // Wait for customer to put passport on counter.
   wakeup_lock_cv_.Wait(&wakeup_lock_);
   current_customer_->set_completed_application();
   std::cout << clerk_type_ << " [" << identifier_ 
@@ -195,8 +196,8 @@ PassportClerk::PassportClerk(PassportOffice* passport_office, int identifier)
 }
 
 void PassportClerk::ClerkWork() {
-  // Wait for customer to show whether or not they got their picture taken and passport verified.
   wakeup_lock_cv_.Signal(&wakeup_lock_);
+  // Wait for customer to show whether or not they got their picture taken and passport verified.
   wakeup_lock_cv_.Wait(&wakeup_lock_);
   bool picture_taken_and_passport_verified = customer_input_;
 

@@ -75,7 +75,7 @@ void PassportOffice::Start() {
   manager_thread_.Fork(thread_runners::RunManager, (int) manager_);
   for (unsigned i = 0; i < clerks_.size(); ++i) {
     for (unsigned j = 0; j < clerks_[i].size(); ++j) {
-      Thread* thread = new Thread("clerk thread");
+      Thread* thread = new Thread(const_cast<char*>(clerks_[i][j]->IdentifierString().c_str()));
       thread_list_.push_back(thread);
       thread->Fork(thread_runners::RunClerk, (int) clerks_[i][j]);
     }
@@ -83,7 +83,6 @@ void PassportOffice::Start() {
 }
 
 void PassportOffice::Stop() {
-  printf("STOP\n");
   while (customers_.size() > 0) {
     bool done = true;
     for (unsigned int i = 0; i < clerks_.size(); ++i) {
