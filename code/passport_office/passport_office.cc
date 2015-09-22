@@ -88,6 +88,7 @@ void PassportOffice::Start() {
 void PassportOffice::Stop() {
   while (customers_.size() > 0) {
     bool done = true;
+    breaking_clerks_lock_->Acquire();
     for (unsigned int i = 0; i < clerks_.size(); ++i) {
       for (unsigned int j = 0; j < clerks_[i].size(); ++j) {
         if (clerks_[i][j]->state_ != clerk_states::kOnBreak) {
@@ -95,6 +96,7 @@ void PassportOffice::Stop() {
         }
       }
     }
+    breaking_clerks_lock_->Release();
     if (done) {
       break;
     } else {

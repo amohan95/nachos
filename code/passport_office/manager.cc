@@ -65,6 +65,7 @@ void Manager::Run() {
       Clerk* clerk = passport_office_->breaking_clerks_[i];
       passport_office_->line_locks_[clerk->type_]->Acquire();
       if (clerk->GetNumCustomersInLine() >= CLERK_WAKEUP_THRESHOLD) {
+        clerk->state_ = clerk_states::kAvailable;
 				clerk->wakeup_lock_.Acquire();
 				clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
 				clerk->wakeup_lock_.Release();

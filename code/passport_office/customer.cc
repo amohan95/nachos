@@ -160,7 +160,7 @@ void Customer::Run() {
       clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
       clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
     }
-    std::cout << IdentifierString() << " setting current_customer_ NULL for " << clerk->IdentifierString() << std::endl;
+//    std::cout << IdentifierString() << " setting current_customer_ NULL for " << clerk->IdentifierString() << std::endl;
     clerk->current_customer_ = NULL;
     clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
     clerk->wakeup_lock_.Release();
