@@ -156,6 +156,7 @@ void Customer::Run() {
     if (bribed_) {
       GiveBribe(clerk);
     }
+    clerk->current_customer_ = NULL;
     clerk->wakeup_lock_.Release();
   }
   for (int i = 0; i < 1000; ++i) {

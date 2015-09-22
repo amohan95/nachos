@@ -131,7 +131,7 @@ void PassportOffice::Stop() {
 }
 
 void PassportOffice::AddNewCustomer(Customer* customer) {
-  Thread* thread = new Thread("customer thread");
+  Thread* thread = new Thread(const_cast<char*>(customer->IdentifierString().c_str()));
   thread->Fork(thread_runners::RunCustomer, (int) customer);
   thread_list_.push_back(thread);
   customer_count_lock_.Acquire();
