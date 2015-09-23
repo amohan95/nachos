@@ -97,7 +97,7 @@ void Clerk::GetNextCustomer() {
     state_ = clerk_states::kBusy;
     passport_office_->bribe_line_counts_[type_][identifier_]--;
   } else if (regular_line_count > 0) {
-    std::cerr << clerk_type_ << " [" << identifier_
+    std::cout << clerk_type_ << " [" << identifier_
       << "] has signalled a Customer to come to their counter." << std::endl;
     regular_line_lock_.Acquire();
 		wakeup_lock_.Acquire();

@@ -39,7 +39,6 @@ PassportOffice::PassportOffice(
       customer_count_lock_("customer count lock"),
       customers_served_lock_("num customers being served lock"),
       customers_served_cv_("num customers being served cv"),
-      num_customers_being_served_(0),
       num_customers_waiting_lock_("customer waiting counter"),
       num_customers_waiting_(0),
       num_senators_lock_("num senators lock"),
