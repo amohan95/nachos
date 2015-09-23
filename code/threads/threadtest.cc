@@ -610,8 +610,9 @@ void Problem2() {
       --num_senators;
     } else {
       passport_office->AddNewCustomer(new Customer(passport_office));
-      --num_customers;
     }
   }
+  passport_office->WaitOnFinish();
+  passport_office->Stop();
   currentThread->Finish();
 }

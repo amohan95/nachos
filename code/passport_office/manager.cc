@@ -55,7 +55,6 @@ void Manager::Run() {
 		if (!running_) {
 			break;
 		}
-    uint32_t n = passport_office_->breaking_clerks_.size();
     for (uint32_t i = 0; i < clerk_types::Size; ++i) {
       passport_office_->line_locks_[i]->Acquire();
     }
