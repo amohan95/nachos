@@ -145,7 +145,7 @@ void Lock::Acquire() {
 void Lock::Release() {
   InterruptSetter is;
   if (!IsHeldByCurrentThread()) {
-    DEBUG('E', "Error: Thread %s trying to release lock owned by thread %s\n",
+    DEBUG('Z', "Error: Thread %s trying to release lock owned by thread %s\n",
           currentThread->getName(),
           lock_owner_ ? lock_owner_->getName() : "null");
     return;
@@ -177,7 +177,7 @@ Thread* Condition::RemoveFromWaitQueue() {
 void Condition::Wait(Lock* lock) {
   InterruptSetter is;
   if (lock == NULL) {
-      DEBUG('E', "Error: Thread %s trying to wait on null lock\n",
+      DEBUG('Z', "Error: Thread %s trying to wait on null lock\n",
             currentThread->getName());    
     return;
   }
@@ -187,7 +187,7 @@ void Condition::Wait(Lock* lock) {
     waiting_lock_ = lock;
   }
   if (lock != waiting_lock_) {
-    DEBUG('E', "Error: Thread %s trying to wait condition %s "
+    DEBUG('Z', "Error: Thread %s trying to wait condition %s "
                "with incorrect lock %s (waiting lock %s)\n",
           currentThread->getName(), getName(), lock->getName(),
           waiting_lock_->getName());
@@ -206,7 +206,7 @@ void Condition::Signal(Lock* lock) {
     return;
   }
   if (waiting_lock_ != lock) {
-    DEBUG('E', "Error: Thread %s trying to signal condition %s "
+    DEBUG('Z', "Error: Thread %s trying to signal condition %s "
                "with incorrect lock %s (waiting lock %s)\n",
           currentThread->getName(), getName(), lock ? lock->getName() : "null", waiting_lock_->getName());
     return;
@@ -230,12 +230,12 @@ void Condition::Broadcast(Lock* lock) {
     return;
   }
   if (lock == NULL) {
-    DEBUG('E', "Error: Thread %s trying to wait on null lock\n",
+    DEBUG('Z', "Error: Thread %s trying to wait on null lock\n",
           currentThread->getName());    
     return;
   }
   if (waiting_lock_ != lock) {
-    DEBUG('E', "Error: Thread %s trying to broadcast "
+    DEBUG('Z', "Error: Thread %s trying to broadcast "
                "condition %s "
                "with incorrect lock %s (waiting lock %s)\n",
           currentThread->getName(), getName(), lock->getName(),

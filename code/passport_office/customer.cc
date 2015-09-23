@@ -130,11 +130,12 @@ void Customer::Run() {
     if (!running_) {
       break;
     }
-		clerk->customer_ssn_ = ssn();
-    clerk->current_customer_ = this;
-		std::cout << IdentifierString() << " has given SSN [" << ssn() << "] to "
-							<< clerk->IdentifierString() << '.' << std::endl;
+    
     clerk->wakeup_lock_.Acquire();
+    clerk->customer_ssn_ = ssn();
+    clerk->current_customer_ = this;
+    std::cout << IdentifierString() << " has given SSN [" << ssn() << "] to "
+              << clerk->IdentifierString() << '.' << std::endl;
     clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
     clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
     switch (next_clerk) {

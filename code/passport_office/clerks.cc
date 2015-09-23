@@ -169,7 +169,7 @@ PictureClerk::PictureClerk(PassportOffice* passport_office, int identifier)
 void PictureClerk::ClerkWork() {
   // Take Customer's picture and wait to hear if they like it.
   std::cout << clerk_type_ << " [" << identifier_ 
-      << "] has taken a picture of Customer " << customer_ssn_ << std::endl;
+      << "] has taken a picture of Customer [" << customer_ssn_ << "]" << std::endl;
   wakeup_lock_cv_.Signal(&wakeup_lock_);
   wakeup_lock_cv_.Wait(&wakeup_lock_);
   bool picture_accepted = customer_input_;

@@ -45,7 +45,7 @@ void PrintMoneyReport(int manager) {
 void Manager::Run() {
   running_ = true;
   Thread* report_timer_thread = new Thread("Report timer thread");
-  report_timer_thread->Fork(&PrintMoneyReport, reinterpret_cast<int>(this));
+  // report_timer_thread->Fork(&PrintMoneyReport, reinterpret_cast<int>(this));
   while(running_) {
     wakeup_condition_lock_.Acquire();
     wakeup_condition_.Wait(&wakeup_condition_lock_);
@@ -55,7 +55,8 @@ void Manager::Run() {
     uint32_t n = passport_office_->breaking_clerks_.size();
     for (uint32_t i = 0; i < clerk_types::Size; ++i) {
       passport_office_->line_locks_[i]->Acquire();
-      if (passport_office_->GetNumCustomersForClerkType(static_cast<clerk_types::Type>(i)) > CLERK_WAKEUP_THRESHOLD) {
+      if (passport_office_->GetNumCustomersForClerkType(
+          static_cast<clerk_types::Type>(i)) > CLERK_WAKEUP_THRESHOLD) {
         for (uint32_t j = 0; j < passport_office_->clerks_[i].size(); ++j) {
           Clerk* clerk = passport_office_->clerks_[i][j];
           if (clerk->state_ == clerk_states::kOnBreak) {
