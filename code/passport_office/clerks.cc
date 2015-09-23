@@ -50,11 +50,21 @@ void Clerk::JoinLine(bool bribe) {
 	if (bribe) {
 		bribe_line_lock_.Acquire();
     ++passport_office_->bribe_line_counts_[type_][identifier_];
+    if (passport_office_->GetNumCustomersForClerkType(type_) > 
+        CLERK_WAKEUP_THRESHOLD) {
+      passport_office_->manager_->wakeup_condition_.Signal(
+          &passport_office_->manager_->wakeup_condition_lock_);
+    }
 		bribe_line_lock_cv_.Wait(&bribe_line_lock_);
 		bribe_line_lock_.Release();
 	} else {
 		regular_line_lock_.Acquire();
     ++passport_office_->line_counts_[type_][identifier_];
+    if (passport_office_->GetNumCustomersForClerkType(type_) > 
+        CLERK_WAKEUP_THRESHOLD) {
+      passport_office_->manager_->wakeup_condition_.Signal(
+          &passport_office_->manager_->wakeup_condition_lock_);
+    }
 		regular_line_lock_cv_.Wait(&regular_line_lock_);
 		regular_line_lock_.Release();
 	}
