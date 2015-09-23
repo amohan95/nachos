@@ -25,6 +25,8 @@ void Senator::Run() {
   }
 
   passport_office_->manager_->WakeClerksForSenator();
+  for (int i = 0; i < 100; ++i) { currentThread->Yield(); }
+
   running_ = true;
   while (running_ &&
         (!passport_verified() || !picture_taken() ||
@@ -48,7 +50,7 @@ void Senator::Run() {
     }
     Clerk* clerk = passport_office_->clerks_[next_clerk][0];
     PrintLineJoin(clerk, bribed_);
-    clerk->JoinLine(bribed_);
+
     DoClerkWork(clerk);
     clerk->current_customer_ = NULL;
     clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);

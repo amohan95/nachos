@@ -145,8 +145,10 @@ void Lock::Acquire() {
 void Lock::Release() {
   InterruptSetter is;
   if (!IsHeldByCurrentThread()) {
-    DEBUG('Z', "Error: Thread %s trying to release lock owned by thread %s\n",
+    DEBUG('Z', "Error: Thread %s trying to release Lock %s "
+          "owned by thread %s\n",
           currentThread->getName(),
+          getName(),
           lock_owner_ ? lock_owner_->getName() : "null");
     return;
   }

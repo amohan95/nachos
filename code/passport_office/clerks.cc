@@ -109,6 +109,7 @@ void Clerk::GetNextCustomer() {
     passport_office_->num_senators_lock_.Acquire();
     if (passport_office_->num_senators_ > 0) {
       state_ = clerk_states::kAvailable;
+      wakeup_lock_.Acquire();
     } else {
       state_ = clerk_states::kOnBreak;
     }
