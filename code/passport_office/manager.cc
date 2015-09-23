@@ -20,7 +20,6 @@ Manager::Manager(PassportOffice* passport_office) :
 }
 
 Manager::~Manager() {
-  std::cerr << "Manager is dead now." << std::endl;
 }
 
 void Manager::PrintMoneyReport() {
@@ -43,7 +42,6 @@ void Manager::PrintMoneyReport() {
       if (!running_) return;
       currentThread->Yield();
     }
-    std::cout << running_ << std::endl;
   }
 }
 

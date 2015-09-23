@@ -31,7 +31,6 @@ Clerk::Clerk(PassportOffice* passport_office, int identifier) :
 }
 
 Clerk::~Clerk() {
-  std::cerr << IdentifierString() << " is dead now." << std::endl;
 }
 
 std::string Clerk::IdentifierString() const {
