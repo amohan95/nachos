@@ -52,7 +52,7 @@ void Customer::Run() {
   while (running_ && (!passport_verified() || !picture_taken() || !completed_application() || !certified())) {
     bribed_ = false;
     clerk_types::Type next_clerk;
-    if (!completed_application() && !picture_taken()) {
+    if (!completed_application() && !picture_taken() && passport_office_->clerks_[clerk_types::kApplication].size() > 0 && passport_office_->clerks_[clerk_types::kPicture].size() > 0) {
       next_clerk = static_cast<clerk_types::Type>(rand() % 2); // either kApplication (0) or kPicture (1)
     } else if (!completed_application()) {
       next_clerk = clerk_types::kApplication;
@@ -175,7 +175,7 @@ void Customer::Run() {
   if (passport_verified()) {
     std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
   } else {
-    std::cout << IdentifierString() << " terminated early." << std::endl;
+    std::cout << IdentifierString() << " terminated early because it is impossible to get a passport." << std::endl;
   }
   passport_office_->customer_count_lock_.Acquire();
   passport_office_->customers_.erase(this);
@@ -184,5 +184,5 @@ void Customer::Run() {
 
 void Customer::PrintLineJoin(Clerk* clerk, bool bribed) const {
   std::cout << IdentifierString() << " has gotten in " << (bribed ? "bribe" : "regular")
-            << " line for " << Clerk::NameForClerkType(clerk->type_)  << "." << std::endl;
+            << " line for " << clerk->IdentifierString()  << "." << std::endl;
 }

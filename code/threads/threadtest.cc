@@ -289,7 +289,7 @@ void PTest1() {
          "customers ever choose the same shortest line at the same time.\n");
   PassportOffice po(2, 0, 0, 0);
   po.Start();
-  for (int i = 0; i < 5; ++i) {
+  for (int i = 0; i < 3; ++i) {
     po.AddNewCustomer(new Customer(&po, 100));
   }
   po.WaitOnFinish();
