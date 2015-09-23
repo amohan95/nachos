@@ -1,6 +1,11 @@
 #include "senator.h"
+#include "utilities.h"
+
+Senator::Senator(PassportOffice* passport_office) : 
+    Customer(passport_office, customer_types::kSenator) {}
 
 void Senator::Run() {
+  running_ = true;
   passport_office_->num_senators_lock_.Acquire();
   ++passport_office_->num_senators_;
   passport_office_->num_senators_lock_.Release();
@@ -25,9 +30,8 @@ void Senator::Run() {
   }
 
   passport_office_->manager_->WakeClerksForSenator();
-  for (int i = 0; i < 100; ++i) { currentThread->Yield(); }
+  for (int i = 0; i < 500; ++i) { currentThread->Yield(); }
 
-  running_ = true;
   while (running_ &&
         (!passport_verified() || !picture_taken() ||
          !completed_application() || !certified())) {
@@ -52,6 +56,7 @@ void Senator::Run() {
     PrintLineJoin(clerk, bribed_);
 
     DoClerkWork(clerk);
+    
     clerk->current_customer_ = NULL;
     clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
     clerk->wakeup_lock_.Release();

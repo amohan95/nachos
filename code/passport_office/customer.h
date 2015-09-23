@@ -16,7 +16,7 @@ class CashierClerk;
 
 class Customer {
  public:
-  Customer(PassportOffice* passport_office);
+  Customer(PassportOffice* passport_office, customer_types::Type type);
 	Customer(PassportOffice* passport_office, uint32_t money);
   virtual ~Customer();
 
@@ -44,23 +44,25 @@ class Customer {
   void DoClerkWork(Clerk* clerk);
   
   uint32_t money_;
-	Lock join_line_lock_;
-	Condition join_line_lock_cv_;
+  const uint32_t ssn_;
+
+  Lock join_line_lock_;
+  Condition join_line_lock_cv_;
  protected:
   static const uint32_t NUM_INITIAL_MONEY_AMOUNTS = 4;
-	static const uint32_t* INITIAL_MONEY_AMOUNTS;
+  static const uint32_t* INITIAL_MONEY_AMOUNTS;
   static uint32_t CURRENT_UNUSED_SSN;
+  static uint32_t SENATOR_UNUSED_SSN;
 
   void PrintLineJoin(Clerk* clerk, bool bribed) const;
 
   PassportOffice* passport_office_;
-	bool bribed_;
+  bool bribed_;
   bool certified_;
   bool completed_application_;
   bool passport_verified_;
   bool picture_taken_;
-	bool running_;
-  const uint32_t ssn_;
+  bool running_;
 };
 
 #endif

@@ -23,4 +23,13 @@ enum Type {
 
 }  // namespace clerk_types
 
+namespace customer_types {
+
+enum Type {
+  kCustomer = 0,
+  kSenator,  
+};
+
+}  // namespace customer_types
+
 #endif

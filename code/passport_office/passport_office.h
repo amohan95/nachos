@@ -18,18 +18,18 @@ class PassportOffice {
                  int num_passport_clerks, int num_cashier_clerks);
 
 	virtual ~PassportOffice() {
-    // for (unsigned i = 0; i < line_locks_.size(); ++i) {
-    //   delete line_locks_[i];
-    // }
-    // for (unsigned i = 0; i < thread_list_.size(); ++i) {
-    //   delete thread_list_[i];
-    // }
-    // for (unsigned i = 0; i < clerks_.size(); ++i) {
-    //   for (unsigned j = 0; j < clerks_[i].size(); ++j) {
-    //     delete clerks_[i][j];
-    //   }
-    // }
-    // delete manager_;
+    for (unsigned i = 0; i < line_locks_.size(); ++i) {
+      delete line_locks_[i];
+    }
+    for (unsigned i = 0; i < thread_list_.size(); ++i) {
+      delete thread_list_[i];
+    }
+    for (unsigned i = 0; i < clerks_.size(); ++i) {
+      for (unsigned j = 0; j < clerks_[i].size(); ++j) {
+        delete clerks_[i][j];
+      }
+    }
+    delete manager_;
   }
 
   void Start();

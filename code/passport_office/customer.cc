@@ -5,9 +5,13 @@
 static const uint32_t INITIAL_MONEY_AMOUNTS_DATA[] = {100, 600, 1100, 1600};
 const uint32_t* Customer::INITIAL_MONEY_AMOUNTS = INITIAL_MONEY_AMOUNTS_DATA;
 uint32_t Customer::CURRENT_UNUSED_SSN = 0;
+uint32_t Customer::SENATOR_UNUSED_SSN = 0;
 
-Customer::Customer(PassportOffice* passport_office) :
+Customer::Customer(PassportOffice* passport_office,
+                   customer_types::Type type = customer_types::kCustomer) :
   money_(INITIAL_MONEY_AMOUNTS[rand() % NUM_INITIAL_MONEY_AMOUNTS]),
+  ssn_((type == customer_types::kCustomer ?
+        CURRENT_UNUSED_SSN++ : SENATOR_UNUSED_SSN++)),
   join_line_lock_("jll"),
   join_line_lock_cv_("jllcv"),
   passport_office_(passport_office),
@@ -16,8 +20,7 @@ Customer::Customer(PassportOffice* passport_office) :
   completed_application_(false),
   passport_verified_(false),
   picture_taken_(false),
-  running_(false),
-  ssn_(CURRENT_UNUSED_SSN++) {
+  running_(false) {
 }
 
 Customer::Customer(PassportOffice* passport_office, uint32_t money__) :

@@ -3,25 +3,27 @@
 #include <string>
 #include <cstdlib>
 
+// Thread runners: Takes an int argument and casts to correct pointer,
+// and runs this specific object.
 namespace thread_runners {
 
 void RunManager(int arg) {
-  Manager* manager = (Manager*) arg;
+  Manager* manager = reinterpret_cast<Manager*>(arg);
   manager->Run();
 }
 
 void RunClerk(int arg) {
-  Clerk* clerk = (Clerk*) arg;
+  Clerk* clerk = reinterpret_cast<Clerk*>(arg);
   clerk->Run();
 }
 
 void RunCustomer(int arg) {
-  Customer* customer = (Customer*) arg;
+  Customer* customer = reinterpret_cast<Customer*>(arg);
   customer->Run();
 }
 
 void RunSenator(int arg) {
-  Senator* senator = (Senator*) arg;
+  Senator* senator = reinterpret_cast<Senator*>(arg);
   senator->Run();
 }
 
@@ -80,7 +82,7 @@ PassportOffice::PassportOffice(
 }
 
 void PassportOffice::Start() {
-  manager_thread_.Fork(thread_runners::RunManager, (int) manager_);
+  manager_thread_.Fork(thread_runners::RunManager, reinterpret_cast<int>(manager_));
   for (unsigned i = 0; i < clerks_.size(); ++i) {
     for (unsigned j = 0; j < clerks_[i].size(); ++j) {
       std::string id = clerks_[i][j]->IdentifierString();
@@ -88,7 +90,7 @@ void PassportOffice::Start() {
       std::strcpy(id_str, id.c_str());
       Thread* thread = new Thread(id_str);
       thread_list_.push_back(thread);
-      thread->Fork(thread_runners::RunClerk, (int) clerks_[i][j]);
+      thread->Fork(thread_runners::RunClerk, reinterpret_cast<int>(clerks_[i][j]));
     }
   }
 }
@@ -196,7 +198,7 @@ void PassportOffice::AddNewCustomer(Customer* customer) {
   char* id_str = new char[id.length()];
   std::strcpy(id_str, id.c_str());
   Thread* thread = new Thread(id_str);
-  thread->Fork(thread_runners::RunCustomer, (int) customer);
+  thread->Fork(thread_runners::RunCustomer, reinterpret_cast<int>(customer));
   thread_list_.push_back(thread);
   customer_count_lock_.Acquire();
   customers_.insert(customer);
@@ -205,6 +207,6 @@ void PassportOffice::AddNewCustomer(Customer* customer) {
 
 void PassportOffice::AddNewSenator(Senator* senator) {
   Thread* thread = new Thread("senator thread");
-  thread->Fork(thread_runners::RunSenator, (int) senator);
+  thread->Fork(thread_runners::RunSenator, reinterpret_cast<int>(senator));
   thread_list_.push_back(thread);
 }
