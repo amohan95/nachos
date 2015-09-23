@@ -30,7 +30,9 @@ Clerk::Clerk(PassportOffice* passport_office, int identifier) :
     running_(false) {
 }
 
-Clerk::~Clerk() {}
+Clerk::~Clerk() {
+  std::cerr << IdentifierString() << " is dead now." << std::endl;
+}
 
 std::string Clerk::IdentifierString() const {
 	std::stringstream ss;

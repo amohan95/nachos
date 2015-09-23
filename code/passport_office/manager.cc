@@ -5,6 +5,11 @@
 
 #include <iostream>
 
+void RunPrintMoney(int manager) {
+  Manager* man = reinterpret_cast<Manager*>(manager);
+  man->PrintMoneyReport();
+}
+
 Manager::Manager(PassportOffice* passport_office) :
 	wakeup_condition_("Manager Wakeup Lock Condition"),
   wakeup_condition_lock_("Manager Wakeup Lock"),
@@ -15,37 +20,37 @@ Manager::Manager(PassportOffice* passport_office) :
 }
 
 Manager::~Manager() {
+  std::cerr << "Manager is dead now." << std::endl;
 }
 
-void PrintMoneyReport(int manager) {
-	Manager* man = reinterpret_cast<Manager*>(manager);
-  while (man->running_) {
+void Manager::PrintMoneyReport() {
+  while (running_) {
     for (uint32_t j = 0; j < clerk_types::Size; ++j) {
-      for (uint32_t i = 0; i < man->passport_office_->clerks_[j].size(); ++i) {
-        uint32_t m = man->passport_office_->clerks_[j][i]->CollectMoney();
-        man->money_[man->passport_office_->clerks_[j][i]->type_] += m;
+      for (uint32_t i = 0; i < passport_office_->clerks_[j].size(); ++i) {
+        uint32_t m = passport_office_->clerks_[j][i]->CollectMoney();
+        money_[passport_office_->clerks_[j][i]->type_] += m;
       }
     }
     uint32_t total = 0;
     for (uint32_t i = 0; i < clerk_types::Size; ++i) {
-      total += man->money_[i];
-      std::cout << "Manager has counted a total of $" << man->money_[i] << " for "
+      total += money_[i];
+      std::cout << "Manager has counted a total of $" << money_[i] << " for "
                 << Clerk::NameForClerkType(static_cast<clerk_types::Type>(i)) << 's' << std::endl;
     }
     std::cout << "Manager has counted a total of $" << total
               <<  " for the passport office" << std::endl;
     for(int i = 0; i < 200; ++i) {
-      if (!man->running_) return;
+      if (!running_) return;
       currentThread->Yield();
     }
+    std::cout << running_ << std::endl;
   }
-  currentThread->Finish();
 }
 
 void Manager::Run() {
   running_ = true;
   Thread* report_timer_thread = new Thread("Report timer thread");
-  report_timer_thread->Fork(&PrintMoneyReport, reinterpret_cast<int>(this));
+  report_timer_thread->Fork(&RunPrintMoney, reinterpret_cast<int>(this));
   while(running_) {
     wakeup_condition_lock_.Acquire();
     wakeup_condition_.Wait(&wakeup_condition_lock_);
@@ -78,5 +83,4 @@ void Manager::Run() {
     }
     wakeup_condition_lock_.Release();
   }
-  delete report_timer_thread;
 }

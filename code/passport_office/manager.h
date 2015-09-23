@@ -13,16 +13,17 @@
 
 class PassportOffice;
 
-void PrintMoneyReport(int manager);
+void RunPrintMoney(int manager);
 
 class Manager {
- friend void PrintMoneyReport(int manager);
+ void PrintMoneyReport(int manager);
  public:
   Manager(PassportOffice* passport_office);
   ~Manager();
 
 	inline void set_running(bool running__) { running_ = running__; }
 
+  void PrintMoneyReport();
   void Run();
   void WakeUp();
 

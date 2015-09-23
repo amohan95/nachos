@@ -159,6 +159,7 @@ void PassportOffice::Stop() {
     line_locks_[i]->Release();
   }
   manager_->set_running(false);
+  std::cout << "Set manager running false" << std::endl;
   manager_->wakeup_condition_lock_.Acquire();
   manager_->wakeup_condition_.Signal(&manager_->wakeup_condition_lock_);
   manager_->wakeup_condition_lock_.Release();
