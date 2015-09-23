@@ -127,7 +127,8 @@ void Clerk::Run() {
 			wakeup_lock_cv_.Wait(&wakeup_lock_);
 			// Take Customer's SSN and verify passport.
 			std::cout << IdentifierString() << " has received SSN "
-								<< customer_ssn_ << " from Customer " << customer_ssn_
+								<< customer_ssn_ << " from "
+                << current_customer_->IdentifierString()
 								<< std::endl;
 			// Do work specific to the type of clerk.
 			ClerkWork();
@@ -195,8 +196,8 @@ PictureClerk::PictureClerk(PassportOffice* passport_office, int identifier)
 
 void PictureClerk::ClerkWork() {
   // Take Customer's picture and wait to hear if they like it.
-  std::cout << clerk_type_ << " [" << identifier_ 
-      << "] has taken a picture of Customer [" << customer_ssn_ << "]" << std::endl;
+  std::cout << clerk_type_ << " [" << identifier_ << "] has taken a picture of "
+            << current_customer_->IdentifierString() << std::endl;
   wakeup_lock_cv_.Signal(&wakeup_lock_);
   wakeup_lock_cv_.Wait(&wakeup_lock_);
   bool picture_accepted = customer_input_;
@@ -204,14 +205,14 @@ void PictureClerk::ClerkWork() {
   // If they don't like their picture don't set their picture to taken.  They go back in line.
   if (!picture_accepted) {
     std::cout << clerk_type_ << " [" << identifier_ 
-        << "] has been told that Customer[" << customer_ssn_ 
-        << "] does not like their picture" << std::endl;
+        << "] has been told that " << current_customer_->IdentifierString()
+        << " does not like their picture" << std::endl;
   } else {
     // Set picture taken.
     current_customer_->set_picture_taken();
     std::cout << clerk_type_ << " [" << identifier_ 
-        << "] has been told that Customer[" << customer_ssn_ 
-        << "] does like their picture" << std::endl;
+        << "] has been told that " << current_customer_->IdentifierString() 
+        << " does like their picture" << std::endl;
   }
   wakeup_lock_cv_.Signal(&wakeup_lock_);
 }
@@ -231,18 +232,18 @@ void PassportClerk::ClerkWork() {
   // Check to make sure their picture has been taken and passport verified.
   if (!picture_taken_and_passport_verified) {
     std::cout << clerk_type_ << " [" << identifier_ 
-        << "] has determined that Customer[" << customer_ssn_ 
-        << "] does not have both their application and picture completed" 
+        << "] has determined that " << current_customer_->IdentifierString() 
+        << " does not have both their application and picture completed" 
         << std::endl;
   } else {
     std::cout << clerk_type_ << " [" << identifier_ 
-        << "] has determined that Customer[" << customer_ssn_ 
-        << "] does have both their application and picture completed" 
+        << "] has determined that " << current_customer_->IdentifierString() 
+        << " does have both their application and picture completed" 
         << std::endl;
     current_customer_->set_certified();
     std::cout << clerk_type_ << " [" << identifier_ 
-        << "] has recorded Customer[" << customer_ssn_ 
-        << "] passport documentation" << std::endl;
+        << "] has recorded " << current_customer_->IdentifierString() 
+        << " passport documentation" << std::endl;
   }
   wakeup_lock_cv_.Signal(&wakeup_lock_);
 }
@@ -270,8 +271,9 @@ void CashierClerk::ClerkWork() {
   // Check to make sure they have been certified.
   if (!certified) {
     std::cout << clerk_type_ << " [" << identifier_ 
-        << "] has received the $100 from Customer[" << customer_ssn_ 
-        << "] before certification. They are to go to the back of my line." 
+        << "] has received the $100 from "
+        << current_customer_->IdentifierString() 
+        << " before certification. They are to go to the back of my line." 
         << std::endl;
 
     // Give money back.
@@ -281,18 +283,21 @@ void CashierClerk::ClerkWork() {
     current_customer_->money_ += 100;
   } else {
     std::cout << clerk_type_ << " [" << identifier_ 
-        << "] has received the $100 from Customer[" << customer_ssn_ 
-        << "] after certification." << std::endl;
+        << "] has received the $100 from "
+        << current_customer_->IdentifierString() 
+        << " after certification." << std::endl;
 
     // Give customer passport.
     std::cout << clerk_type_ << " [" << identifier_ 
-        << "] has provided Customer[" << customer_ssn_ 
-        << "] their completed passport." << std::endl;
+        << "] has provided "
+        << current_customer_->IdentifierString() 
+        << " their completed passport." << std::endl;
 
     // Record passport was given to customer.
     std::cout << clerk_type_ << " [" << identifier_ 
-        << "] has recorded that Customer[" << customer_ssn_ 
-        << "] has been given their completed passport." << std::endl;
+        << "] has recorded that "
+        << current_customer_->IdentifierString() 
+        << " has been given their completed passport." << std::endl;
 
     current_customer_->set_passport_verified();
   }

@@ -39,10 +39,12 @@ PassportOffice::PassportOffice(
       customer_count_lock_("customer count lock"),
       customers_served_lock_("num customers being served lock"),
       customers_served_cv_("num customers being served cv"),
+      num_customers_being_served_(0),
       num_customers_waiting_lock_("customer waiting counter"),
       num_customers_waiting_(0),
       manager_thread_("manager thread"),
       num_senators_lock_("num senators lock"),
+      num_senators_(0),
       outside_line_lock_("outside line lock"),
       outside_line_cv_("outside line condition") {
   for (int i = 0; i < clerk_types::Size; ++i) {
@@ -97,6 +99,7 @@ void PassportOffice::WaitOnFinish() {
     for (int i = 0; i < 400; ++i) {
       currentThread->Yield();
     }
+    if (num_senators_ > 0) continue;
     num_customers_waiting_lock_.Acquire();
     if (customers_.size() == num_customers_waiting_) {
       num_customers_waiting_lock_.Release();
@@ -205,7 +208,4 @@ void PassportOffice::AddNewSenator(Senator* senator) {
   Thread* thread = new Thread("senator thread");
   thread->Fork(thread_runners::RunSenator, (int) senator);
   thread_list_.push_back(thread);
-  customer_count_lock_.Acquire();
-  customers_.insert(senator);
-  customer_count_lock_.Release();
 }

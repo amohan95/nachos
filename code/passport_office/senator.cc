@@ -25,7 +25,7 @@ void Senator::Run() {
   }
 
   passport_office_->manager_->WakeClerksForSenator();
-
+  running_ = true;
   while (running_ &&
         (!passport_verified() || !picture_taken() ||
          !completed_application() || !certified())) {
@@ -62,6 +62,10 @@ void Senator::Run() {
   }
 
   --passport_office_->num_senators_;
+  if (passport_office_->num_senators_ == 0) {
+    passport_office_->outside_line_cv_.Broadcast(
+        &passport_office_->outside_line_lock_);
+  }
   passport_office_->senator_lock_->Release();
 }
 

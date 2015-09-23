@@ -603,13 +603,14 @@ void Problem2() {
       = new PassportOffice(num_application_clerks, num_picture_clerks,
                            num_passport_clerks, num_cashier_clerks);
   passport_office->Start();
-  for (int i = 0; i < num_customers + num_senators; ++i) {
+  while (num_customers + num_senators > 0) {
     int next_customer_type = rand() % (num_customers + num_senators);
     if (next_customer_type >= num_customers) {
       passport_office->AddNewSenator(new Senator(passport_office));
       --num_senators;
     } else {
       passport_office->AddNewCustomer(new Customer(passport_office));
+      --num_customers;
     }
   }
   passport_office->WaitOnFinish();

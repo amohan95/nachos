@@ -56,15 +56,21 @@ void Customer::Run() {
     if (passport_office_->num_senators_ > 0) {
       passport_office_->num_senators_lock_.Release();
       passport_office_->outside_line_lock_.Acquire();
-      std::cout << "Customer " << IdentifierString() << " is going outside "
+      std::cout << IdentifierString() << " is going outside "
                 << "the Passport Office because there is a Senator present."
                 << std::endl;
       passport_office_->outside_line_cv_.Wait(
           &passport_office_->outside_line_lock_);
+      passport_office_->outside_line_lock_.Release();
       continue;
     } else {
       passport_office_->num_senators_lock_.Release();
     }
+
+    passport_office_->customers_served_lock_.Acquire();
+    ++passport_office_->num_customers_being_served_;
+    passport_office_->customers_served_lock_.Release();
+
     bribed_ = false;
     clerk_types::Type next_clerk;
     if (!completed_application() && !picture_taken() && passport_office_->clerks_[clerk_types::kApplication].size() > 0 && passport_office_->clerks_[clerk_types::kPicture].size() > 0) {
@@ -145,7 +151,14 @@ void Customer::Run() {
 
     passport_office_->num_senators_lock_.Acquire();
     if (passport_office_->num_senators_ > 0) {
-      passport_office_->num_senators_lock_.Release();      
+      passport_office_->num_senators_lock_.Release();
+      passport_office_->customers_served_lock_.Acquire();
+      --passport_office_->num_customers_being_served_;
+      if (passport_office_->num_customers_being_served_ == 0) {
+        passport_office_->customers_served_cv_.Broadcast(
+            &passport_office_->customers_served_lock_);
+      }
+      passport_office_->customers_served_lock_.Release();
       continue;
     }
     passport_office_->num_senators_lock_.Release();
@@ -153,10 +166,6 @@ void Customer::Run() {
     if (!running_) {
       break;
     }
-
-    passport_office_->customers_served_lock_.Acquire();
-    ++passport_office_->num_customers_being_served_;
-    passport_office_->customers_served_lock_.Release();
     
     DoClerkWork(clerk);
 
@@ -170,19 +179,20 @@ void Customer::Run() {
     clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
     clerk->wakeup_lock_.Release();
 
-    passport_office_->customers_served_lock_.Acquire();
-    --passport_office_->num_customers_being_served_;
-    if (passport_office_->num_customers_being_served_ == 0) {
-      passport_office_->customers_served_cv_.Broadcast(
-          &passport_office_->customers_served_lock_);
-    }
-    passport_office_->customers_served_lock_.Release();
   }
   if (passport_verified()) {
     std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
   } else {
     std::cout << IdentifierString() << " terminated early because it is impossible to get a passport." << std::endl;
   }
+  passport_office_->customers_served_lock_.Acquire();
+  --passport_office_->num_customers_being_served_;
+  if (passport_office_->num_customers_being_served_ == 0) {
+    passport_office_->customers_served_cv_.Broadcast(
+        &passport_office_->customers_served_lock_);
+  }
+  passport_office_->customers_served_lock_.Release();
+  
   passport_office_->customer_count_lock_.Acquire();
   passport_office_->customers_.erase(this);
   passport_office_->customer_count_lock_.Release();
