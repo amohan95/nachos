@@ -60,7 +60,7 @@ void Manager::Run() {
     for (uint32_t i = 0; i < n; ++i) {
       Clerk* clerk = passport_office_->breaking_clerks_[i];
       passport_office_->line_locks_[clerk->type_]->Acquire();
-      if (clerk->GetNumCustomersInLine() >= CLERK_WAKEUP_THRESHOLD) {
+      if (clerk->GetNumCustomersInLine() > CLERK_WAKEUP_THRESHOLD) {
         clerk->state_ = clerk_states::kAvailable;
 				clerk->wakeup_lock_.Acquire();
 				clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
