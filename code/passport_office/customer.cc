@@ -25,6 +25,7 @@ Customer::Customer(PassportOffice* passport_office,
 
 Customer::Customer(PassportOffice* passport_office, uint32_t money__) :
   money_(money__),
+  ssn_(CURRENT_UNUSED_SSN++), 
   join_line_lock_("jll"),
   join_line_lock_cv_("jllcv"),
   passport_office_(passport_office),
@@ -33,8 +34,7 @@ Customer::Customer(PassportOffice* passport_office, uint32_t money__) :
   completed_application_(false),
   passport_verified_(false),
   picture_taken_(false),
-  running_(false),
-  ssn_(CURRENT_UNUSED_SSN++){
+  running_(false) {
 }
 
 Customer::~Customer() {
@@ -181,7 +181,6 @@ void Customer::Run() {
     clerk->current_customer_ = NULL;
     clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
     clerk->wakeup_lock_.Release();
-
   }
   if (passport_verified()) {
     std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;

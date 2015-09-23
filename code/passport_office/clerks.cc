@@ -184,8 +184,8 @@ void ApplicationClerk::ClerkWork() {
   wakeup_lock_cv_.Wait(&wakeup_lock_);
   current_customer_->set_completed_application();
   std::cout << clerk_type_ << " [" << identifier_ 
-      << "] has recorded a completed application for Customer " 
-      << customer_ssn_ << std::endl;
+      << "] has recorded a completed application for " 
+      << current_customer_->IdentifierString() << std::endl;
   wakeup_lock_cv_.Signal(&wakeup_lock_);
 }
 
