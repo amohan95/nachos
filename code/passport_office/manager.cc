@@ -55,6 +55,8 @@ void Manager::Run() {
     uint32_t n = passport_office_->breaking_clerks_.size();
     for (uint32_t i = 0; i < clerk_types::Size; ++i) {
       passport_office_->line_locks_[i]->Acquire();
+    }
+    for (uint32_t i = 0; i < clerk_types::Size; ++i) {
       if (passport_office_->GetNumCustomersForClerkType(
           static_cast<clerk_types::Type>(i)) > CLERK_WAKEUP_THRESHOLD) {
         for (uint32_t j = 0; j < passport_office_->clerks_[i].size(); ++j) {
@@ -70,6 +72,8 @@ void Manager::Run() {
           }
         }
       }
+    }
+    for (uint32_t i = 0; i < clerk_types::Size; ++i) {
       passport_office_->line_locks_[i]->Release();
     }
     wakeup_condition_lock_.Release();
