@@ -301,7 +301,7 @@ void PTest2() {
   printf("Starting Test 2 - Managers only read one from one Clerk's total money received, at a time.\n");
   PassportOffice po(1, 1, 1, 1);
   po.Start();
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < 7; ++i) {
     Customer* c = new Customer(&po, 600);
     po.AddNewCustomer(c);
   }
