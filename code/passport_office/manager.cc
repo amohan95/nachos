@@ -45,7 +45,7 @@ void PrintMoneyReport(int manager) {
 void Manager::Run() {
   running_ = true;
   Thread* report_timer_thread = new Thread("Report timer thread");
-  // report_timer_thread->Fork(&PrintMoneyReport, reinterpret_cast<int>(this));
+  report_timer_thread->Fork(&PrintMoneyReport, reinterpret_cast<int>(this));
   while(running_) {
     wakeup_condition_lock_.Acquire();
     wakeup_condition_.Wait(&wakeup_condition_lock_);
