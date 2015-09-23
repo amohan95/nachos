@@ -129,10 +129,8 @@ void Clerk::Run() {
       wakeup_lock_.Acquire();
 			// Wait until woken up.
 			std::cout << IdentifierString() << " is going on break" << std::endl;
-			passport_office_->breaking_clerks_lock_->Acquire();
-			passport_office_->breaking_clerks_.push_back(this);
-			passport_office_->breaking_clerks_lock_->Release();
-			wakeup_lock_cv_.Wait(&wakeup_lock_);
+			wakeup_lock_cv_.Signal(&wakeup_lock_);
+      wakeup_lock_cv_.Wait(&wakeup_lock_);
 			state_ = clerk_states::kAvailable;
       if (!running_) {
         break;

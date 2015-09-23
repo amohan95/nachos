@@ -334,11 +334,15 @@ void PTest5() {
   printf("Starting Test 5 - Managers get Clerks off their break when lines get too long\n");
   PassportOffice po(1, 0, 0, 0);
   po.Start();
+  po.clerks_[clerk_types::kApplication][0]->wakeup_lock_.Acquire();
+  po.clerks_[clerk_types::kApplication][0]->wakeup_lock_cv_.Wait(&po.clerks_[clerk_types::kApplication][0]->wakeup_lock_);
+  po.clerks_[clerk_types::kApplication][0]->wakeup_lock_.Release();
   for (int i = 0; i < 4; ++i) {
     Customer* c = new Customer(&po, 100);
     po.AddNewCustomer(c);
   }
-    po.WaitOnFinish();po.Stop();
+  po.WaitOnFinish();
+  po.Stop();
   printf("################ Finished Test 5 ################\n");
 }
 
