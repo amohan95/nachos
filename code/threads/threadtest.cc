@@ -356,7 +356,8 @@ void PTest6() {
     Customer* c = new Customer(&po, 100);
     po.AddNewCustomer(c);
   }
-    po.WaitOnFinish();po.Stop();
+  po.WaitOnFinish();
+  po.Stop();
   printf("################ Finished Test 6 ################\n");
 }
 
@@ -370,7 +371,8 @@ void PTest7() {
   }
   Senator* s = new Senator(&po);
   po.AddNewSenator(s);
-    po.WaitOnFinish();po.Stop();
+  po.WaitOnFinish();
+  po.Stop();
   printf("################ Finished Test 7 ################\n");
 }
 

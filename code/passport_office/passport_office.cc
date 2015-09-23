@@ -111,10 +111,13 @@ void PassportOffice::WaitOnFinish() {
         if (done) break;
       }
       breaking_clerks_lock_->Release();
-      if (done) return;
+      if (done) break;
     } else {
       num_customers_waiting_lock_.Release();
     }
+  }
+  for (int i = 0; i < 1000; ++i) {
+    currentThread->Yield();
   }
 }
 
@@ -163,7 +166,7 @@ void PassportOffice::Stop() {
   manager_->wakeup_condition_lock_.Acquire();
   manager_->wakeup_condition_.Signal(&manager_->wakeup_condition_lock_);
   manager_->wakeup_condition_lock_.Release();
-  for (int i = 0; i < 100000; ++i) {
+  for (int i = 0; i < 1000; ++i) {
     currentThread->Yield();
   }
   printf("Passport office stopped\n");
