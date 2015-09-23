@@ -41,7 +41,10 @@ PassportOffice::PassportOffice(
       customers_served_cv_("num customers being served cv"),
       num_customers_waiting_lock_("customer waiting counter"),
       num_customers_waiting_(0),
-      manager_thread_("manager thread") {
+      manager_thread_("manager thread"),
+      num_senators_lock_("num senators lock"),
+      outside_line_lock_("outside line lock"),
+      outside_line_cv_("outside line condition") {
   for (int i = 0; i < clerk_types::Size; ++i) {
     char* name = new char[80];
     sprintf(name, "Line Lock %d", i);

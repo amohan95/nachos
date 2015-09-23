@@ -1,9 +1,11 @@
+#include "senator.h"
+
 void Senator::Run() {
   passport_office_->num_senators_lock_.Acquire();
   ++passport_office_->num_senators_;
-  passport_office_->num_senator_lock_.Release();
+  passport_office_->num_senators_lock_.Release();
 
-  senator_lock_->Acquire();
+  passport_office_->senator_lock_->Acquire();
 
   passport_office_->customers_served_lock_.Acquire();
   passport_office_->manager_->WakeWaitingCustomers();
@@ -41,7 +43,7 @@ void Senator::Run() {
     } else {
       next_clerk = clerk_types::kCashier;
     }
-    if (passport_office_->clerks[next_clerk].empty()) {
+    if (passport_office_->clerks_[next_clerk].empty()) {
       break;
     }
     Clerk* clerk = passport_office_->clerks_[next_clerk][0];
@@ -60,7 +62,7 @@ void Senator::Run() {
   }
 
   --passport_office_->num_senators_;
-  senator_lock_->Release();
+  passport_office_->senator_lock_->Release();
 }
 
 std::string Senator::IdentifierString() const {

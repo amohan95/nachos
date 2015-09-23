@@ -41,7 +41,7 @@ class Customer {
 	inline bool has_bribed() const { return bribed_; }
   virtual std::string IdentifierString() const;
   virtual void Run();
-  void DoClerkWork();
+  void DoClerkWork(Clerk* clerk);
   
   uint32_t money_;
 	Lock join_line_lock_;

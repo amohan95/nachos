@@ -188,7 +188,7 @@ void Customer::Run() {
   passport_office_->customer_count_lock_.Release();
 }
 
-void DoClerkWork(Clerk* clerk) {
+void Customer::DoClerkWork(Clerk* clerk) {
   clerk->wakeup_lock_.Acquire();
   clerk->customer_ssn_ = ssn();
   clerk->current_customer_ = this;
