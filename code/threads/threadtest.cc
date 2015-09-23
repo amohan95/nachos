@@ -301,7 +301,7 @@ void PTest2() {
   printf("Starting Test 2 - Managers only read one from one Clerk's total money received, at a time.\n");
   PassportOffice po(1, 1, 1, 1);
   po.Start();
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 4; ++i) {
     Customer* c = new Customer(&po, 600);
     po.AddNewCustomer(c);
   }
@@ -314,7 +314,7 @@ void PTest3() {
   printf("Starting Test 3 - Customers do not leave until they are given their passport by the Cashier. The Cashier does not start on another customer until they know that the last Customer has left their area\n");
   PassportOffice po(1, 1, 1, 1);
   po.Start();
-  for (int i = 0; i < 2; ++i) {
+  for (int i = 0; i < 4; ++i) {
     Customer* c = new Customer(&po, 100);
     po.AddNewCustomer(c);
   }
@@ -358,7 +358,7 @@ void PTest7() {
   printf("Starting Test 7 - The behavior of Customers is proper when Senators arrive. This is before, during, and after.\n");
   PassportOffice po(1, 1, 1, 1);
   po.Start();
-  for (int i = 0; i < 5; ++i) {
+  for (int i = 0; i < 3; ++i) {
     Customer* c = new Customer(&po, 1600);
     po.AddNewCustomer(c);
   }

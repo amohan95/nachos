@@ -39,6 +39,8 @@ class PassportOffice {
   void AddNewCustomer(Customer* customer);
   void AddNewSenator(Senator* senator);
 
+  int GetNumCustomersForClerkType(clerk_types::Type type) const;
+
   Manager* manager_;
 
   std::vector<Lock*> line_locks_;

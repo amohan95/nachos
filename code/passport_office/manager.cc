@@ -49,29 +49,29 @@ void Manager::Run() {
   while(running_) {
     wakeup_condition_lock_.Acquire();
     wakeup_condition_.Wait(&wakeup_condition_lock_);
-    wakeup_condition_lock_.Release();
 		if (!running_) {
 			break;
 		}
-    passport_office_->breaking_clerks_lock_->Acquire();
     uint32_t n = passport_office_->breaking_clerks_.size();
-    for (uint32_t i = 0; i < n; ++i) {
-      Clerk* clerk = passport_office_->breaking_clerks_[i];
-      passport_office_->line_locks_[clerk->type_]->Acquire();
-      if (clerk->GetNumCustomersInLine() > CLERK_WAKEUP_THRESHOLD) {
-        clerk->state_ = clerk_states::kAvailable;
-				clerk->wakeup_lock_.Acquire();
-				clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
-				clerk->wakeup_lock_.Release();
-        std::cout << "Manager has woken up a"
-                  << (clerk->type_ == clerk_types::kApplication ? "n " : " ")
-                  << Clerk::NameForClerkType(clerk->type_) << std::endl;
-        passport_office_->breaking_clerks_.erase(passport_office_->breaking_clerks_.begin() + i);
-        --n;
+    for (uint32_t i = 0; i < clerk_types::Size; ++i) {
+      passport_office_->line_locks_[i]->Acquire();
+      if (passport_office_->GetNumCustomersForClerkType(static_cast<clerk_types::Type>(i)) > CLERK_WAKEUP_THRESHOLD) {
+        for (uint32_t j = 0; j < passport_office_->clerks_[i].size(); ++j) {
+          Clerk* clerk = passport_office_->clerks_[i][j];
+          if (clerk->state_ == clerk_states::kOnBreak) {
+            clerk->wakeup_lock_.Acquire();
+            clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+            clerk->state_ = clerk_states::kAvailable;
+            clerk->wakeup_lock_.Release();
+            std::cout << "Manager has woken up a"
+              << (clerk->type_ == clerk_types::kApplication ? "n " : " ")
+              << Clerk::NameForClerkType(clerk->type_) << std::endl;
+          }
+        }
       }
-      passport_office_->line_locks_[clerk->type_]->Release();
+      passport_office_->line_locks_[i]->Release();
     }
-    passport_office_->breaking_clerks_lock_->Release();
+    wakeup_condition_lock_.Release();
   }
   delete report_timer_thread;
 }

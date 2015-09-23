@@ -83,7 +83,6 @@ void Customer::Run() {
         }
       }
       if (shortest == -1) {
-        std::cout << "no clerks exist for: " << next_clerk << std::endl;
         set_running(false);
         continue;
       }
@@ -102,7 +101,6 @@ void Customer::Run() {
       }
     } else {
       if (shortest == -1) {
-        std::cout << "no clerks exist for: " << next_clerk << std::endl;
         set_running(false);
         continue;
       }
