@@ -8,6 +8,7 @@
 #include "../threads/synch.h"
 #include "clerks.h"
 #include "customer.h"
+#include "senator.h"
 #include "manager.h"
 #include "utilities.h"
 

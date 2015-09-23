@@ -279,10 +279,12 @@ void t5_t2() {
 #include "../passport_office/clerks.h"
 #include "../passport_office/customer.h"
 #include "../passport_office/manager.h"
+#include "../passport_office/senator.h"
 #include "../passport_office/passport_office.cc"
 #include "../passport_office/clerks.cc"
 #include "../passport_office/customer.cc"
 #include "../passport_office/manager.cc"
+#include "../passport_office/senator.cc"
 
 void PTest1() {
   printf("Starting Test 1 - Customers always take the shortest line, but no 2 "

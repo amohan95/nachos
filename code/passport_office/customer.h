@@ -39,8 +39,8 @@ class Customer {
 
   bool CanBribe() const;
 	inline bool has_bribed() const { return bribed_; }
-  std::string IdentifierString() const;
-  void Run();
+  virtual std::string IdentifierString() const;
+  virtual void Run();
   uint32_t money_;
 	Lock join_line_lock_;
 	Condition join_line_lock_cv_;
@@ -61,9 +61,4 @@ class Customer {
   const uint32_t ssn_;
 };
 
-class Senator : public Customer {
- public:
-  Senator(PassportOffice* passport_office) : Customer(passport_office) {}
-  virtual ~Senator() {}
-};
 #endif
