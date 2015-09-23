@@ -111,9 +111,13 @@ void Customer::Run() {
       ++passport_office_->line_counts_[next_clerk][shortest];
 //      clerk->lines_lock_.Release();
     }
-    passport_office_->manager_->wakeup_condition_.Signal(
-        &passport_office_->manager_->wakeup_condition_lock_);
+
     passport_office_->line_locks_[next_clerk]->Release();
+    if (passport_office_->GetNumCustomersForClerkType(next_clerk) > 
+        CLERK_WAKEUP_THRESHOLD) {
+      passport_office_->manager_->wakeup_condition_.Signal(
+          &passport_office_->manager_->wakeup_condition_lock_);
+    }
 		PrintLineJoin(clerk, bribed_);
 //    join_line_lock_.Acquire();
 //    join_line_lock_cv_.Signal(&join_line_lock_);

@@ -318,7 +318,8 @@ void PTest3() {
     Customer* c = new Customer(&po, 100);
     po.AddNewCustomer(c);
   }
-  po.WaitOnFinish();  po.Stop();
+  po.WaitOnFinish();
+  po.Stop();
   printf("################ Finished Test 3 ################\n");
 }
 
@@ -326,7 +327,8 @@ void PTest4() {
   printf("Starting Test 4 - Clerks go on break when they have no one waiting in their line\n");
   PassportOffice po(1, 1, 1, 1);
   po.Start();
-    po.WaitOnFinish();po.Stop();
+  po.WaitOnFinish();
+  po.Stop();
   printf("################ Finished Test 4 ################\n");
 }
 
