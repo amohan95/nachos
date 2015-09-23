@@ -46,7 +46,6 @@ PassportOffice::PassportOffice(
       num_senators_(0),
       outside_line_lock_("outside line lock"),
       outside_line_cv_("outside line condition"),
-      num_customers_being_served_(0),
       manager_thread_("manager thread") {
   for (int i = 0; i < clerk_types::Size; ++i) {
     char* name = new char[80];
