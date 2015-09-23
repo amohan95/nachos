@@ -49,27 +49,27 @@ class PassportOffice {
   std::vector<Clerk*> breaking_clerks_;
 
   std::vector<std::vector<int> > line_counts_;
-  std::vector<std::vector<int> > bribe_line_counts_;
 
   Lock* breaking_clerks_lock_;
+  std::vector<std::vector<int> > bribe_line_counts_;
   Lock* senator_lock_;
   Condition* senator_condition_;
-
-  Lock num_senators_lock_;
-  int num_senators_;
-
 	Lock customer_count_lock_;
-	std::set<Customer*> customers_;
-
   Lock customers_served_lock_;
   Condition customers_served_cv_;
-  int num_customers_being_served_;
-
+  Lock num_customers_waiting_lock_;
+  unsigned int num_customers_waiting_;
+  Lock num_senators_lock_;
+  int num_senators_;
   Lock outside_line_lock_;
   Condition outside_line_cv_;
 
-  Lock num_customers_waiting_lock_;
-  unsigned int num_customers_waiting_;
+
+	std::set<Customer*> customers_;
+
+  int num_customers_being_served_;
+
+
  private:
   Thread manager_thread_;
   std::vector<Thread*> thread_list_;

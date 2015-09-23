@@ -32,8 +32,8 @@ PassportOffice::PassportOffice(
     int num_passport_clerks, int num_cashier_clerks) :
       clerks_(clerk_types::Size, std::vector<Clerk*>()),
       line_counts_(clerk_types::Size, std::vector<int>()),
-      bribe_line_counts_(clerk_types::Size, std::vector<int>()),
       breaking_clerks_lock_(new Lock("breaking clerks lock")),
+      bribe_line_counts_(clerk_types::Size, std::vector<int>()),
       senator_lock_(new Lock("senator lock")),
       senator_condition_(new Condition("senator condition")),
       customer_count_lock_("customer count lock"),
@@ -42,11 +42,12 @@ PassportOffice::PassportOffice(
       num_customers_being_served_(0),
       num_customers_waiting_lock_("customer waiting counter"),
       num_customers_waiting_(0),
-      manager_thread_("manager thread"),
       num_senators_lock_("num senators lock"),
       num_senators_(0),
       outside_line_lock_("outside line lock"),
-      outside_line_cv_("outside line condition") {
+      outside_line_cv_("outside line condition"),
+      num_customers_being_served_(0),
+      manager_thread_("manager thread") {
   for (int i = 0; i < clerk_types::Size; ++i) {
     char* name = new char[80];
     sprintf(name, "Line Lock %d", i);
