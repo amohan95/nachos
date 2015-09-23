@@ -173,11 +173,9 @@ void PassportOffice::Stop() {
 }
 int PassportOffice::GetNumCustomersForClerkType(clerk_types::Type type) const {
   int total = 0;
-  for (unsigned int i = 0; i < line_counts_.size(); ++i) {
-    for (unsigned int j =0; j < line_counts_[i].size(); ++j) {
-      total += line_counts_[i][j];
-      total += bribe_line_counts_[i][j];
-    }
+  for (unsigned int j =0; j < line_counts_[static_cast<clerk_types::Type>(type)].size(); ++j) {
+    total += line_counts_[static_cast<clerk_types::Type>(type)][j];
+    total += bribe_line_counts_[static_cast<clerk_types::Type>(type)][j];
   }
   return total;
 }
