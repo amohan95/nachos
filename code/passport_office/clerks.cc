@@ -127,15 +127,16 @@ void Clerk::Run() {
 			// Wakeup customer.
 		} else if (state_ == clerk_states::kOnBreak) {
       wakeup_lock_.Acquire();
-			// Wait until woken up.
-			std::cout << IdentifierString() << " is going on break" << std::endl;
-			wakeup_lock_cv_.Signal(&wakeup_lock_);
+      // Wait until woken up.
+      std::cout << IdentifierString() << " is going on break" << std::endl;
+      wakeup_lock_cv_.Signal(&wakeup_lock_);
       wakeup_lock_cv_.Wait(&wakeup_lock_);
 			state_ = clerk_states::kAvailable;
       if (!running_) {
         break;
       }
 			std::cout << IdentifierString() << " is coming off break" << std::endl;
+      for (int i = 0; i < 25; ++i) { currentThread->Yield(); }
 		}
 		wakeup_lock_.Release();
   }

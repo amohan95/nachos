@@ -101,7 +101,8 @@ void PassportOffice::WaitOnFinish() {
         line_locks_[i]->Acquire();
         for (unsigned int j = 0; j < clerks_[i].size(); ++j) {
           if (clerks_[i][j]->state_ != clerk_states::kOnBreak ||
-              line_counts_[i][j] >= CLERK_WAKEUP_THRESHOLD) {
+              GetNumCustomersForClerkType(static_cast<clerk_types::Type>(i)) > 
+              CLERK_WAKEUP_THRESHOLD) {
             done = false;
             break;
           }
@@ -118,6 +119,7 @@ void PassportOffice::WaitOnFinish() {
 }
 
 void PassportOffice::Stop() {
+  printf("Attempting to stop passport office\n");
   while (customers_.size() > 0) {
     bool done = true;
     breaking_clerks_lock_->Acquire();
@@ -163,6 +165,7 @@ void PassportOffice::Stop() {
   for (int i = 0; i < 100000; ++i) {
     currentThread->Yield();
   }
+  printf("Passport office stopped\n");
   /*for (unsigned int i = 0 ; i < thread_list_.size(); ++i) {
     thread_list_[i]->Finish();
   }

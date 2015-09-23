@@ -84,6 +84,7 @@ void Customer::Run() {
       }
       if (shortest == -1) {
         set_running(false);
+        passport_office_->line_locks_[next_clerk]->Release();
         continue;
       }
       if (passport_office_->bribe_line_counts_[next_clerk][bribe_shortest]
@@ -101,6 +102,7 @@ void Customer::Run() {
       }
     } else {
       if (shortest == -1) {
+        passport_office_->line_locks_[next_clerk]->Release();
         set_running(false);
         continue;
       }
@@ -109,7 +111,8 @@ void Customer::Run() {
       ++passport_office_->line_counts_[next_clerk][shortest];
 //      clerk->lines_lock_.Release();
     }
-    passport_office_->manager_->wakeup_condition_.Signal(&passport_office_->manager_->wakeup_condition_lock_);
+    passport_office_->manager_->wakeup_condition_.Signal(
+        &passport_office_->manager_->wakeup_condition_lock_);
     passport_office_->line_locks_[next_clerk]->Release();
 		PrintLineJoin(clerk, bribed_);
 //    join_line_lock_.Acquire();
