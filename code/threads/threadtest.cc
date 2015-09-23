@@ -287,32 +287,85 @@ void t5_t2() {
 void PTest1() {
   printf("Starting Test 1 - Customers always take the shortest line, but no 2 "
          "customers ever choose the same shortest line at the same time.\n");
-  PassportOffice po(1, 1, 0, 0);
+  PassportOffice po(2, 0, 0, 0);
   po.Start();
-  Customer c1(&po);
-  Customer c2(&po);
-  po.AddNewCustomer(&c1);
-  po.AddNewCustomer(&c2);
-  // for (int i = 0; i < 1000; ++i) {
-  //   currentThread->Yield();
-  // }
+  for (int i = 0; i < 5; ++i) {
+    po.AddNewCustomer(new Customer(&po, 100));
+  }
   po.WaitOnFinish();
   po.Stop();
   printf("################ Finished Test 1 ################\n");
 }
 
 void PTest2() {
-  printf("Starting Test 2 - Managers only read one from one Clerk's "
-         "total money received, at a time.\n");
+  printf("Starting Test 2 - Managers only read one from one Clerk's total money received, at a time.\n");
   PassportOffice po(1, 1, 1, 1);
   po.Start();
-  for (int i = 0; i < 5; ++i) {
+  for (int i = 0; i < 10; ++i) {
     Customer* c = new Customer(&po, 600);
     po.AddNewCustomer(c);
   }
   po.WaitOnFinish();
   po.Stop();
   printf("################ Finished Test 2 ################\n");
+}
+
+void PTest3() {
+  printf("Starting Test 3 - Customers do not leave until they are given their passport by the Cashier. The Cashier does not start on another customer until they know that the last Customer has left their area\n");
+  PassportOffice po(1, 1, 1, 1);
+  po.Start();
+  for (int i = 0; i < 2; ++i) {
+    Customer* c = new Customer(&po, 100);
+    po.AddNewCustomer(c);
+  }
+  po.WaitOnFinish();  po.Stop();
+  printf("################ Finished Test 3 ################\n");
+}
+
+void PTest4() {
+  printf("Starting Test 4 - Clerks go on break when they have no one waiting in their line\n");
+  PassportOffice po(1, 1, 1, 1);
+  po.Start();
+    po.WaitOnFinish();po.Stop();
+  printf("################ Finished Test 4 ################\n");
+}
+
+void PTest5() {
+  printf("Starting Test 5 - Managers get Clerks off their break when lines get too long\n");
+  PassportOffice po(1, 0, 0, 0);
+  po.Start();
+  for (int i = 0; i < 4; ++i) {
+    Customer* c = new Customer(&po, 100);
+    po.AddNewCustomer(c);
+  }
+    po.WaitOnFinish();po.Stop();
+  printf("################ Finished Test 5 ################\n");
+}
+
+void PTest6() {
+  printf("Starting Test 6 - Total sales never suffers from a race condition\n");
+  PassportOffice po(1, 1, 1, 1);
+  po.Start();
+  for (int i = 0; i < 10; ++i) {
+    Customer* c = new Customer(&po, 100);
+    po.AddNewCustomer(c);
+  }
+    po.WaitOnFinish();po.Stop();
+  printf("################ Finished Test 6 ################\n");
+}
+
+void PTest7() {
+  printf("Starting Test 7 - The behavior of Customers is proper when Senators arrive. This is before, during, and after.\n");
+  PassportOffice po(1, 1, 1, 1);
+  po.Start();
+  for (int i = 0; i < 5; ++i) {
+    Customer* c = new Customer(&po, 1600);
+    po.AddNewCustomer(c);
+  }
+  Senator* s = new Senator(&po);
+  po.AddNewSenator(s);
+    po.WaitOnFinish();po.Stop();
+  printf("################ Finished Test 7 ################\n");
 }
 
 // --------------------------------------------------
@@ -422,6 +475,10 @@ void TestSuite() {
     printf("##################################\n");
     PTest1();
     PTest2();
+    PTest3();
+    PTest4();
+    PTest5();
+    PTest6();
 }
 #endif
 
