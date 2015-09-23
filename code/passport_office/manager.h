@@ -27,6 +27,9 @@ class Manager {
   void Run();
   void WakeUp();
 
+  void WakeWaitingCustomers();
+  void WakeClerksForSenator();
+
   Condition wakeup_condition_;
   Lock wakeup_condition_lock_;
  private:

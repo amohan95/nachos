@@ -106,7 +106,13 @@ void Clerk::GetNextCustomer() {
     state_ = clerk_states::kBusy;
     passport_office_->line_counts_[type_][identifier_]--;
   } else {
-    state_ = clerk_states::kOnBreak;
+    passport_office_->num_senators_lock_.Acquire();
+    if (passport_office_->num_senators_ > 0) {
+      state_ = clerk_states::kAvailable;
+    } else {
+      state_ = clerk_states::kOnBreak;
+    }
+    passport_office_->num_senators_lock_.Release();
   }
 	// lines_lock_.Release();
 	passport_office_->line_locks_[type_]->Release();
@@ -116,7 +122,7 @@ void Clerk::Run() {
   running_ = true;
   while (running_) {
     GetNextCustomer();
-		if (state_ == clerk_states::kBusy) {
+		if (state_ == clerk_states::kBusy || state_ == clerk_states::kAvailable) {
 			// Wait for customer to come to counter and give SSN.
 			wakeup_lock_cv_.Wait(&wakeup_lock_);
 			// Take Customer's SSN and verify passport.

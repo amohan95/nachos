@@ -49,7 +49,22 @@ std::string Customer::IdentifierString() const {
 
 void Customer::Run() {
   running_ = true;
-  while (running_ && (!passport_verified() || !picture_taken() || !completed_application() || !certified())) {
+  while (running_ &&
+        (!passport_verified() || !picture_taken() ||
+         !completed_application() || !certified())) {
+    passport_office_->num_senators_lock_.Acquire();
+    if (passport_office_->num_senators_ > 0) {
+      passport_office_->num_senators_lock_.Release();
+      passport_office_->outside_line_lock_.Acquire();
+      std::cout << "Customer " << IdentifierString() << " is going outside "
+                << "the Passport Office because there is a Senator present."
+                << std::endl;
+      passport_office_->outside_line_cv_.Wait(
+          &passport_office_->outside_line_lock_);
+      continue;
+    } else {
+      passport_office_->num_senators_lock_.Release();
+    }
     bribed_ = false;
     clerk_types::Type next_clerk;
     if (!completed_application() && !picture_taken() && passport_office_->clerks_[clerk_types::kApplication].size() > 0 && passport_office_->clerks_[clerk_types::kPicture].size() > 0) {
@@ -128,43 +143,23 @@ void Customer::Run() {
     --passport_office_->num_customers_waiting_;
     passport_office_->num_customers_waiting_lock_.Release();
 
+    passport_office_->num_senators_lock_.Acquire();
+    if (passport_office_->num_senators_ > 0) {
+      passport_office_->num_senators_lock_.Release();      
+      continue;
+    }
+    passport_office_->num_senators_lock_.Release();
+
     if (!running_) {
       break;
     }
+
+    passport_office_->customers_served_lock_.Acquire();
+    ++passport_office_->num_customers_being_served_;
+    passport_office_->customers_served_lock_.Release();
     
-    clerk->wakeup_lock_.Acquire();
-    clerk->customer_ssn_ = ssn();
-    clerk->current_customer_ = this;
-    std::cout << IdentifierString() << " has given SSN [" << ssn() << "] to "
-              << clerk->IdentifierString() << '.' << std::endl;
-    clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
-    clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
-    switch (next_clerk) {
-      case clerk_types::kApplication:
-        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
-        clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
-        break;
-      case clerk_types::kPicture:
-        clerk->customer_input_ = (rand() % 10) > 0;
-        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
-        clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
-        break;
-      case clerk_types::kCashier:
-        clerk->customer_money_ = PASSPORT_FEE;
-        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
-        clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
-        clerk->customer_input_ = true;
-        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
-        clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
-        break;
-      case clerk_types::kPassport:
-        clerk->customer_input_ = true;
-        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
-        clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
-        break;
-      case clerk_types::Size:
-        break;
-    }
+    DoClerkWork(clerk);
+
     if (bribed_) {
       clerk->customer_money_ = CLERK_BRIBE_AMOUNT;
       money_ -= CLERK_BRIBE_AMOUNT;
@@ -174,6 +169,14 @@ void Customer::Run() {
     clerk->current_customer_ = NULL;
     clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
     clerk->wakeup_lock_.Release();
+
+    passport_office_->customers_served_lock_.Acquire();
+    --passport_office_->num_customers_being_served_;
+    if (passport_office_->num_customers_being_served_ == 0) {
+      passport_office_->customers_served_cv_.Broadcast(
+          &passport_office_->customers_served_lock_);
+    }
+    passport_office_->customers_served_lock_.Release();
   }
   if (passport_verified()) {
     std::cout << IdentifierString() << " is leaving the Passport Office." << std::endl;
@@ -183,6 +186,43 @@ void Customer::Run() {
   passport_office_->customer_count_lock_.Acquire();
   passport_office_->customers_.erase(this);
   passport_office_->customer_count_lock_.Release();
+}
+
+void DoClerkWork(Clerk* clerk) {
+  clerk->wakeup_lock_.Acquire();
+  clerk->customer_ssn_ = ssn();
+  clerk->current_customer_ = this;
+  std::cout << IdentifierString() << " has given SSN [" << ssn() << "] to "
+            << clerk->IdentifierString() << '.' << std::endl;
+  clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+  clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
+  
+  switch (clerk->type_) {
+    case clerk_types::kApplication:
+      clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+      clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
+      break;
+    case clerk_types::kPicture:
+      clerk->customer_input_ = (rand() % 10) > 0;
+      clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+      clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
+      break;
+    case clerk_types::kCashier:
+      clerk->customer_money_ = PASSPORT_FEE;
+      clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+      clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
+      clerk->customer_input_ = true;
+      clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+      clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
+      break;
+    case clerk_types::kPassport:
+      clerk->customer_input_ = true;
+      clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+      clerk->wakeup_lock_cv_.Wait(&clerk->wakeup_lock_);
+      break;
+    case clerk_types::Size:
+      break;
+  }
 }
 
 void Customer::PrintLineJoin(Clerk* clerk, bool bribed) const {

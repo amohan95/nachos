@@ -54,8 +54,19 @@ class PassportOffice {
   Lock* breaking_clerks_lock_;
   Lock* senator_lock_;
   Condition* senator_condition_;
+
+  Lock num_senators_lock_;
+  int num_senators_;
+
 	Lock customer_count_lock_;
 	std::set<Customer*> customers_;
+
+  Lock customers_served_lock_;
+  Condition customers_served_cv_;
+  int num_customers_being_served_;
+
+  Lock outside_line_lock_;
+  Condition outside_line_cv_;
 
   Lock num_customers_waiting_lock_;
   unsigned int num_customers_waiting_;

@@ -81,3 +81,27 @@ void Manager::Run() {
     wakeup_condition_lock_.Release();
   }
 }
+
+void WakeWaitingCustomers() {
+  for (unsigned int i = 0; i < passport_office_->clerks_.size(); ++i) {
+    for (unsigned int j = 0; j < passport_office_->clerks_[i].size(); ++j) {
+      Clerk* clerk = passport_office_->clerks_[i][j];
+      clerk->bribe_line_lock_cv_.Broadcast(&clerk->bribe_line_lock_);
+      clerk->regular_line_lock_cv_.Broadcast(&clerk->regular_line_lock_);
+    }
+  }
+}
+
+void WakeClerksForSenator() {
+  for (unsigned int i = 0; i < passport_office_->clerks_.size(); ++i) {
+    if (!passport_office_->clerks_[i].empty()) {
+      passport_office_->line_locks_[i]->Acquire();
+      Clerk* clerk = passport_office_->clerks_[i][0];
+      if (clerk->state_ == clerk_states::kOnBreak) {
+        clerk->state_ = clerk_states::kAvailable;
+        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+      }
+      passport_office_->line_locks_[i]->Release();
+    }
+  }
+}

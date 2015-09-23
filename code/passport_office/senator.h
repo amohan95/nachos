@@ -13,8 +13,8 @@ class CashierClerk;
 
 class Senator : public Customer {
  public:
-  Senator(PassportOffice* passport_office) : Customer(passport_office) { }
-  virtual ~Senator() { }
+  Senator(PassportOffice* passport_office) : Customer(passport_office) {}
+  virtual ~Senator() {}
 
   virtual std::string IdentifierString() const;
   virtual void Run();
