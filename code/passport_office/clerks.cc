@@ -49,10 +49,12 @@ int Clerk::CollectMoney() {
 void Clerk::JoinLine(bool bribe) {
 	if (bribe) {
 		bribe_line_lock_.Acquire();
+    ++passport_office_->bribe_line_counts_[type_][identifier_];
 		bribe_line_lock_cv_.Wait(&bribe_line_lock_);
 		bribe_line_lock_.Release();
 	} else {
 		regular_line_lock_.Acquire();
+    ++passport_office_->line_counts_[type_][identifier_];
 		regular_line_lock_cv_.Wait(&regular_line_lock_);
 		regular_line_lock_.Release();
 	}
@@ -66,7 +68,15 @@ int Clerk::GetNumCustomersInLine() const {
 void Clerk::GetNextCustomer() {
 //  lines_lock_.Acquire();
 	passport_office_->line_locks_[type_]->Acquire();
-	if (passport_office_->bribe_line_counts_[type_][identifier_] > 0) {
+  bribe_line_lock_.Acquire();
+  int bribe_line_count = passport_office_->bribe_line_counts_[type_][identifier_];
+  bribe_line_lock_.Release();
+
+  regular_line_lock_.Acquire();
+  int regular_line_count = passport_office_->line_counts_[type_][identifier_];
+  regular_line_lock_.Release();
+
+	if (bribe_line_count > 0) {
     std::cout << clerk_type_ << " [" << identifier_
       << "] has signalled a Customer to come to their counter." << std::endl;
 		bribe_line_lock_.Acquire();
@@ -75,7 +85,7 @@ void Clerk::GetNextCustomer() {
 		bribe_line_lock_.Release();
     state_ = clerk_states::kBusy;
     passport_office_->bribe_line_counts_[type_][identifier_]--;
-  } else if (passport_office_->line_counts_[type_][identifier_] > 0) {
+  } else if (regular_line_count > 0) {
     std::cerr << clerk_type_ << " [" << identifier_
       << "] has signalled a Customer to come to their counter." << std::endl;
     regular_line_lock_.Acquire();

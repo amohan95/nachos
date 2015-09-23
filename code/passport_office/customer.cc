@@ -92,12 +92,10 @@ void Customer::Run() {
         clerk = passport_office_->clerks_[next_clerk][bribe_shortest];
         bribed_ = true;
 //        clerk->lines_lock_.Acquire();
-        ++passport_office_->bribe_line_counts_[next_clerk][bribe_shortest];
 //        clerk->lines_lock_.Release();
       } else {
         clerk = passport_office_->clerks_[next_clerk][shortest];
 //        clerk->lines_lock_.Acquire();
-        ++passport_office_->line_counts_[next_clerk][shortest];
 //        clerk->lines_lock_.Release();
       }
     } else {
@@ -108,7 +106,6 @@ void Customer::Run() {
       }
       clerk = passport_office_->clerks_[next_clerk][shortest];
 //      clerk->lines_lock_.Acquire();
-      ++passport_office_->line_counts_[next_clerk][shortest];
 //      clerk->lines_lock_.Release();
     }
 
