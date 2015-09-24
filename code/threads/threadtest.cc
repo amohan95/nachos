@@ -367,8 +367,8 @@ void PTest7() {
   printf("Starting Test 7 - The behavior of Customers is proper when Senators arrive. This is before, during, and after.\n");
   PassportOffice po(1, 1, 1, 1);
   po.Start();
-  for (int i = 0; i < 3; ++i) {
-    Customer* c = new Customer(&po, 1600);
+  for (int i = 0; i < 7; ++i) {
+    Customer* c = new Customer(&po, 100);
     po.AddNewCustomer(c);
   }
   Senator* s = new Senator(&po);
@@ -489,6 +489,7 @@ void TestSuite() {
     PTest4();
     PTest5();
     PTest6();
+    PTest7();
 }
 #endif
 

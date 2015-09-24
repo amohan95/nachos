@@ -71,7 +71,7 @@ class PassportOffice {
   // work at the office.
   Lock customers_served_lock_;
   Condition customers_served_cv_;
-  int num_customers_being_served_;
+  unsigned int num_customers_being_served_;
   
   // Lock and variable checking how many customers are waiting to be served
   // by the passport office. Used to see if it is necessary to terminate if

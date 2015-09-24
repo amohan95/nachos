@@ -15,15 +15,17 @@ void Senator::Run() {
   passport_office_->senator_lock_->Acquire();
 
   // Wake up customers that are currently in line in the passport office so that
+
   // they can join the outside line.
-  passport_office_->customers_served_lock_.Acquire();
-  passport_office_->manager_->WakeWaitingCustomers();
-  // Wait until all customers have left the building.
-  if (passport_office_->num_customers_being_served_ > 0) {
-    passport_office_->customers_served_cv_.Wait(
-        &passport_office_->customers_served_lock_);
+  while (passport_office_->num_customers_being_served_ > 0) {
+    passport_office_->manager_->WakeWaitingCustomers();
+    currentThread->Yield();
   }
-  passport_office_->customers_served_lock_.Release();
+  // Wait until all customers have left the building.
+  //if (passport_office_->num_customers_being_served_ > 0) {
+  //  passport_office_->customers_served_cv_.Wait(
+  //      &passport_office_->customers_served_lock_);
+  //}
 
   // Reset the line counts to 0 since there are no customers in the office
   // at this point.

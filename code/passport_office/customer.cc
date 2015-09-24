@@ -132,13 +132,14 @@ void Customer::Run() {
 //      clerk->lines_lock_.Acquire();
 //      clerk->lines_lock_.Release();
     }
-
     passport_office_->line_locks_[next_clerk]->Release();
+
     if (passport_office_->GetNumCustomersForClerkType(next_clerk) > 
         CLERK_WAKEUP_THRESHOLD) {
       passport_office_->manager_->wakeup_condition_.Signal(
           &passport_office_->manager_->wakeup_condition_lock_);
     }
+
 		PrintLineJoin(clerk, bribed_);
 //    join_line_lock_.Acquire();
 //    join_line_lock_cv_.Signal(&join_line_lock_);
@@ -148,15 +149,18 @@ void Customer::Run() {
     passport_office_->num_customers_waiting_lock_.Release();
 
 		clerk->JoinLine(bribed_);
+
     passport_office_->num_customers_waiting_lock_.Acquire();
     --passport_office_->num_customers_waiting_;
     passport_office_->num_customers_waiting_lock_.Release();
 
+    passport_office_->customers_served_lock_.Acquire();
+    --passport_office_->num_customers_being_served_;
+    passport_office_->customers_served_lock_.Release();
     passport_office_->num_senators_lock_.Acquire();
     if (passport_office_->num_senators_ > 0) {
       passport_office_->num_senators_lock_.Release();
       passport_office_->customers_served_lock_.Acquire();
-      --passport_office_->num_customers_being_served_;
       if (passport_office_->num_customers_being_served_ == 0) {
         passport_office_->customers_served_cv_.Broadcast(
             &passport_office_->customers_served_lock_);

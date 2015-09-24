@@ -130,6 +130,8 @@ Thread* Lock::RemoveFromWaitQueue() {
 
 void Lock::Acquire() {
   InterruptSetter is;
+  DEBUG('Z', "Lock %s is being acquired by thread %s\n",
+      getName(), currentThread->getName());
   if (IsHeldByCurrentThread()) {
     return;
   }
@@ -145,13 +147,15 @@ void Lock::Acquire() {
 void Lock::Release() {
   InterruptSetter is;
   if (!IsHeldByCurrentThread()) {
-    DEBUG('Z', "Error: Thread %s trying to release Lock %s "
+    DEBUG('E', "Error: Thread %s trying to release Lock %s "
           "owned by thread %s\n",
           currentThread->getName(),
           getName(),
           lock_owner_ ? lock_owner_->getName() : "null");
     return;
   }
+  DEBUG('Z', "Lock %s is being released by thread %s\n",
+      getName(), currentThread->getName());
   if (!wait_queue_.empty()) {
     Thread* to_wake = RemoveFromWaitQueue();
     lock_owner_ = to_wake;
