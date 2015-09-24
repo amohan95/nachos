@@ -106,14 +106,7 @@ void Clerk::GetNextCustomer() {
     state_ = clerk_states::kBusy;
     passport_office_->line_counts_[type_][identifier_]--;
   } else {
-    passport_office_->num_senators_lock_.Acquire();
-    if (passport_office_->num_senators_ > 0) {
-      state_ = clerk_states::kAvailable;
-      wakeup_lock_.Acquire();
-    } else {
-      state_ = clerk_states::kOnBreak;
-    }
-    passport_office_->num_senators_lock_.Release();
+    state_ = clerk_states::kOnBreak;
   }
 	// lines_lock_.Release();
 	passport_office_->line_locks_[type_]->Release();

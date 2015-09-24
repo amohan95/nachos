@@ -158,6 +158,7 @@ void Customer::Run() {
     --passport_office_->num_customers_being_served_;
     passport_office_->customers_served_lock_.Release();
     passport_office_->num_senators_lock_.Acquire();
+    
     if (passport_office_->num_senators_ > 0) {
       passport_office_->num_senators_lock_.Release();
       passport_office_->customers_served_lock_.Acquire();

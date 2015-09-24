@@ -37,10 +37,6 @@ void Senator::Run() {
     }
     passport_office_->line_locks_[i]->Release();
   }
-
-  // Ask the manager to wake up the necessary clerks for the senator - they will
-  // stay awake until the senator leaves.
-  passport_office_->manager_->WakeClerksForSenator();
   
   // Wait for all clerks to get off of their breaks, if necessary.
   for (int i = 0; i < 500; ++i) { currentThread->Yield(); }
@@ -66,9 +62,21 @@ void Senator::Run() {
       break;
     }
     Clerk* clerk = passport_office_->clerks_[next_clerk][0];
+    passport_office_->line_locks_[next_clerk]->Acquire();
+    ++passport_office_->line_counts_[next_clerk][0];
+    passport_office_->line_locks_[next_clerk]->Release();
+    
+    passport_office_->manager_->wakeup_condition_.Signal(
+        &passport_office_->manager_->wakeup_condition_lock_);
+
     PrintLineJoin(clerk, bribed_);
+    clerk->JoinLine(bribed_);
 
     DoClerkWork(clerk);
+
+    passport_office_->line_locks_[next_clerk]->Acquire();
+    --passport_office_->line_counts_[next_clerk][0];
+    passport_office_->line_locks_[next_clerk]->Release();
 
     clerk->current_customer_ = NULL;
     clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);

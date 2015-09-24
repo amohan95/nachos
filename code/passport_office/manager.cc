@@ -60,7 +60,8 @@ void Manager::Run() {
     }
     for (uint32_t i = 0; i < clerk_types::Size; ++i) {
       if (passport_office_->GetNumCustomersForClerkType(
-          static_cast<clerk_types::Type>(i)) > CLERK_WAKEUP_THRESHOLD) {
+          static_cast<clerk_types::Type>(i)) > CLERK_WAKEUP_THRESHOLD ||
+          passport_office_->num_senators_ > 0) {
         for (uint32_t j = 0; j < passport_office_->clerks_[i].size(); ++j) {
           Clerk* clerk = passport_office_->clerks_[i][j];
           if (clerk->state_ == clerk_states::kOnBreak) {
