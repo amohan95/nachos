@@ -1,0 +1,255 @@
+Title:  Writeup for Project 1, Fall 2015
+Date:  09/20/15
+Group 16:     Name                        Email
+              Rochelle (Shelly) Willard   rwillard@usc.edu
+              Ananth Mohan                ananthmo@usc.edu
+              Matthew Burke               matthelb@usc.edu
+
+I. Requirements:
+Part 1: Implement a lock and condition variable in synch.h.
+
+Part 2: Implement a US Passport Office simulation with individual threads for each customer, clerk, and manager. Each class must be implemented to fulfill the following requirements:
+
+Customer: Must get their application accepted by the ApplicationClerk, get their official picture taken by the PictureClerk, get their "filed" application and picture recognized by the PassportClerk, and pay the Cashier.  They must get their application accepted and picture taken before they file with the PassportClerk.  They must get their passport verifed before they can pay the CashierClerk. The customer gets in the shortest line available for the type of clerk they are trying to visit.  They can bribe the clerk $500 if they have the money to do so in order to move in front of any customers that have not bribed.
+
+ApplicationClerk: Accepts completed applications from customers.
+PictureClerk: Takes passport pictures for customers.
+PassportClerk: Checks that a Customer has filed their completed application and has an official picture taken and then certified their passport.
+CashierClerk: Once a PassportClerk has "certified" that a proper application has been completed, the Cashier will accept the $100 necessary to pay for the new passport.
+
+Manager: Tells the various Clerks that are on break to start working if there are lines for that type of clerk that have more than 3 people in them. Also collects all of the money given to the clerks and outputs the information periodically.
+
+Senator: A customer that receives special privileges.  All customers currently in line will be kicked out of the passport office when a senator arrives and until the senator finishes.
+
+II. Assumptions:
+Part 1: A condition variable must be used with the same lock until the wait queue for that condition variable is empty.  It then may be reused with a different lock and the previous principle thus applies for this new lock. Additionally, the lock used for the condition variable must be acquired before using any methods in Condition.
+
+Part2:
+Customer:  The customer will get in the shortest line available to them. If they have the money to bribe the clerk and the bribe line for the clerk is strictly shorter than the regular line for the clerk, they will bribe the clerk and join the shorter bribe line.
+
+Clerks General:  Each clerk receives the customer's ssn when they arrive to the clerk's desk.
+
+ApplicationClerk: Nothing assumed not stated in the project writeup.
+
+PictureClerk: If the customer doesn't like their picture the customer must get back in line in order to take another.
+
+PassportClerk: Nothing assumed not stated in the project writeup.
+
+CashierClerk: The writeup and print requirements contradict each other on when to receive the money.  We assume that the money is received prior to the passport certification being checked.  In the case that the passport was not certified, the cashier then returns the $100 application fee to the customer.
+
+Manager: All clerks of a certain type that are breaking need to be awoken if there are more than 3 customers waiting for that type of clerk.
+
+Senator: There is only one senator allowed into the passport office at a time. It also wakes up any clerk as needed, as otherwise it would not get served properly.
+
+III. Design:
+
+Part 1:
+InterruptSetter: Implemented in synch.cc. Because most of the operations contain disabling interrupts and then reenabling them after the function finishes, this RAII class was created so that when created, it disables interrupts and stores the old state. Then, on its destructor, it reenables interrupts. This makes sure that any control path out of the function will enable interrupts again.
+
+Lock: Implemented in synch.cc/synch.h. Utilizes setting and resetting interrupts to make sure that operations are atomic. The lock has a waiting queue where it stores threads to wake up who are attempting to acquire the lock while it is already held by a different thread, after it has put them to sleep. This keeps the threads out of the CPU. If a different thread other than the one who originally acquired it attempts to release it, an error message will be printed, and the lock will not be released.
+
+Condition: Implemented in synch.cc/synch.h. Utilizes the lock class to implement the methods necessary. Initially, the condition variable can be used with any lock. It is expected that the lock is acquired by the current thread when it attempts to it wait, signal, or broadcast with the condition. After the condition variable has been used with a lock, it is expected that any further calls with the condition will be with the same lock, until the waiting queue has been emptied on the condition.
+
+Part 2:
+
+Customer: Implemented in customer.h/customer.cc. The Customer::Run algorithm is implemented as a simple state machine. The customer first decides which clerk that it still needs to visit. If it needs either its application accepted or its picture taken, it will randomly choose. Otherwise, it will choose the appropriate clerk and find the shortest line for those clerk types. The customer can consider the “vip” bribe lines if it has enough money to bribe the clerk. After the customer determines the shortest line for the clerk that it can join, it waits until it is notified that it is at the front of the line. Next, the customer will give the clerk its SSN and perform whatever actions are required for that particular clerk. Once the transaction finishes, the state machine loops back to the beginning, where the customer decides on the next line to join.
+
+Clerk: Implemented in clerks.h/clerks.cc.  Has basic implementation for any type of clerk.  Including getting customers from their line, receiving their ssn, receiving bribes, calling currentThread->Yield() to simulate time going by, and going on break.  Has absolute virtual function ClerkWork() for work specific to each clerk.  Gets the next customer in line by first checking their bribe line for customers and then their regular line if their was none in the bribe line.  If there are no customers the clerk goes on break.
+
+ApplicationClerk: Implemented in clerks.h/clerks.cc.  Inherits from Clerk and has functionality specific to the ApplicationClerk in ClerkWork().
+
+PictureClerk: Implemented in clerks.h/clerks.cc.  Inherits from Clerk and has functionality specific to the PicturenClerk in ClerkWork().
+
+PassportClerk: Implemented in clerks.h/clerks.cc.  Inherits from Clerk and has functionality specific to the PassportClerk in ClerkWork().
+
+CashierClerk: Implemented in clerks.h/clerks.cc.  Inherits from Clerk and has functionality specific to the CashierClerk in ClerkWork().
+
+Manager: Implemented in manager.h/manager.cc. The Manager::Run() algorithm waits until a new customer has joined a line. Then, it checks the total number of customers waiting for each type of clerk. If the total is greater than 3, then all clerks of that type who are currently on break will be woken up.
+
+Senator: Implemented in senator.h/senator.cc. The Senator::Run() function will first increment the number of senators currently in the office. If there is a senator currently in the office, it waits for them to finish. It then wakes up all customers that are in line, and waits until all customers have left the office. It then proceeds as a normal customer, until it finishes, at which time it checks if there are any more senators waiting; if there are none, it broadcasts on the line containing the customers waiting outside so that they can re-enter the passport office.
+
+PassportOffice: Implemented in passport_office.h/passport_office.cc. The passport office acts as the storage unit for all the shared data between customers, clerks, and the manager. It also implements starting, waiting on and stopping the simulation, by forking the proper threads and checking the finishing condition periodically.
+
+IV. Implementation:
++ Files Modified
+threads/Makefile
+threads/synch.h
+threads/synch.cc
++ Files added
+passport_office/clerks.h
+passport_office/clerks.cc
+passport_office/customer.h
+passport_office/customer.cc
+passport_office/manager.h
+passport_office/manager.cc
+passport_office/passport_office.h
+passport_office/passport_office.cc
+
++ Data Structures added, and the file they were added to.
+class InterruptSetter {            -- in file threads/synch.cc
+ public:
+  InterruptSetter() { old_level_ = interrupt->SetLevel(IntOff); }
+  ~InterruptSetter() { interrupt->SetLevel(old_level_); }
+ private:
+  IntStatus old_level_;
+};
+
++ Data Structures modified, and the file they were added to.
+class Lock {                -- in file synch.cc/synch.h
+  typedef enum LockState {
+    kFree,
+    kBusy
+  } Type;
+  Thread* lock_owner_;
+  LockState lock_state_;
+  List wait_queue_;
+};
+
+
+class MutexLock {            -- in file synch.h
+ public:
+  MutexLock(Lock* lock) {
+    lock_ = lock;
+    lock_->Acquire();
+  }
+  ~MutexLock() {
+    lock_->Release();
+  }
+ private:
+  Lock* lock_;
+};
+
+class InterruptSetter {            -- in file synch.cc
+ public:
+  InterruptSetter() { old_level_ = interrupt->SetLevel(IntOff); }
+  ~InterruptSetter() { interrupt->SetLevel(old_level_); }
+ private:
+  IntStatus old_level_;
+};
+
++ Functions added and in which file.
+passport_office/clerks.cc
+
+// Base constructor for clerks.
+Clerk::Clerk(PassportOffice * passport_office, int identifier)
+
+// Base destructor for clerks.
+Clerk::~Clerk()
+
+// Collects money from the customer.  Uses a money lock to avoid race conditions.
+int Clerk::CollectMoney()
+
+// Gets the number of customers in line for that clerk.
+int Clerk::GetNumCustomersInLine()
+
+// Gets the next customer to be served for that clerk.
+void Clerk::GetNextCustomer()
+
+// Provides the basic functionality common to each clerk including getting customers from their line, receiving their ssn, receiving bribes, calling currentThread->Yield() to simulate time going by, and going on break. Also calls ClerkWork.
+void Clerk::Run()
+
+// Constructor for ApplicationClerk.
+ApplicationClerk::ApplicationClerk(PassportOffice* passport_office, int identifier)
+
+// Work specific to the ApplicaitonClerk: verifiying the passport.
+void ApplicationClerk::ClerkWork()
+
+// Constructor for PictureClerk.
+PictureClerk::PictureClerk(PassportOffice* passport_office, int identifier)
+
+// Work specific to the PictureClerk: takes the customer's picture
+void PictureClerk::ClerkWork()
+
+// Constructor for PassportClerk.
+PassportClerk::PassportClerk(PassportOffice* passport_office, int identifier)
+
+// Work specific to the PassportClerk: makes sure the customer's picture was taken and passport was verified and then certifies their passport if that is true.
+void PassportClerk::ClerkWork()
+
+// Constructor for CashierClerk.
+CashierClerk::CashierClerk(PassportOffice* passport_office, int identifier)
+
+// Work specific to the CashierClerk: collects the application fee, makes sure the customer was certified by a PassportClerk, gives the customer their passport, and then records the passport as given to the customer.
+void CashierClerk::ClerkWork()
+
+passport_office/passport_office.cc
+
+// Initializes a new passport office with numbers specified for each types of clerk
+PassportOffice::PassportOffice(int num_application_clerks, int num_picture_clerks, int num_passport_clerks, int num_cashier_clerks)
+
+// Starts all the threads for the manager, and clerks. Should be called before starting to run customers.
+void PassportOffice::Start()
+
+// Calls finish on all of the threads that have been started since Start was called.
+void PassportOffice::Stop()
+
+// Adds a new customer to the passport office. This creates a new thread for the customer and calls Customer::Run()
+void PassportOffice::AddNewCustomer(Customer* customer)
+
+// Adds a new senator to the passport office. This creates a new thread for the senator and calls Senator::Run()
+void PassportOffice::AddNewSenator(Senator* senator)
+
+// Function handler to fork a new thread; casts the inputted argument to a Manager*.
+thread_runners::RunManager(int arg)
+
+// Function handler to fork a new thread; casts the inputted argument to a Clerk*.
+thread_runners::RunClerk(int arg)
+
+// Function handler to fork a new thread; casts the inputted argument to a Customer*.
+thread_runners::RunCustomer(int arg)
+
+// Function handler to fork a new thread; casts the inputted argument to a Senator*.
+thread_runners::RunSenator(int arg)
+
+passport_office/customer.cc
+
+// Returns true if and only if the customer has enough money to bribe a clerk
+bool CanBribe() const;
+
+// Returns a string describing the customer. For normal customers, the format is “Customer [ssn]” where ssn is the social security number of the customer. For senators, the format is “Senator [ssn]”
+std::string IdentifierString() const;
+
+// Simulates a customer in a passport office. This method is called by a forked thread and will terminate once the customer has received their passport or once it has been determined that it is impossible for the customer to finish the passport process
+void Run();
+
+// A helper method called by the Customer::Run() method. This performs the necessary tasks for the customer on the current thread for the clerk specified.
+void DoClerkWork(Clerk* clerk);
+
+// A helper method which outputs information about the customer joining the line specified by the clerk and bribed arguments.
+void PrintLineJoin(Clerk* clerk, bool bribed) const;
+
+passport_office/manager.cc
+
+// Collects money from all of the clerks in the passport office and outputs a report detailing the amount of money received from each type of clerk and the total amount of money collected by the passport office
+void PrintMoneyReport();
+
+// Simulates a manager in a passport office. This method is called by a forked thread and will terminate once the manager has been shutdown by the main thread. This should happen when the passport office simulation is complete.
+void Run();
+
+// Signals the manager's wait condition
+void WakeUp();
+
++ Functions modified and in which file.
+
+V. Testing:  (For each test case, you must show)
++ How to test
+- gmake
+- ./nachos -T
++ Test Output
+- Test 1: The output should show that the two customers join different lines from each other because the second customer to join a line will see a line of length 1 and a line of length 0. Thus, the second customer will choose the shorter of the two lines instead of joining a line that is strictly longer.
+- Test 2: The output should show that the manager has collected $4200 dollars total for the passport office. This is because there are 7 customers who each have $600. If the manager tries to read from multiple clerks total money received, the total money received will be counted incorrectly.
+- Test 3: The output should show that all 4 customers have successfully received their passports and exited the passport office. Additionally, the output should show that the cashier never signals another customer before the previous customer has completed their interaction.
+- Test 4: The output should show that all 4 clerks go on break because there are no customers.
+- Test 5: The output should show that the manager wakes up the application clerk after 4 customers have joined the application clerk line.
+- Test 6: The output should show that the manager has collected $1000 dollars total for the passport office. This is because there are 10 customers who each have $100. If total sales suffer from a race condition, the total money received will be counted incorrectly.
+- Test 7: The output should show the passport office beginning the process of serving customers, as normal, before being interrupted by a senator that arrives. The clerks should not serve a normal customer after the senator arrives (except for finishing the current customer) until the senator has received his passport.
+VI. Discussion:
++ Experiment expectation.
+Run the passport office with 50 normal customers, 1 senator, and 4 of each type of clerk. Expect that every customer successfully receives their passport. Expect that when the senator arrives, all of the customers leave until the senator has received his passport.
++ Experiment result.
+
++ Explanation
+For each customer [0, 49] we can see that there is an output statement for them having received their passport and exiting the passport office. When the senator arrives, we can see that the clerks finish their current customer, then only serve the senator until the senator has received his passport, then continue serving regular customers.
+
+VIII. Miscellaneous:
+- Whatever else you want the grader know about your development.  You can create your own subsections headings here.

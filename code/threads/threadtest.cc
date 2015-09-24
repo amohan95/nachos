@@ -274,17 +274,17 @@ void t5_t2() {
     t5_l1.Release();
 }
 
-#include "../passport_office/utilities.h"
-#include "../passport_office/passport_office.h"
-#include "../passport_office/clerks.h"
-#include "../passport_office/customer.h"
-#include "../passport_office/manager.h"
-#include "../passport_office/senator.h"
-#include "../passport_office/passport_office.cc"
-#include "../passport_office/clerks.cc"
-#include "../passport_office/customer.cc"
-#include "../passport_office/manager.cc"
-#include "../passport_office/senator.cc"
+#include "utilities.h"
+#include "passport_office.h"
+#include "clerks.h"
+#include "customer.h"
+#include "manager.h"
+#include "senator.h"
+#include "passport_office.cc"
+#include "clerks.cc"
+#include "customer.cc"
+#include "manager.cc"
+#include "senator.cc"
 
 void PTest1() {
   printf("Starting Test 1 - Customers always take the shortest line, but no 2 "
@@ -337,8 +337,8 @@ void PTest4() {
 void PTest5() {
   printf("Starting Test 5 - Managers get Clerks off their break when lines get too long\n");
   PassportOffice po(1, 0, 0, 0);
-  po.Start();
   po.clerks_[clerk_types::kApplication][0]->wakeup_lock_.Acquire();
+  po.Start();
   po.clerks_[clerk_types::kApplication][0]->wakeup_lock_cv_.Wait(&po.clerks_[clerk_types::kApplication][0]->wakeup_lock_);
   po.clerks_[clerk_types::kApplication][0]->wakeup_lock_.Release();
   for (int i = 0; i < 4; ++i) {
