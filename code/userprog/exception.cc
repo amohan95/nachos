@@ -231,6 +231,21 @@ void Close_Syscall(int fd) {
     }
 }
 
+void kernel_thread(int vaddr) {
+  currentThread->space->InitRegisters();
+  machine->WriteRegister(PCReg, vaddr);
+  machine->WriteRegister(NextPCReg, machine->ReadRegister(PCReg) + 4);
+  // TODO: Write StackReg with contents of virtual address of stack
+  machine->Run();
+  ASSERT(false); // Should never get past machine->Run()
+}
+
+void Fork_Syscall(int vaddr) {
+  Thread* thread = new Thread("Forked Thread");
+  thread->space = currentThread->space;
+  thread->Fork(kernel_thread, vaddr);
+}
+
 void ExceptionHandler(ExceptionType which) {
     int type = machine->ReadRegister(2); // Which syscall?
     int rv=0; 	// the return value from a syscall
@@ -267,6 +282,10 @@ void ExceptionHandler(ExceptionType which) {
 		DEBUG('a', "Close syscall.\n");
 		Close_Syscall(machine->ReadRegister(4));
 		break;
+    case SC_Fork:
+      DEBUG('a', "Fork syscall.\n");
+      Fork_Syscall(machine->ReadRegister(4));
+      break;
 	}
 
 	// Put in the return value and increment the PC

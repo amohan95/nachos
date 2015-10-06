@@ -22,7 +22,6 @@
 #define MACHINE_H
 
 #include <stdio.h>
-#include <iostream>
 #include "copyright.h"
 #include "utility.h"
 #include "translate.h"
