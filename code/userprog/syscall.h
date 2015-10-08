@@ -18,22 +18,26 @@
 /* system call codes -- used by the stubs to tell the kernel which system call
  * is being asked for
  */
-#define SC_Halt		    0
-#define SC_Exit		    1
-#define SC_Exec		    2
-#define SC_Join		    3
-#define SC_Create 	  4
-#define SC_Open		    5
-#define SC_Read		    6
-#define SC_Write	    7
-#define SC_Close  	  8
-#define SC_Fork		    9
-#define SC_Yield	   10
-#define SC_Acquire   11
-#define SC_Release   12
-#define SC_Wait      13
-#define SC_Signal    14
-#define SC_Broadcast 15
+#define SC_Halt		           0
+#define SC_Exit		           1
+#define SC_Exec		           2
+#define SC_Join		           3
+#define SC_Create 	         4
+#define SC_Open		           5
+#define SC_Read              6
+#define SC_Write	           7
+#define SC_Close  	         8
+#define SC_Fork		           9
+#define SC_Yield	          10
+#define SC_CreateLock       11
+#define SC_DestroyLock      12
+#define SC_CreateCondition  13
+#define SC_DestroyCondition 14
+#define SC_Acquire          15
+#define SC_Release          16
+#define SC_Wait             17
+#define SC_Signal           18
+#define SC_Broadcast        19
 
 #define MAXFILENAME 256
 
@@ -129,7 +133,20 @@ void Fork(void (*func)());
 /* Yield the CPU to another runnable thread, whether in this address space 
  * or not. 
  */
-void Yield();		
+void Yield();
+
+/* Synchronization operations: Acquire, Release, Wait, Signal, and
+ * Broadcast.
+ */
+int CreateLock(char* name);
+void DestroyLock(int lock);
+int CreateCondition(char* name);
+void DestroyCondition(char* name);
+void Acquire(int lock);
+void Release(int lock);
+void Wait(int cv, int lock);
+void Signal(int cv, int lock);
+void Broadcast(int cv, int lock);
 
 #endif /* IN_ASM */
 

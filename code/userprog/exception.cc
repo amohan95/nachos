@@ -246,6 +246,42 @@ void Fork_Syscall(int vaddr) {
   thread->Fork(kernel_thread, vaddr);
 }
 
+void Exit_Syscall(int status) {
+}
+
+void Exec_Syscall(char* name) {
+}
+
+void Yield_Syscall() {
+}
+
+void CreateLock_Syscall(char* name) {
+}
+
+void DestroyLock_Syscall(int lock) {
+}
+
+void CreateCondition_Syscall(char* name) {
+}
+
+void DestroyCondition_Syscall(int lock) {
+}
+
+void Acquire_Syscall(int lock) {
+}
+
+void Release_Syscall(int lock) {
+}
+
+void Wait_Syscall(int cv, int lock) {
+}
+
+void Signal_Syscall(int cv, int lock) {
+}
+
+void Broadcast_Syscall(int cv, int lock) {
+}
+
 void ExceptionHandler(ExceptionType which) {
     int type = machine->ReadRegister(2); // Which syscall?
     int rv=0; 	// the return value from a syscall
@@ -258,6 +294,16 @@ void ExceptionHandler(ExceptionType which) {
 		DEBUG('a', "Shutdown, initiated by user program.\n");
 		interrupt->Halt();
 		break;
+    case SC_Exit:
+      DEBUG('a', "Exit syscall.\n");
+      int status = machine->ReadRegister(4);
+      Exit_Syscall(status);
+      break;
+    case SC_Exec:
+      DEBUG('a', "Exec syscall.\n");
+      char* name = reinterpret_cast<char*>(machine->ReadRegister(4));
+      Exec_Syscall(name);
+      break;
 	    case SC_Create:
 		DEBUG('a', "Create syscall.\n");
 		Create_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
@@ -285,6 +331,58 @@ void ExceptionHandler(ExceptionType which) {
     case SC_Fork:
       DEBUG('a', "Fork syscall.\n");
       Fork_Syscall(machine->ReadRegister(4));
+      break;
+    case SC_Yield:
+      DEBUG('a', "Yield syscall.\n");
+      Yield_Syscall();
+      break;
+    case SC_CreateLock:
+      DEBUG('a', "CreateLock syscall.\n");
+      name = reinterpret_cast<char*>(machine->ReadRegister(4));
+      CreateLock_Syscall(name);
+      break;
+    case SC_DestroyLock:
+      DEBUG('a', "DestroyLock syscall.\n");
+      int lock = machine->ReadRegister(4);
+      DestroyLock_Syscall(lock);
+      break;
+    case SC_CreateCondition:
+      DEBUG('a', "CreateCondition syscall.\n");
+      name = reinterpret_cast<char*>(machine->ReadRegister(4));
+      CreateCondition_Syscall(name);
+      break;
+    case SC_DestroyCondition:
+      DEBUG('a', "DestroyCondition syscall.\n");
+      int cv = machine->ReadRegister(4);
+      DestroyCondition_Syscall(cv);
+      break;
+    case SC_Acquire:
+      DEBUG('a', "Acquire syscall.\n");
+      lock = machine->ReadRegister(4);
+      Acquire_Syscall(lock);
+      break;
+    case SC_Release:
+      DEBUG('a', "Release syscall.\n");
+      lock = machine->ReadRegister(4);
+      Release_Syscall(lock);
+      break;
+    case SC_Wait:
+      DEBUG('a', "Wait syscall.\n");
+       cv = machine->ReadRegister(4);
+      lock = machine->ReadRegister(5);
+      Wait_Syscall(cv, lock);
+      break;
+    case SC_Signal:
+      DEBUG('a', "Signal syscall.\n");
+      cv = machine->ReadRegister(4);
+      lock = machine->ReadRegister(5);
+      Signal_Syscall(cv, lock);
+      break;
+    case SC_Broadcast:
+      DEBUG('a', "Broadcast syscall.\n");
+      cv = machine->ReadRegister(4);
+      lock = machine->ReadRegister(5);
+      Broadcast_Syscall(cv, lock);
       break;
 	}
 
