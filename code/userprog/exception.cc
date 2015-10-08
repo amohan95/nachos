@@ -255,6 +255,7 @@ void Exec_Syscall(char* name) {
 }
 
 void Yield_Syscall() {
+  currentThread->Yield();
 }
 
 void CreateLock_Syscall(char* name) {
