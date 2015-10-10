@@ -231,11 +231,13 @@ void Close_Syscall(int fd) {
     }
 }
 
-void kernel_thread(int vaddr) {
+void KernelThread(int vaddr) {
   currentThread->space->InitRegisters();
   machine->WriteRegister(PCReg, vaddr);
   machine->WriteRegister(NextPCReg, machine->ReadRegister(PCReg) + 4);
-  // TODO: Write StackReg with contents of virtual address of stack
+  currentThread->space->RestoreState();
+  
+  // TODO: Write StackReg with starting position of the stack.
   machine->Run();
   ASSERT(false); // Should never get past machine->Run()
 }
@@ -243,7 +245,7 @@ void kernel_thread(int vaddr) {
 void Fork_Syscall(int vaddr) {
   Thread* thread = new Thread("Forked Thread");
   thread->space = currentThread->space;
-  thread->Fork(kernel_thread, vaddr);
+  thread->Fork(KernelThread, vaddr);
 }
 
 void Exit_Syscall(int status) {

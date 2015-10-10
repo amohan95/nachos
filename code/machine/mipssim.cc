@@ -9,13 +9,13 @@
 // Copyright (c) 1992-1993 The Regents of the University of California.
 // All rights reserved.  See copyright.h for copyright notice and limitation 
 // of liability and disclaimer of warranty provisions.
-#include <iostream>
 
 #include "copyright.h"
-
+#include "system.h"
 #include "machine.h"
 #include "mipssim.h"
-#include "system.h"
+
+#include <iostream>
 
 static void Mult(int a, int b, bool signedArith, int* hiPtr, int* loPtr);
 

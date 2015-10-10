@@ -9,11 +9,6 @@
 // All rights reserved.  See copyright.h for copyright notice and limitation 
 // of liability and disclaimer of warranty provisions.
 
-#include <iostream>
-#include <vector>
-#include <string>
-#include <sstream>
-#include <deque>
 
 #include "copyright.h"
 #include "system.h"
@@ -22,6 +17,12 @@
 #ifdef CHANGED
 #include "synch.h"
 #endif
+
+#include <iostream>
+#include <vector>
+#include <string>
+#include <sstream>
+#include <deque>
 
 #ifdef CHANGED
 // --------------------------------------------------
