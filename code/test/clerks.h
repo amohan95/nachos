@@ -19,14 +19,14 @@ class Clerk {
 	std::string IdentifierString() const;
 
   inline void set_running(bool running__) { running_ = running__; }
-  Lock lines_lock_;
-  Condition bribe_line_lock_cv_;
-  Lock bribe_line_lock_;
-  Condition regular_line_lock_cv_;
-  Lock regular_line_lock_;
-  Condition wakeup_lock_cv_;
-  Lock wakeup_lock_;
-  Lock money_lock_;
+  int lines_lock_;
+  int bribe_line_lock_cv_;
+  int bribe_line_lock_;
+  int regular_line_lock_cv_;
+  int regular_line_lock_;
+  int wakeup_lock_cv_;
+  int wakeup_lock_;
+  int money_lock_;
   uint32_t customer_ssn_;
   Customer* current_customer_;
   int customer_money_;
