@@ -139,7 +139,7 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
 
     {
       MutexLock l(&page_manager->lock_);
-      ASSERT(page_manager->num_available_pages() < numPages);
+      ASSERT(numPages < page_manager->num_available_pages());
 
       DEBUG('a', "Initializing address space, num pages %d, size %d\n", 
   					numPages, size);
