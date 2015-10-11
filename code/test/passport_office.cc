@@ -1,4 +1,5 @@
 #include "passport_office.h"
+#include "../userprog/syscall.h"
 
 #include <string>
 #include <cstdlib>
@@ -35,26 +36,26 @@ PassportOffice::PassportOffice(
     int num_application_clerks, int num_picture_clerks,
     int num_passport_clerks, int num_cashier_clerks) :
       clerks_(clerk_types::Size, std::vector<Clerk*>()),
-      breaking_clerks_lock_(new Lock("breaking clerks lock")),
+      breaking_clerks_lock_(CreateLock("breaking clerks lock")),
       line_counts_(clerk_types::Size, std::vector<int>()),
       bribe_line_counts_(clerk_types::Size, std::vector<int>()),
-      senator_lock_(new Lock("senator lock")),
-      senator_condition_(new Condition("senator condition")),
-      customer_count_lock_("customer count lock"),
-      customers_served_lock_("num customers being served lock"),
-      customers_served_cv_("num customers being served cv"),
+      senator_lock_(CreateLock("senator lock")),
+      senator_condition_(CreateCondition("senator condition")),
+      customer_count_lock_(CreateLock("customer count lock")),
+      customers_served_lock_(CreateLock("num customers being served lock")),
+      customers_served_cv_(CreateCondition("num customers being served cv")),
       num_customers_being_served_(0),
-      num_customers_waiting_lock_("customer waiting counter"),
+      num_customers_waiting_lock_(CreateLock("customer waiting counter")),
       num_customers_waiting_(0),
-      num_senators_lock_("num senators lock"),
+      num_senators_lock_(CreateLock("num senators lock")),
       num_senators_(0),
-      outside_line_lock_("outside line lock"),
-      outside_line_cv_("outside line condition"),
+      outside_line_lock_(CreateLock("outside line lock")),
+      outside_line_cv_(CreateCondition("outside line condition")),
       manager_thread_("manager thread") {
   for (int i = 0; i < clerk_types::Size; ++i) {
     char* name = new char[80];
     sprintf(name, "Line Lock %d", i);
-    line_locks_.push_back(new Lock(name));
+    line_locks_.push_back(CreateLock(name));
   }
 
   for (int i = 0; i < num_application_clerks; ++i) {
@@ -113,13 +114,13 @@ void PassportOffice::WaitOnFinish() {
       currentThread->Yield();
     }
     if (num_senators_ > 0) continue;
-    num_customers_waiting_lock_.Acquire();
+    Acquire(num_customers_waiting_lock_);
     if (customers_.size() == num_customers_waiting_) {
-      num_customers_waiting_lock_.Release();
+      Release(num_customers_waiting_lock_);
       bool done = true;
-      breaking_clerks_lock_->Acquire();
+      Acquire(breaking_clerks_lock_);
       for (unsigned int i = 0; i < clerks_.size(); ++i) {
-        line_locks_[i]->Acquire();
+        Acquire(line_locks_[i]);
         for (unsigned int j = 0; j < clerks_[i].size(); ++j) {
           if (clerks_[i][j]->state_ != clerk_states::kOnBreak ||
               GetNumCustomersForClerkType(static_cast<clerk_types::Type>(i)) > 
@@ -128,13 +129,13 @@ void PassportOffice::WaitOnFinish() {
             break;
           }
         }
-        line_locks_[i]->Release();
+        Release(line_locks_[i]);
         if (done) break;
       }
-      breaking_clerks_lock_->Release();
+      Release(breaking_clerks_lock_);
       if (done) break;
     } else {
-      num_customers_waiting_lock_.Release();
+      Release(num_customers_waiting_lock_);
     }
   }
   for (int i = 0; i < 1000; ++i) {
@@ -149,7 +150,7 @@ void PassportOffice::Stop() {
   printf("Attempting to stop passport office\n");
   while (customers_.size() > 0) {
     bool done = true;
-    breaking_clerks_lock_->Acquire();
+    Acquire(breaking_clerks_lock_);
     for (unsigned int i = 0; i < clerks_.size(); ++i) {
       for (unsigned int j = 0; j < clerks_[i].size(); ++j) {
         if (clerks_[i][j]->state_ != clerk_states::kOnBreak) {
@@ -157,7 +158,7 @@ void PassportOffice::Stop() {
         }
       }
     }
-    breaking_clerks_lock_->Release();
+    Release(breaking_clerks_lock_);
     if (done) {
       break;
     } else {
@@ -170,26 +171,26 @@ void PassportOffice::Stop() {
     (*itr)->set_running(false);
   }
   for (unsigned int i = 0; i < clerks_.size(); ++i) {
-    line_locks_[i]->Acquire();
+    Acquire(line_locks_[i]);
     for (unsigned int j = 0; j < clerks_[i].size(); ++j) {
-      clerks_[i][j]->regular_line_lock_.Acquire();
-      clerks_[i][j]->regular_line_lock_cv_.Broadcast(&clerks_[i][j]->regular_line_lock_);
-      clerks_[i][j]->regular_line_lock_.Release();
-      clerks_[i][j]->bribe_line_lock_.Acquire();
-      clerks_[i][j]->bribe_line_lock_cv_.Broadcast(&clerks_[i][j]->bribe_line_lock_);
-      clerks_[i][j]->bribe_line_lock_.Release();
+      Acquire(clerks_[i][j]->regular_line_lock_);
+      Broadcast(clerks_[i][j]->regular_line_lock_cv_, clerks_[i][j]->regular_line_lock_);
+      Release(clerks_[i][j]->regular_line_lock_);
+      Acquire(clerks_[i][j]->bribe_line_lock_);
+      Broadcast(clerks_[i][j]->bribe_line_lock_cv_, clerks_[i][j]->bribe_line_lock_);
+      Release(clerks_[i][j]->bribe_line_lock_);
       clerks_[i][j]->set_running(false);
-      clerks_[i][j]->wakeup_lock_.Acquire();
-      clerks_[i][j]->wakeup_lock_cv_.Broadcast(&clerks_[i][j]->wakeup_lock_);
-      clerks_[i][j]->wakeup_lock_.Release();
+      Acquire(clerks_[i][j]->wakeup_lock_);
+      Broadcast(clerks_[i][j]->wakeup_lock_cv_, clerks_[i][j]->wakeup_lock_);
+      Release(clerks_[i][j]->wakeup_lock_);
     }
-    line_locks_[i]->Release();
+    Release(line_locks_[i]);
   }
   manager_->set_running(false);
   std::cout << "Set manager running false" << std::endl;
-  manager_->wakeup_condition_lock_.Acquire();
-  manager_->wakeup_condition_.Signal(&manager_->wakeup_condition_lock_);
-  manager_->wakeup_condition_lock_.Release();
+  Acquire(manager_->wakeup_condition_lock_);
+  Signal(manager_->wakeup_condition_, manager_->wakeup_condition_lock_);
+  Release(manager_->wakeup_condition_lock_);
   for (int i = 0; i < 1000; ++i) {
     currentThread->Yield();
   }
@@ -219,9 +220,9 @@ void PassportOffice::AddNewCustomer(Customer* customer) {
   Thread* thread = new Thread(id_str);
   thread->Fork(thread_runners::RunCustomer, reinterpret_cast<int>(customer));
   thread_list_.push_back(thread);
-  customer_count_lock_.Acquire();
+  Acquire(customer_count_lock_);
   customers_.insert(customer);
-  customer_count_lock_.Release();
+  Release(customer_count_lock_);
 }
 
 // Adds a new senator to the passport office by creating a new thread and
