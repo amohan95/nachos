@@ -61,8 +61,8 @@ void Clerk::JoinLine(bool bribe) {
     ++passport_office_->bribe_line_counts_[type_][identifier_];
     if (passport_office_->GetNumCustomersForClerkType(type_) > 
         CLERK_WAKEUP_THRESHOLD) {
-      passport_office_->manager_->wakeup_condition_.Signal(
-          &passport_office_->manager_->wakeup_condition_lock_);
+      Signal(passport_office_->manager_->wakeup_condition_,
+          passport_office_->manager_->wakeup_condition_lock_);
     }
 		Wait(bribe_line_lock_cv_, bribe_line_lock_);
 		Release(bribe_line_lock_);
@@ -71,8 +71,8 @@ void Clerk::JoinLine(bool bribe) {
     ++passport_office_->line_counts_[type_][identifier_];
     if (passport_office_->GetNumCustomersForClerkType(type_) > 
         CLERK_WAKEUP_THRESHOLD) {
-      passport_office_->manager_->wakeup_condition_.Signal(
-          &passport_office_->manager_->wakeup_condition_lock_);
+      Signal(passport_office_->manager_->wakeup_condition_,
+          passport_office_->manager_->wakeup_condition_lock_);
     }
 		Wait(regular_line_lock_cv_ ,regular_line_lock_);
 		Release(regular_line_lock_);

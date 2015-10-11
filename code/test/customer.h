@@ -46,8 +46,8 @@ class Customer {
   uint32_t money_;
   const uint32_t ssn_;
 
-  Lock join_line_lock_;
-  Condition join_line_lock_cv_;
+  int join_line_lock_;
+  int join_line_lock_cv_;
  protected:
   static const uint32_t NUM_INITIAL_MONEY_AMOUNTS = 4;
   static const uint32_t* INITIAL_MONEY_AMOUNTS;
