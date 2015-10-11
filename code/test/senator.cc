@@ -1,5 +1,6 @@
 #include "senator.h"
 #include "utilities.h"
+#include "../userprog/syscall.h"
 
 Senator::Senator(PassportOffice* passport_office) : 
     Customer(passport_office, customer_types::kSenator) {}
@@ -8,11 +9,11 @@ void Senator::Run() {
   running_ = true;
   // Increment the number of senators in the office so that others know
   // that a senator is there.
-  passport_office_->num_senators_lock_.Acquire();
+  Acquire(passport_office_->num_senators_lock_);
   ++passport_office_->num_senators_;
-  passport_office_->num_senators_lock_.Release();
+  Release(passport_office_->num_senators_lock_);
 
-  passport_office_->senator_lock_->Acquire();
+  Acquire(passport_office_->senator_lock_);
 
   // Wake up customers that are currently in line in the passport office so that
 
@@ -30,12 +31,12 @@ void Senator::Run() {
   // Reset the line counts to 0 since there are no customers in the office
   // at this point.
   for (unsigned i = 0; i < passport_office_->line_counts_.size(); ++i) {
-    passport_office_->line_locks_[i]->Acquire();
+    Acquire(passport_office_->line_locks_[i]);
     for (unsigned j = 0; j < passport_office_->line_counts_[i].size(); ++j) {
       passport_office_->line_counts_[i][j] = 0;
       passport_office_->bribe_line_counts_[i][j] = 0;      
     }
-    passport_office_->line_locks_[i]->Release();
+    Release(passport_office_->line_locks_[i]);
   }
   
   // Wait for all clerks to get off of their breaks, if necessary.
@@ -62,25 +63,25 @@ void Senator::Run() {
       break;
     }
     Clerk* clerk = passport_office_->clerks_[next_clerk][0];
-    passport_office_->line_locks_[next_clerk]->Acquire();
+    Acquire(passport_office_->line_locks_[next_clerk]);
     ++passport_office_->line_counts_[next_clerk][0];
-    passport_office_->line_locks_[next_clerk]->Release();
+    Release(passport_office_->line_locks_[next_clerk]);
     
-    passport_office_->manager_->wakeup_condition_.Signal(
-        &passport_office_->manager_->wakeup_condition_lock_);
+    Signal(passport_office_->manager_->wakeup_condition_,
+        passport_office_->manager_->wakeup_condition_lock_);
 
     PrintLineJoin(clerk, bribed_);
     clerk->JoinLine(bribed_);
 
     DoClerkWork(clerk);
 
-    passport_office_->line_locks_[next_clerk]->Acquire();
+    Acquire(passport_office_->line_locks_[next_clerk]);
     --passport_office_->line_counts_[next_clerk][0];
-    passport_office_->line_locks_[next_clerk]->Release();
+    Release(passport_office_->line_locks_[next_clerk]);
 
     clerk->current_customer_ = NULL;
-    clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
-    clerk->wakeup_lock_.Release();
+    Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
+    Release(clerk->wakeup_lock_);
   }
 
   if (passport_verified()) {
@@ -93,10 +94,10 @@ void Senator::Run() {
   // tell all the customers outside to come back in.
   --passport_office_->num_senators_;
   if (passport_office_->num_senators_ == 0) {
-    passport_office_->outside_line_cv_.Broadcast(
-        &passport_office_->outside_line_lock_);
+    Broadcast(passport_office_->outside_line_cv_,
+        passport_office_->outside_line_lock_);
   }
-  passport_office_->senator_lock_->Release();
+  Release(passport_office_->senator_lock_);
 }
 
 std::string Senator::IdentifierString() const {

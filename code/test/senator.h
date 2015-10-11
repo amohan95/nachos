@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <vector>
 
-#include "../threads/synch.h"
 #include "utilities.h"
 
 class PassportOffice;
