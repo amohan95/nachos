@@ -1,5 +1,7 @@
 #include "clerks.h"
 #include "customer.h"
+#include "../userprog/syscall.h"
+
 #include <stdlib.h>
 
 const char* Clerk::NameForClerkType(clerk_types::Type type) {

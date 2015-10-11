@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <vector>
 
-#include "../threads/synch.h"
 #include "utilities.h"
 
 #define CLERK_BRIBE_AMOUNT 500

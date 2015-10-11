@@ -2,6 +2,7 @@
 
 #include "../machine/timer.h"
 #include "../machine/stats.h"
+#include "../userprog/syscall.h"
 
 #include <iostream>
 
@@ -11,15 +12,17 @@ void RunPrintMoney(int manager) {
 }
 
 Manager::Manager(PassportOffice* passport_office) :
-	wakeup_condition_("Manager Wakeup Lock Condition"),
-  wakeup_condition_lock_("Manager Wakeup Lock"),
-	elapsed_(0),
-  money_(clerk_types::Size, 0),
-  passport_office_(passport_office),
-  running_(false) {
+    elapsed_(0),
+    money_(clerk_types::Size, 0),
+    passport_office_(passport_office),
+    running_(false) {
+  wakeup_condition_ = CreateCondition("Manager Wakeup Lock Condition");
+  wakeup_condition_lock_ = CreateLock("Manager Wakeup Lock");
 }
 
 Manager::~Manager() {
+  DestroyCondition(wakeup_condition_);
+  DestroyLock(wakeup_condition_lock_);
 }
 
 void Manager::PrintMoneyReport() {
@@ -50,13 +53,13 @@ void Manager::Run() {
   Thread* report_timer_thread = new Thread("Report timer thread");
   report_timer_thread->Fork(&RunPrintMoney, reinterpret_cast<int>(this));
   while(running_) {
-    wakeup_condition_lock_.Acquire();
-    wakeup_condition_.Wait(&wakeup_condition_lock_);
+    Acquire(wakeup_condition_lock_);
+    Wait(wakeup_condition_, wakeup_condition_lock_);
 		if (!running_) {
 			break;
 		}
     for (uint32_t i = 0; i < clerk_types::Size; ++i) {
-      passport_office_->line_locks_[i]->Acquire();
+      Acquire(passport_office_->line_locks_[i]);
     }
     for (uint32_t i = 0; i < clerk_types::Size; ++i) {
       if (passport_office_->GetNumCustomersForClerkType(
@@ -65,10 +68,10 @@ void Manager::Run() {
         for (uint32_t j = 0; j < passport_office_->clerks_[i].size(); ++j) {
           Clerk* clerk = passport_office_->clerks_[i][j];
           if (clerk->state_ == clerk_states::kOnBreak) {
-            clerk->wakeup_lock_.Acquire();
-            clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+            Acquire(clerk->wakeup_lock_);
+            Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
             clerk->state_ = clerk_states::kAvailable;
-            clerk->wakeup_lock_.Release();
+            Release(clerk->wakeup_lock_);
             std::cout << "Manager has woken up a"
               << (clerk->type_ == clerk_types::kApplication ? "n " : " ")
               << Clerk::NameForClerkType(clerk->type_) << std::endl;
@@ -77,9 +80,9 @@ void Manager::Run() {
       }
     }
     for (uint32_t i = 0; i < clerk_types::Size; ++i) {
-      passport_office_->line_locks_[i]->Release();
+      Release(passport_office_->line_locks_[i]);
     }
-    wakeup_condition_lock_.Release();
+    Release(wakeup_condition_lock_);
   }
 }
 
@@ -87,8 +90,8 @@ void Manager::WakeWaitingCustomers() {
   for (unsigned int i = 0; i < passport_office_->clerks_.size(); ++i) {
     for (unsigned int j = 0; j < passport_office_->clerks_[i].size(); ++j) {
       Clerk* clerk = passport_office_->clerks_[i][j];
-      clerk->bribe_line_lock_cv_.Broadcast(&clerk->bribe_line_lock_);
-      clerk->regular_line_lock_cv_.Broadcast(&clerk->regular_line_lock_);
+      Broadcast(clerk->bribe_line_lock_cv_, clerk->bribe_line_lock_);
+      Broadcast(clerk->regular_line_lock_cv_, clerk->regular_line_lock_);
     }
   }
 }
@@ -96,13 +99,13 @@ void Manager::WakeWaitingCustomers() {
 void Manager::WakeClerksForSenator() {
   for (unsigned int i = 0; i < passport_office_->clerks_.size(); ++i) {
     if (!passport_office_->clerks_[i].empty()) {
-      passport_office_->line_locks_[i]->Acquire();
+      Acquire(passport_office_->line_locks_[i]);
       Clerk* clerk = passport_office_->clerks_[i][0];
       if (clerk->state_ == clerk_states::kOnBreak) {
         clerk->state_ = clerk_states::kAvailable;
-        clerk->wakeup_lock_cv_.Signal(&clerk->wakeup_lock_);
+        Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       }
-      passport_office_->line_locks_[i]->Release();
+      Release(passport_office_->line_locks_[i]);
     }
   }
 }

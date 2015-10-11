@@ -1,7 +1,6 @@
 #ifndef PASSPORT_OFFICE_MANAGER_H
 #define PASSPORT_OFFICE_MANAGER_H
 
-#include "synch.h"
 #include "utilities.h"
 
 #include <stdint.h>
@@ -30,8 +29,8 @@ class Manager {
   void WakeWaitingCustomers();
   void WakeClerksForSenator();
 
-  Condition wakeup_condition_;
-  Lock wakeup_condition_lock_;
+  int wakeup_condition_;
+  int wakeup_condition_lock_;
  private:
 	uint32_t elapsed_;
   std::vector<uint32_t> money_;
