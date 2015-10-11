@@ -20,6 +20,8 @@
 
 class Lock;
 
+#include <map>
+
 // Initialization and cleanup routines
 extern void Initialize(int argc, char **argv); 	// Initialization,
 						// called before anything else
@@ -32,6 +34,25 @@ extern Scheduler *scheduler;			// the ready list
 extern Interrupt *interrupt;			// interrupt status
 extern Statistics *stats;			// performance metrics
 extern Timer *timer;				// the hardware alarm clock
+
+extern std::map<AddrSpace*, uint32_t> processThreadTable;
+
+#define NUM_SYSTEM_LOCKS 100
+struct KernelLock {
+  Lock* lock;
+  AddrSpace* addrSpace;
+  bool toBeDeleted;
+};
+extern KernelLock* lockTable[NUM_SYSTEM_LOCKS];
+
+class Condition;
+#define NUM_SYSTEM_CONDITIONS 100
+struct KernelCondition {
+  Condition* condition;
+  AddrSpace* addrSpace;
+  bool toBeDeleted;
+};
+extern KernelCondition* conditionTable[NUM_SYSTEM_CONDITIONS];
 
 #ifdef USER_PROGRAM
 #include "machine.h"

@@ -24,10 +24,16 @@
 #include "copyright.h"
 #include "system.h"
 #include "syscall.h"
+#include "../threads/synch.h"
 #include <stdio.h>
 #include <iostream>
 
 using namespace std;
+
+KernelLock* lockTable[NUM_SYSTEM_LOCKS] = {NULL};
+KernelCondition* conditionTable[NUM_SYSTEM_CONDITIONS] = {NULL};
+std::map<AddrSpace*, uint32_t> processThreadTable =
+    std::map<AddrSpace*, uint32_t>();
 
 int copyin(unsigned int vaddr, int len, char *buf) {
   // Copy len bytes from the current thread's virtual address vaddr.
@@ -246,9 +252,22 @@ void Fork_Syscall(int vaddr) {
   Thread* thread = new Thread("Forked Thread");
   thread->space = currentThread->space;
   thread->Fork(KernelThread, vaddr);
+  processThreadTable[thread->space] += 1;
 }
 
 void Exit_Syscall(int status) {
+  assert(processThreadTable.find(currentThread->space)
+      != processThreadTable.end());
+  if (processThreadTable[currentThread->space] > 1) {
+    processThreadTable[currentThread->space] -= 1;
+  } else {
+    processThreadTable.erase(currentThread->space);
+  }
+  if (processThreadTable.size() > 0) {
+    currentThread->Finish();
+  } else {
+    interrupt->Halt();
+  }
 }
 
 void Exec_Syscall(char* name) {
@@ -258,31 +277,116 @@ void Yield_Syscall() {
   currentThread->Yield();
 }
 
-void CreateLock_Syscall(char* name) {
+int CreateLock_Syscall(char* name) {
+  for (int i = 0; i < NUM_SYSTEM_LOCKS; ++i) {
+    if (lockTable[i] == NULL) {
+      lockTable[i] = new KernelLock();
+      lockTable[i]->lock = new Lock(name);
+      lockTable[i]->addrSpace = currentThread->space;
+      lockTable[i]->toBeDeleted = false;
+      return i;
+    } else if (lockTable[i]->toBeDeleted) {
+      lockTable[i]->addrSpace = currentThread->space;
+      lockTable[i]->toBeDeleted = false;
+      return i;
+    }
+  }
+  return -1;
 }
 
 void DestroyLock_Syscall(int lock) {
+  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+      || lockTable[lock]->addrSpace != currentThread->space) {
+    return;
+  }
+  lockTable[lock]->toBeDeleted = true;
 }
 
-void CreateCondition_Syscall(char* name) {
+int CreateCondition_Syscall(char* name) {
+  for (int i = 0; i < NUM_SYSTEM_CONDITIONS; ++i) {
+    if (conditionTable[i] == NULL) {
+      conditionTable[i] = new KernelCondition();
+      conditionTable[i]->condition = new Condition(name);
+      conditionTable[i]->addrSpace = currentThread->space;
+      conditionTable[i]->toBeDeleted = false;
+      return i;
+    } else if (conditionTable[i]->toBeDeleted) {
+      conditionTable[i]->addrSpace = currentThread->space;
+      conditionTable[i]->toBeDeleted = false;
+      return i;
+    }
+  }
+  return -1;
 }
 
-void DestroyCondition_Syscall(int lock) {
+void DestroyCondition_Syscall(int cv) {
+  if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
+      || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
+      || conditionTable[cv]->addrSpace != currentThread->space) {
+    return;
+  }
+  conditionTable[cv]->toBeDeleted = true;
 }
 
 void Acquire_Syscall(int lock) {
+  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+      || lockTable[lock]->addrSpace != currentThread->space) {
+    return;
+  }
+  lockTable[lock]->lock->Acquire();
 }
 
 void Release_Syscall(int lock) {
+  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+      || lockTable[lock]->addrSpace != currentThread->space) {
+    return;
+  }
+  lockTable[lock]->lock->Release();
 }
 
 void Wait_Syscall(int cv, int lock) {
+  if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
+      || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
+      || conditionTable[cv]->addrSpace != currentThread->space) {
+    return;
+  }
+  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+      || lockTable[lock]->addrSpace != currentThread->space) {
+    return;
+  }
+  conditionTable[cv]->condition->Wait(lockTable[lock]->lock);
 }
 
 void Signal_Syscall(int cv, int lock) {
+  if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
+      || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
+      || conditionTable[cv]->addrSpace != currentThread->space) {
+    return;
+  }
+  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+      || lockTable[lock]->addrSpace != currentThread->space) {
+    return;
+  }
+  conditionTable[cv]->condition->Signal(lockTable[lock]->lock);
 }
 
 void Broadcast_Syscall(int cv, int lock) {
+  if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
+      || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
+      || conditionTable[cv]->addrSpace != currentThread->space) {
+    return;
+  }
+  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+      || lockTable[lock]->addrSpace != currentThread->space) {
+    return;
+  }
+  conditionTable[cv]->condition->Broadcast(lockTable[lock]->lock);
 }
 
 void ExceptionHandler(ExceptionType which) {
@@ -342,7 +446,7 @@ void ExceptionHandler(ExceptionType which) {
       case SC_CreateLock:
         DEBUG('a', "CreateLock syscall.\n");
         name = reinterpret_cast<char*>(machine->ReadRegister(4));
-        CreateLock_Syscall(name);
+        rv = CreateLock_Syscall(name);
         break;
       case SC_DestroyLock:
         DEBUG('a', "DestroyLock syscall.\n");
@@ -352,7 +456,7 @@ void ExceptionHandler(ExceptionType which) {
       case SC_CreateCondition:
         DEBUG('a', "CreateCondition syscall.\n");
         name = reinterpret_cast<char*>(machine->ReadRegister(4));
-        CreateCondition_Syscall(name);
+        rv =CreateCondition_Syscall(name);
         break;
       case SC_DestroyCondition:
         DEBUG('a', "DestroyCondition syscall.\n");
