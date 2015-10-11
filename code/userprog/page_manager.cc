@@ -6,7 +6,7 @@ PageManager::PageManager() :
 int PageManager::ObtainFreePage() {
   int page_num = page_map_.Find();
   if (page_num != -1) {
-    --num_used_pages_;
+    ++num_used_pages_;
     return page_num;
   }
   return -1;
