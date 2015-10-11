@@ -238,11 +238,18 @@ void Close_Syscall(int fd) {
 }
 
 void KernelThread(int vaddr) {
+  int stack_addr = currentThread->space->AddNewStackPages();
+  if (stack_addr == -1) { 
+    printf("Unable to allocate more stack for thread %s.",
+           currentThread->getName());
+    return;
+  }
   currentThread->space->InitRegisters();
+  currentThread->space->RestoreState();
+
   machine->WriteRegister(PCReg, vaddr);
   machine->WriteRegister(NextPCReg, machine->ReadRegister(PCReg) + 4);
-  currentThread->space->RestoreState();
-  
+  machine->WriteRegister(StackReg, stack_addr);
   // TODO: Write StackReg with starting position of the stack.
   machine->Run();
   ASSERT(false); // Should never get past machine->Run()

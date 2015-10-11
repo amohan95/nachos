@@ -15,10 +15,7 @@
 #include "interrupt.h"
 #include "stats.h"
 #include "timer.h"
-#include "bitmap.h"
-#include "synch.h"
-
-class Lock;
+#include "page_manager.h"
 
 #include <map>
 
@@ -57,8 +54,7 @@ extern KernelCondition* conditionTable[NUM_SYSTEM_CONDITIONS];
 #ifdef USER_PROGRAM
 #include "machine.h"
 extern Machine* machine;  // user program memory and registers
-extern BitMap* phys_memory_map;
-extern Lock* phys_memory_map_lock;
+extern PageManager* page_manager;
 #endif
 
 #ifdef FILESYS_NEEDED 		// FILESYS or FILESYS_STUB 

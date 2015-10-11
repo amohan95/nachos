@@ -32,7 +32,11 @@ class AddrSpace {
     void InitRegisters();		// Initialize user-level CPU registers,
 					// before jumping to user code
 
-    void CreatePages();
+    // Adds new stack pages to a thread for Forking. This copies over the memory
+    // from the old page table and adds eight more pages of stack. Returns -1
+    // if there are not enough pages available to allocate stack. Otherwise,
+    // it returns the starting position of the new stack for the thread.
+    int AddNewStackPages();
 
     void SaveState();			// Save/restore address space-specific
     void RestoreState();		// info on a context switch
@@ -41,8 +45,11 @@ class AddrSpace {
  private:
     TranslationEntry *pageTable;	// Assume linear page table translation
 					// for now!
-    unsigned int numPages;		// Number of pages in the virtual 
-					// address space
+    int numPages;		// Number of pages in the virtual address space
+
+    // Storage to keep the state of the registers when context switching.
+    int program_registers_[NumTotalRegs];
+
 };
 
 #endif // ADDRSPACE_H
