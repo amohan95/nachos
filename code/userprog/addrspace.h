@@ -36,7 +36,7 @@ class AddrSpace {
     // from the old page table and adds eight more pages of stack. Returns -1
     // if there are not enough pages available to allocate stack. Otherwise,
     // it returns the starting position of the new stack for the thread.
-    int AddNewStackPages();
+    int AllocateStackPages();
 
     void SaveState();			// Save/restore address space-specific
     void RestoreState();		// info on a context switch

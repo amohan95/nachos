@@ -238,7 +238,7 @@ void Close_Syscall(int fd) {
 }
 
 void KernelThread(int vaddr) {
-  int stack_addr = currentThread->space->AddNewStackPages();
+  int stack_addr = currentThread->space->AllocateStackPages();
   if (stack_addr == -1) { 
     printf("Unable to allocate more stack for thread %s.",
            currentThread->getName());
@@ -250,7 +250,7 @@ void KernelThread(int vaddr) {
   machine->WriteRegister(PCReg, vaddr);
   machine->WriteRegister(NextPCReg, machine->ReadRegister(PCReg) + 4);
   machine->WriteRegister(StackReg, stack_addr);
-  // TODO: Write StackReg with starting position of the stack.
+
   machine->Run();
   ASSERT(false); // Should never get past machine->Run()
 }
@@ -258,8 +258,8 @@ void KernelThread(int vaddr) {
 void Fork_Syscall(int vaddr) {
   Thread* thread = new Thread("Forked Thread");
   thread->space = currentThread->space;
-  thread->Fork(KernelThread, vaddr);
   processThreadTable[thread->space] += 1;
+  thread->Fork(KernelThread, vaddr);
 }
 
 void Exit_Syscall(int status) {
@@ -277,13 +277,11 @@ void Exit_Syscall(int status) {
   }
 }
 
-void KernelProcess(int ex) {
-  AddrSpace* space = reinterpret_cast<AddrSpace*>(ex);
-  
-  space->InitRegisters();   // set the initial register values
-  space->RestoreState();    // load page table register
+void KernelProcess(int stack_addr) {
+  currentThread->space->InitRegisters();   // set the initial register values
+  currentThread->space->RestoreState();    // load page table register
 
-  processThreadTable[space] += 1;
+  machine->WriteRegister(StackReg, stack_addr);
 
   machine->Run();     // jump to the user progam
   ASSERT(FALSE);      // machine->Run never returns;
@@ -291,7 +289,15 @@ void KernelProcess(int ex) {
         // by doing the syscall "exit"
 }
 
-void Exec_Syscall(char* name) {
+void Exec_Syscall(int vaddr, int len) {
+  char* name = new char[len + 1];
+  int res = copyin(vaddr, len, name);
+  if (res == -1) {
+    printf("Incorrect virtual address passed to Exec.\n");
+    delete name;
+    return;
+  }
+
   OpenFile* executable = fileSystem->Open(name);
 
   if (executable == NULL) {
@@ -301,10 +307,19 @@ void Exec_Syscall(char* name) {
 
   Thread* thread = new Thread("New Process Thread");
   thread->space = new AddrSpace(executable);
+  int stack_addr = thread->space->AllocateStackPages();
+  if (stack_addr == -1) {
+    printf("Unable to allocate enough memory for stack pages.\n");
+    delete thread;
+    delete executable;
+    return;
+  }
 
   delete executable;
 
-  thread->Fork(KernelProcess, reinterpret_cast<int>(thread->space));
+  processThreadTable[thread->space] += 1;
+
+  thread->Fork(KernelProcess, stack_addr);
 }
 
 void Yield_Syscall() {
@@ -442,8 +457,7 @@ void ExceptionHandler(ExceptionType which) {
         break;
       case SC_Exec:
         DEBUG('a', "Exec syscall.\n");
-        char* name = reinterpret_cast<char*>(machine->ReadRegister(4));
-        Exec_Syscall(name);
+        Exec_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
         break;
       case SC_Create:
         DEBUG('a', "Create syscall.\n");
@@ -479,7 +493,7 @@ void ExceptionHandler(ExceptionType which) {
         break;
       case SC_CreateLock:
         DEBUG('a', "CreateLock syscall.\n");
-        name = reinterpret_cast<char*>(machine->ReadRegister(4));
+        char* name = reinterpret_cast<char*>(machine->ReadRegister(4));
         rv = CreateLock_Syscall(name);
         break;
       case SC_DestroyLock:

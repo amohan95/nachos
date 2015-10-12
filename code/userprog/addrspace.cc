@@ -133,10 +133,8 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
 
     size = noffH.code.size + noffH.initData.size + noffH.uninitData.size;
  
-    int data_code_pages = divRoundUp(size, PageSize);
-    int num_stack_pages = divRoundUp(UserStackSize, PageSize);
- 
-    numPages = data_code_pages + num_stack_pages;
+    int data_code_pages = divRoundUp(size, PageSize); 
+    numPages = data_code_pages;
 
     size = numPages * PageSize;
 
@@ -163,9 +161,6 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
     }
 
     // copy in the code and data segments into memory
-    int mem_ptr = noffH.code.virtualAddr + pageTable[0].physicalPage * PageSize;
-    int curr_page_num = 0;
-
     if (noffH.code.size > 0) {
         DEBUG('a', "Initializing code segment, at 0x%x, size %d\n", 
   		noffH.code.virtualAddr, noffH.code.size);
@@ -176,7 +171,6 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
             noffH.code.inFileAddr);
     }
 
-    int data_page_num = curr_page_num + 1;
     if (noffH.initData.size > 0) {
         DEBUG('a', "Initializing data segment, at 0x%x, size %d\n", 
   		noffH.initData.virtualAddr, noffH.initData.size);
@@ -201,7 +195,7 @@ AddrSpace::~AddrSpace()
     delete pageTable;
 }
 
-int AddrSpace::AddNewStackPages() {
+int AddrSpace::AllocateStackPages() {
   MutexLock l(&page_manager->lock_);
 
   int num_new_pages = divRoundUp(UserStackSize, PageSize);
