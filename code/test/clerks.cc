@@ -14,9 +14,9 @@ const char* NameForClerkType(clerk_types::Type type) {
   return NAMES[type];
 }
 
-std::string ClerkIdentifierString() const {
+std::string ClerkIdentifierString(Clerk* clerk) const {
   std::stringstream ss;
-  ss << NameForClerkType(type_) << " [" << identifier_ << ']';
+  ss << NameForClerkType(clerk->type_) << " [" << clerk->identifier_ << ']';
   return ss.str();
 }
 
@@ -58,14 +58,14 @@ Clerk CreateClerk(PassportOffice* passport_office, int identifier, clerk_types::
 }
 
 void DestroyClerk(Clerk* clerk) {
-  DestroyLock(clerklines_lock_);
-  DestroyCondition(clerkbribe_line_lock_cv_); 
-  DestroyLock(clerkbribe_line_lock_);
-  DestroyCondition(clerkregular_line_lock_cv_); 
-  DestroyLock(clerkregular_line_lock_);
-  DestroyCondition(clerkwakeup_lock_cv_);
-  DestroyLock(clerkwakeup_lock_);
-  DestroyLock(clerkmoney_lock_);
+  DestroyLock(clerk->lines_lock_);
+  DestroyCondition(clerk->bribe_line_lock_cv_); 
+  DestroyLock(clerk->bribe_line_lock_);
+  DestroyCondition(clerk->regular_line_lock_cv_); 
+  DestroyLock(clerk->regular_line_lock_);
+  DestroyCondition(clerk->wakeup_lock_cv_);
+  DestroyLock(clerk->wakeup_lock_);
+  DestroyLock(clerk->money_lock_);
 }
 
 int CollectMoney(Clerk* clerk) {
@@ -147,7 +147,7 @@ void ApplicationClerkWork(Clerk* clerk) {
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   // Wait for customer to put passport on counter.
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
-  clerk->current_customer_->set_completed_application();
+  clerk->current_customer_->completed_application_ = 1;
   std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
       << "] has recorded a completed application for " 
       << clerk->current_customer_->IdentifierString() << std::endl;
@@ -169,7 +169,7 @@ void PictureClerkWork(Clerk* clerk) {
         << " does not like their picture" << std::endl;
   } else {
     // Set picture taken.
-    clerk->current_customer_->set_picture_taken();
+    clerk->current_customer_->picture_taken_ = 1;
     std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
         << "] has been told that " << clerk->current_customer_->IdentifierString() 
         << " does like their picture" << std::endl;
@@ -194,7 +194,7 @@ void PassportClerkWork(Clerk* clerk) {
         << "] has determined that " << clerk->current_customer_->IdentifierString() 
         << " does have both their application and picture completed" 
         << std::endl;
-    clerk->current_customer_->set_certified();
+    clerk->current_customer_->certified_ = 1;
     std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
         << "] has recorded " << clerk->current_customer_->IdentifierString() 
         << " passport documentation" << std::endl;
@@ -247,7 +247,7 @@ void CashierClerkWork(Clerk* clerk) {
         << clerk->current_customer_->IdentifierString() 
         << " has been given their completed passport." << std::endl;
 
-    clerk->current_customer_->set_passport_verified();
+    clerk->current_customer_->passport_verified_ = 1;
   }
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
 }
@@ -281,7 +281,7 @@ void ClerkRun(Clerk* clerk) {
       }
 
 			// Collect bribe money.
-			if (clerk->current_customer_->has_bribed()) {
+			if (clerk->current_customer_->bribed_) {
 				Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
 				int bribe = clerk->customer_money_;
 				clerk->customer_money_ = 0;
