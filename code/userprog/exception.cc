@@ -22,7 +22,7 @@
 // of liability and disclaimer of warranty provisions.
 
 #include "copyright.h"
-#include "system.h"
+#include "../threads/system.h"
 #include "syscall.h"
 #include "../threads/synch.h"
 #include <stdio.h>
