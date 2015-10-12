@@ -12,7 +12,7 @@
 #include <deque>
 
 #include "copyright.h"
-#include "system.h"
+#include "../threads/system.h"
 #include "console.h"
 #include "addrspace.h"
 #include "synch.h"
@@ -44,6 +44,8 @@ StartProcess(char *filename)
 
     space->InitRegisters();		// set the initial register values
     space->RestoreState();		// load page table register
+
+    processThreadTable[space] += 1;
 
     machine->Run();			// jump to the user progam
     ASSERT(FALSE);			// machine->Run never returns;

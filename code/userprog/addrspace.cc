@@ -119,7 +119,7 @@ SwapHeader (NoffHeader *noffH)
 
 AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
     NoffHeader noffH;
-    int i, size;
+    int size;
 
     // Don't allocate the input or output to disk files
     fileTable.Put(0);
@@ -132,35 +132,40 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
     ASSERT(noffH.noffMagic == NOFFMAGIC);
 
     size = noffH.code.size + noffH.initData.size + noffH.uninitData.size;
-    numPages = divRoundUp(size, PageSize) + divRoundUp(UserStackSize, PageSize);
-                                                // we need to increase the size
-						// to leave room for the stack
+ 
+    int data_code_pages = divRoundUp(size, PageSize);
+    int num_stack_pages = divRoundUp(UserStackSize, PageSize);
+ 
+    numPages = data_code_pages + num_stack_pages;
+
     size = numPages * PageSize;
 
-    {
-      MutexLock l(&page_manager->lock_);
-      ASSERT(numPages < page_manager->num_available_pages());
+    MutexLock l(&page_manager->lock_);
+    ASSERT(numPages <= page_manager->num_available_pages());
 
-      DEBUG('a', "Initializing address space, num pages %d, size %d\n", 
-  					numPages, size);
-  // first, set up the translation 
-      pageTable = new TranslationEntry[numPages];
-      for (i = 0; i < numPages; i++) {
-      	pageTable[i].virtualPage = i;
-      	pageTable[i].physicalPage = page_manager->ObtainFreePage();
-      	pageTable[i].valid = TRUE;
-      	pageTable[i].use = FALSE;
-      	pageTable[i].dirty = FALSE;
-      	pageTable[i].readOnly = FALSE;  // if the code segment was entirely on 
-  					// a separate page, we could set its 
-  					// pages to be read-only
-      }
+    DEBUG('a', "Initializing address space, num pages %d, size %d\n", 
+					numPages, size);
+    // first, set up the translation 
+    pageTable = new TranslationEntry[numPages];
+    for (int i = 0; i < numPages; i++) {
+    	pageTable[i].virtualPage = i;
+    	pageTable[i].physicalPage = page_manager->ObtainFreePage();
+    	pageTable[i].valid = TRUE;
+    	pageTable[i].use = FALSE;
+    	pageTable[i].dirty = FALSE;
+    	pageTable[i].readOnly = FALSE;  // if the code segment was entirely on 
+					// a separate page, we could set its 
+					// pages to be read-only
+
+      // Zero out the pages of memory.
+      bzero(
+          &machine->mainMemory[PageSize * pageTable[i].physicalPage], PageSize);
     }
-    
-// zero out the entire address space, to zero the unitialized data segment 
-// and the stack segment
-    
-// then, copy in the code and data segments into memory
+
+    // copy in the code and data segments into memory
+    int mem_ptr = noffH.code.virtualAddr + pageTable[0].physicalPage * PageSize;
+    int curr_page_num = 0;
+
     if (noffH.code.size > 0) {
         DEBUG('a', "Initializing code segment, at 0x%x, size %d\n", 
   		noffH.code.virtualAddr, noffH.code.size);
@@ -170,6 +175,8 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
   		      noffH.code.size,
             noffH.code.inFileAddr);
     }
+
+    int data_page_num = curr_page_num + 1;
     if (noffH.initData.size > 0) {
         DEBUG('a', "Initializing data segment, at 0x%x, size %d\n", 
   		noffH.initData.virtualAddr, noffH.initData.size);
@@ -212,7 +219,7 @@ int AddrSpace::AddNewStackPages() {
   }
 
   for (int i = numPages; i < num_new_pages + numPages; ++i) {
-    new_page_table[i].virtualPage = i; // for now, virtual page # = phys page #
+    new_page_table[i].virtualPage = i;
     new_page_table[i].physicalPage = page_manager->ObtainFreePage();
     new_page_table[i].valid = TRUE;
     new_page_table[i].use = FALSE;
@@ -226,7 +233,7 @@ int AddrSpace::AddNewStackPages() {
 
   numPages += num_new_pages;
   machine->pageTable = pageTable;
-  return numPages * PageSize - 16;
+  return (pageTable[numPages - 1].physicalPage + 1) * PageSize - 16;
 }
 
 //----------------------------------------------------------------------
