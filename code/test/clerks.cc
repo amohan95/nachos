@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 
-static const char* NameForClerkType(clerk_types::Type type) {
+const char* NameForClerkType(clerk_types::Type type) {
   static const char* NAMES[] = {
     "ApplicationClerk",
     "PictureClerk",
@@ -23,12 +23,12 @@ std::string ClerkIdentifierString() const {
 Clerk CreateClerk(PassportOffice* passport_office, int identifier, clerk_types::Type type) {
   Clerk clerk;
   clerk.customer_money_ = 0;
-  clerk.customer_input_ = false;
+  clerk.customer_input_ = 0;
   clerk.state_ = clerk_states::kAvailable;
   clerk.passport_office_ = passport_office;
   clerk.collected_money_ = 0;
   clerk.identifier_ = identifier;
-  clerk.running_ = false;
+  clerk.running_ = 0;
   clerk.lines_lock_ = CreateLock("Clerk Lines Lock");
   clerk.bribe_line_lock_cv_ = CreateCondition("Clerk Bribe Line Condition"); 
   clerk.bribe_line_lock_ = CreateLock("Clerk Bribe Line Lock");
@@ -76,7 +76,7 @@ int CollectMoney(Clerk & clerk) {
   return money;
 }
 
-void JoinLine(Clerk & clerk, bool bribe) {
+void JoinLine(Clerk & clerk, int bribe) {
 	if (bribe) {
 		Acquire(clerk.bribe_line_lock_);
     ++clerk.passport_office_->clerk.bribe_line_counts_[clerk.type_][clerk.identifier_];
@@ -160,7 +160,7 @@ void PictureClerkWork(Clerk & clerk) {
             << clerk.current_customer_->IdentifierString() << std::endl;
   Signal(clerk.wakeup_lock_cv_, clerk.wakeup_lock_);
   Wait(clerk.wakeup_lock_cv_, clerk.wakeup_lock_);
-  bool picture_accepted = customer_input_;
+  int picture_accepted = customer_input_;
 
   // If they don't like their picture don't set their picture to taken.  They go back in line.
   if (!picture_accepted) {
@@ -181,7 +181,7 @@ void PassportClerkWork(Clerk & clerk) {
   Signal(clerk.wakeup_lock_cv_, clerk.wakeup_lock_);
   // Wait for customer to show whether or not they got their picture taken and passport verified.
   Wait(clerk.wakeup_lock_cv_, clerk.wakeup_lock_);
-  bool picture_taken_and_passport_verified = clerk.customer_input_;
+  int picture_taken_and_passport_verified = clerk.customer_input_;
 
   // Check to make sure their picture has been taken and passport verified.
   if (!picture_taken_and_passport_verified) {
@@ -214,7 +214,7 @@ void CashierClerkWork(Clerk & clerk) {
   // Wait for the customer to show you that they are certified.
   Signal(clerk.wakeup_lock_cv_, clerk.wakeup_lock_);
   Wait(clerk.wakeup_lock_cv_, clerk.wakeup_lock_);
-  bool certified = clerk.customer_input_;
+  int certified = clerk.customer_input_;
 
   // Check to make sure they have been certified.
   if (!certified) {
@@ -253,7 +253,7 @@ void CashierClerkWork(Clerk & clerk) {
 }
 
 void ClerkRun(Clerk & clerk) {
-  clerk.running_ = true;
+  clerk.running_ = 1;
   while (clerk.running_) {
     GetNextCustomer(clerk);
 		if (clerk.state_ == clerk_states::kBusy || clerk.state_ == clerk_states::kAvailable) {

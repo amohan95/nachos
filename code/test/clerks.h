@@ -15,17 +15,17 @@ typedef struct {
   int wakeup_lock_cv_;
   int wakeup_lock_;
   int money_lock_;
-  uint32_t customer_ssn_;
+  int customer_ssn_;
   Customer* current_customer_;
   int customer_money_;
-  bool customer_input_;
+  int customer_input_;
   char * clerk_type_;
   clerk_types::Type type_;
   clerk_states::State state_;
   PassportOffice* passport_office_;
   int collected_money_;
   int identifier_;
-  bool running_;
+  int running_;
 } Clerk;
 
 #endif // PASSPORT_OFFICE_CLERK_H
