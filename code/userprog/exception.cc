@@ -277,7 +277,34 @@ void Exit_Syscall(int status) {
   }
 }
 
+void KernelProcess(int ex) {
+  AddrSpace* space = reinterpret_cast<AddrSpace*>(ex);
+  
+  space->InitRegisters();   // set the initial register values
+  space->RestoreState();    // load page table register
+
+  processThreadTable[space] += 1;
+
+  machine->Run();     // jump to the user progam
+  ASSERT(FALSE);      // machine->Run never returns;
+        // the address space exits
+        // by doing the syscall "exit"
+}
+
 void Exec_Syscall(char* name) {
+  OpenFile* executable = fileSystem->Open(name);
+
+  if (executable == NULL) {
+    printf("Unable to open file %s\n", name);
+    return;
+  }
+
+  Thread* thread = new Thread("New Process Thread");
+  thread->space = new AddrSpace(executable);
+
+  delete executable;
+
+  thread->Fork(KernelProcess, reinterpret_cast<int>(thread->space));
 }
 
 void Yield_Syscall() {
