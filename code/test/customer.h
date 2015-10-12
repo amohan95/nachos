@@ -24,6 +24,7 @@ typedef struct {
   int passport_verified_;
   int picture_taken_;
   int running_;
+  customer_types::Type type_;
 } Customer;
 
 #endif

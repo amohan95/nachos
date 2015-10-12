@@ -11,10 +11,11 @@ static int SENATOR_UNUSED_SSN = 0;
 Customer CreateCustomer(PassportOffice* passport_office,
     customer_types::Type type = customer_types::kCustomer) {
   Customer customer;
+  customer.passport_office_ = passport_office;
+  customer.type_ = type;
   customer.money_ = INITIAL_MONEY_AMOUNTS[rand() % NUM_INITIAL_MONEY_AMOUNTS];
   customer.ssn_ = (type == customer_types::kCustomer ?
       CURRENT_UNUSED_SSN++ : SENATOR_UNUSED_SSN++);
-  customer.passport_office_ = passport_office;
   customer.bribed_ = 0;
   customer.certified_ = 0;
   customer.completed_application_ = 0;
@@ -95,6 +96,107 @@ void PrintLineJoin(Customer* customer, Clerk* clerk, int bribed) const {
   std::cout << CustomerIdentifierString(customer) << " has gotten in " 
       << (bribed ? "bribe" : "regular") << " line for " 
       << ClerkIdentifierString(clerk)  << "." << std::endl;
+}
+
+std::string SenatorIdentifierString(Customer* customer) const {
+  std::stringstream ss;
+  ss << "Senator [" << customer->ssn_ << ']';
+  return ss.str();
+}
+
+void SenatorRun(Customer* customer) {
+  customer->running_ = 1;
+  // Increment the number of senators in the office so that others know
+  // that a senator is there.
+  Acquire(customer->passport_office_->num_senators_lock_);
+  ++customer->passport_office_->num_senators_;
+  Release(customer->passport_office_->num_senators_lock_);
+
+  Acquire(customer->passport_office_->senator_lock_);
+
+  // Wake up customers that are currently in line in the passport office so that
+
+  // they can join the outside line.
+  while (customer->passport_office_->num_customers_being_served_ > 0) {
+    customer->passport_office_->manager_->WakeWaitingCustomers();
+    currentThread->Yield();
+  }
+  // Wait until all customers have left the building.
+  //if (passport_office_->num_customers_being_served_ > 0) {
+  //  passport_office_->customers_served_cv_.Wait(
+  //      &passport_office_->customers_served_lock_);
+  //}
+
+  // Reset the line counts to 0 since there are no customers in the office
+  // at this point.
+  for (unsigned i = 0; i < customer->passport_office_->line_counts_.size(); ++i) {
+    Acquire(customer->passport_office_->line_locks_[i]);
+    for (unsigned j = 0; j < customer->passport_office_->line_counts_[i].size(); ++j) {
+      customer->passport_office_->line_counts_[i][j] = 0;
+      customer->passport_office_->bribe_line_counts_[i][j] = 0;      
+    }
+    Release(customer->passport_office_->line_locks_[i]);
+  }
+  
+  // Wait for all clerks to get off of their breaks, if necessary.
+  for (int i = 0; i < 500; ++i) { currentThread->Yield(); }
+
+  while (customer->running_ &&
+        (!customer->passport_verified_ || !customer->picture_taken_ ||
+         !customer->completed_application_ || !customer->certified_) {
+    clerk_types::Type next_clerk;
+    if (!customer->completed_application_ && !customer->picture_taken_ && 
+        customer->passport_office_->clerks_[clerk_types::kApplication].size() > 0 &&
+        customer->passport_office_->clerks_[clerk_types::kPicture].size() > 0) {
+      next_clerk = static_cast<clerk_types::Type>(rand() % 2); // either kApplication (0) or kPicture (1)
+    } else if (!customer->completed_application_ {
+      next_clerk = clerk_types::kApplication;
+    } else if (!customer->picture_taken_ {
+      next_clerk = clerk_types::kPicture;
+    } else if (!customer->certified_ {
+      next_clerk = clerk_types::kPassport;
+    } else {
+      next_clerk = clerk_types::kCashier;
+    }
+    if (customer->passport_office_->clerks_[next_clerk].empty()) {
+      break;
+    }
+    Clerk* clerk = customer->passport_office_->clerks_[next_clerk][0];
+    Acquire(customer->passport_office_->line_locks_[next_clerk]);
+    ++customer->passport_office_->line_counts_[next_clerk][0];
+    Release(customer->passport_office_->line_locks_[next_clerk]);
+    
+    Signal(customer->passport_office_->manager_->wakeup_condition_,
+        customer->passport_office_->manager_->wakeup_condition_lock_);
+
+    PrintLineJoin(clerk, bribed_);
+    JoinLine(clerk, bribed_);
+
+    DoClerkWork(clerk);
+
+    Acquire(customer->passport_office_->line_locks_[next_clerk]);
+    --customer->passport_office_->line_counts_[next_clerk][0];
+    Release(customer->passport_office_->line_locks_[next_clerk]);
+
+    clerk->current_customer_ = NULL;
+    Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
+    Release(clerk->wakeup_lock_);
+  }
+
+  if (customer->passport_verified_ {
+    std::cout << SenatorIdentifierString() << " is leaving the Passport Office." << std::endl;
+  } else {
+    std::cout << SenatorIdentifierString() << " terminated early because it is impossible to get a passport." << std::endl;
+  }
+
+  // Leaving the office - if there are no more senators left waiting, then
+  // tell all the customers outside to come back in.
+  --customer->passport_office_->num_senators_;
+  if (customer->passport_office_->num_senators_ == 0) {
+    Broadcast(passport_office_->outside_line_cv_,
+        customer->passport_office_->outside_line_lock_);
+  }
+  Release(customer->passport_office_->senator_lock_);
 }
 
 void CustomerRun(Customer* customer) {
