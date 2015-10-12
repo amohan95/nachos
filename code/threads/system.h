@@ -15,7 +15,7 @@
 #include "interrupt.h"
 #include "stats.h"
 #include "timer.h"
-#include "page_manager.h"
+#include "../userprog/page_manager.h"
 
 #include <map>
 
@@ -32,6 +32,7 @@ extern Interrupt *interrupt;			// interrupt status
 extern Statistics *stats;			// performance metrics
 extern Timer *timer;				// the hardware alarm clock
 
+class AddrSpace;
 extern std::map<AddrSpace*, uint32_t> processThreadTable;
 
 #define NUM_SYSTEM_LOCKS 100
