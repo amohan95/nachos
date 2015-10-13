@@ -438,6 +438,10 @@ void Broadcast_Syscall(int cv, int lock) {
   conditionTable[cv]->condition->Broadcast(lockTable[lock]->lock);
 }
 
+int Rand_Syscall() {
+  return rand();
+}
+
 void ExceptionHandler(ExceptionType which) {
   int type = machine->ReadRegister(2); // Which syscall?
   int rv=0; 	// the return value from a syscall
@@ -539,6 +543,10 @@ void ExceptionHandler(ExceptionType which) {
         lock = machine->ReadRegister(5);
         Broadcast_Syscall(cv, lock);
         break;
+      case SC_Rand:
+        DEBUG('a', "Rand syscall.\n");
+        rv = Rand_Syscall();
+        break;        
     }
 
     // Put in the return value and increment the PC

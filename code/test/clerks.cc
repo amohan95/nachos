@@ -2,8 +2,6 @@
 #include "customer.h"
 #include "../userprog/syscall.h"
 
-#include <stdlib.h>
-
 const char* NameForClerkType(clerk_types::Type type) {
   static const char* NAMES[] = {
     "ApplicationClerk",
@@ -20,7 +18,8 @@ std::string ClerkIdentifierString(Clerk* clerk) const {
   return ss.str();
 }
 
-Clerk CreateClerk(PassportOffice* passport_office, int identifier, clerk_types::Type type) {
+Clerk CreateClerk(
+    PassportOffice* passport_office, int identifier, clerk_types::Type type) {
   Clerk clerk;
   clerk.customer_money_ = 0;
   clerk.customer_input_ = 0;

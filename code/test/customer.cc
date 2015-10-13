@@ -1,10 +1,7 @@
 #include "customer.h"
 #include "../userprog/syscall.h"
 
-#include <cstdlib>
-
-static const int INITIAL_MONEY_AMOUNTS_DATA[] = {100, 600, 1100, 1600};
-static const int* INITIAL_MONEY_AMOUNTS = INITIAL_MONEY_AMOUNTS_DATA;
+static const int INITIAL_MONEY_AMOUNTS[] = {100, 600, 1100, 1600};
 static int CURRENT_UNUSED_SSN = 0;
 static int SENATOR_UNUSED_SSN = 0;
 
@@ -13,7 +10,7 @@ Customer CreateCustomer(PassportOffice* passport_office,
   Customer customer;
   customer.passport_office_ = passport_office;
   customer.type_ = type;
-  customer.money_ = INITIAL_MONEY_AMOUNTS[rand() % NUM_INITIAL_MONEY_AMOUNTS];
+  customer.money_ = INITIAL_MONEY_AMOUNTS[Rand() % NUM_INITIAL_MONEY_AMOUNTS];
   customer.ssn_ = (type == customer_types::kCustomer ?
       CURRENT_UNUSED_SSN++ : SENATOR_UNUSED_SSN++);
   customer.bribed_ = 0;
@@ -70,7 +67,7 @@ void DoClerkWork(Customer* customer, Clerk* clerk) {
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       break;
     case clerk_types::kPicture:
-      clerk->customer_input_ = (rand() % 10) > 0;
+      clerk->customer_input_ = (Rand() % 10) > 0;
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       break;
@@ -148,7 +145,7 @@ void SenatorRun(Customer* customer) {
     if (!customer->completed_application_ && !customer->picture_taken_ && 
         customer->passport_office_->clerks_[clerk_types::kApplication].size() > 0 &&
         customer->passport_office_->clerks_[clerk_types::kPicture].size() > 0) {
-      next_clerk = static_cast<clerk_types::Type>(rand() % 2); // either kApplication (0) or kPicture (1)
+      next_clerk = (clerk_types::Type)(Rand() % 2); // either kApplication (0) or kPicture (1)
     } else if (!customer->completed_application_ {
       next_clerk = clerk_types::kApplication;
     } else if (!customer->picture_taken_ {
@@ -226,7 +223,7 @@ void CustomerRun(Customer* customer) {
     customer->bribed_ = 0;
     clerk_types::Type next_clerk;
     if (!customer->completed_application_ && !customer->picture_taken_ && customer->passport_office_->clerks_[clerk_types::kApplication].size() > 0 && customer->passport_office_->clerks_[clerk_types::kPicture].size() > 0) {
-      next_clerk = static_cast<clerk_types::Type>(rand() % 2); // either kApplication (0) or kPicture (1)
+      next_clerk = (clerk_types::Type>)(Rand() % 2); // either kApplication (0) or kPicture (1)
     } else if (!customer->completed_application_) {
       next_clerk = clerk_types::kApplication;
     } else if (!customer->picture_taken_) {

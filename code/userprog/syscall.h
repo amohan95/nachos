@@ -38,6 +38,7 @@
 #define SC_Wait             17
 #define SC_Signal           18
 #define SC_Broadcast        19
+#define SC_Rand             20
 
 #define MAXFILENAME 256
 
@@ -147,6 +148,8 @@ void Release(int lock);
 void Wait(int cv, int lock);
 void Signal(int cv, int lock);
 void Broadcast(int cv, int lock);
+
+int Rand();
 
 #endif /* IN_ASM */
 

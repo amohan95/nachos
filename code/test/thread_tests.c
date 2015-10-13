@@ -1,13 +1,15 @@
 #include "syscall.h"
 
 void fork_function() {
-  int a, b;
+  int a = 5;
+  int b = 3;
   Write("Hello from a forked thread!\n", 28, ConsoleOutput);
   Exit(0);
 }
 
 int main() {
-  char c, d;
+  char c = 'c';
+  char d = 'd';
   Write("Hello from the main thread!\n", 28, ConsoleOutput);
   Fork(&fork_function);
   Exit(0);

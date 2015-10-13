@@ -1,35 +1,29 @@
 #ifndef PASSPORT_OFFICE_UTILITIES_H_
 #define PASSPORT_OFFICE_UTILITIES_H_
 
-namespace clerk_states {
-
-enum State {
-  kAvailable = 0,
-  kBusy,
-  kOnBreak,
+struct clerk_states {
+  typedef enum {
+    kAvailable = 0,
+    kBusy,
+    kOnBreak,
+  } State;
 };
 
-}  // namespace clerk_states
-
-namespace clerk_types {
-
-enum Type {
-  kApplication = 0,
-  kPicture,
-  kPassport,
-  kCashier,
-  Size,
+struct clerk_types {
+  typedef enum {
+    kApplication = 0,
+    kPicture,
+    kPassport,
+    kCashier,
+    Size,
+  } Type;
 };
 
-}  // namespace clerk_types
-
-namespace customer_types {
-
-enum Type {
-  kCustomer = 0,
-  kSenator,  
+struct customer_types {
+  typedef enum {
+    kCustomer = 0,
+    kSenator,  
+  } Type;
 };
-
-}  // namespace customer_types
 
 #endif

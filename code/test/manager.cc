@@ -1,40 +1,27 @@
 #include "manager.h"
 
-#include "../machine/timer.h"
-#include "../machine/stats.h"
 #include "../userprog/syscall.h"
 
-#include <iostream>
-
-void RunPrintMoney(int manager) {
-  Manager* man = reinterpret_cast<Manager*>(manager);
-  man->PrintMoneyReport();
+Manager CreateManager(PassportOffice* passport_office) {
+  Manager manager;
+  manager.passport_office_ = passport_office;
+  manager.wakeup_condition_ = CreateCondition("Manager Wakeup Lock Condition");
+  manager.wakeup_condition_lock_ = CreateLock("Manager Wakeup Lock");
+  running_ = true;
+  elapsed_ = 0;
+  return manager;
 }
 
-Manager::Manager(PassportOffice* passport_office) :
-    elapsed_(0),
-    money_(clerk_types::Size, 0),
-    passport_office_(passport_office),
-    running_(false) {
-  wakeup_condition_ = CreateCondition("Manager Wakeup Lock Condition");
-  wakeup_condition_lock_ = CreateLock("Manager Wakeup Lock");
-}
-
-Manager::~Manager() {
-  DestroyCondition(wakeup_condition_);
-  DestroyLock(wakeup_condition_lock_);
-}
-
-void Manager::PrintMoneyReport() {
+void ManagerPrintMoneyReport() {
   while (running_) {
-    for (uint32_t j = 0; j < clerk_types::Size; ++j) {
-      for (uint32_t i = 0; i < passport_office_->clerks_[j].size(); ++i) {
-        uint32_t m = passport_office_->clerks_[j][i]->CollectMoney();
+    for (int j = 0; j < clerk_types::Size; ++j) {
+      for (int i = 0; i < passport_office_->clerks_[j].size(); ++i) {
+        int m = passport_office_->clerks_[j][i]->CollectMoney();
         money_[passport_office_->clerks_[j][i]->type_] += m;
       }
     }
-    uint32_t total = 0;
-    for (uint32_t i = 0; i < clerk_types::Size; ++i) {
+    int total = 0;
+    for (int i = 0; i < clerk_types::Size; ++i) {
       total += money_[i];
       std::cout << "Manager has counted a total of $" << money_[i] << " for "
                 << Clerk::NameForClerkType(static_cast<clerk_types::Type>(i)) << 's' << std::endl;
@@ -43,12 +30,12 @@ void Manager::PrintMoneyReport() {
               <<  " for the passport office" << std::endl;
     for(int i = 0; i < 200; ++i) {
       if (!running_) return;
-      currentThread->Yield();
+      Yield();
     }
   }
 }
 
-void Manager::Run() {
+void ManagerRun() {
   running_ = true;
   Thread* report_timer_thread = new Thread("Report timer thread");
   report_timer_thread->Fork(&RunPrintMoney, reinterpret_cast<int>(this));
@@ -58,14 +45,14 @@ void Manager::Run() {
 		if (!running_) {
 			break;
 		}
-    for (uint32_t i = 0; i < clerk_types::Size; ++i) {
+    for (int i = 0; i < clerk_types::Size; ++i) {
       Acquire(passport_office_->line_locks_[i]);
     }
-    for (uint32_t i = 0; i < clerk_types::Size; ++i) {
+    for (int i = 0; i < clerk_types::Size; ++i) {
       if (passport_office_->GetNumCustomersForClerkType(
           static_cast<clerk_types::Type>(i)) > CLERK_WAKEUP_THRESHOLD ||
           passport_office_->num_senators_ > 0) {
-        for (uint32_t j = 0; j < passport_office_->clerks_[i].size(); ++j) {
+        for (int j = 0; j < passport_office_->clerks_[i].size(); ++j) {
           Clerk* clerk = passport_office_->clerks_[i][j];
           if (clerk->state_ == clerk_states::kOnBreak) {
             Acquire(clerk->wakeup_lock_);
@@ -79,16 +66,16 @@ void Manager::Run() {
         }
       }
     }
-    for (uint32_t i = 0; i < clerk_types::Size; ++i) {
+    for (int i = 0; i < clerk_types::Size; ++i) {
       Release(passport_office_->line_locks_[i]);
     }
     Release(wakeup_condition_lock_);
   }
 }
 
-void Manager::WakeWaitingCustomers() {
-  for (unsigned int i = 0; i < passport_office_->clerks_.size(); ++i) {
-    for (unsigned int j = 0; j < passport_office_->clerks_[i].size(); ++j) {
+void WakeWaitingCustomers() {
+  for (int i = 0; i < passport_office_->clerks_.size(); ++i) {
+    for (int j = 0; j < passport_office_->clerks_[i].size(); ++j) {
       Clerk* clerk = passport_office_->clerks_[i][j];
       Broadcast(clerk->bribe_line_lock_cv_, clerk->bribe_line_lock_);
       Broadcast(clerk->regular_line_lock_cv_, clerk->regular_line_lock_);
@@ -96,8 +83,8 @@ void Manager::WakeWaitingCustomers() {
   }
 }
 
-void Manager::WakeClerksForSenator() {
-  for (unsigned int i = 0; i < passport_office_->clerks_.size(); ++i) {
+void WakeClerksForSenator() {
+  for (int i = 0; i < passport_office_->clerks_.size(); ++i) {
     if (!passport_office_->clerks_[i].empty()) {
       Acquire(passport_office_->line_locks_[i]);
       Clerk* clerk = passport_office_->clerks_[i][0];

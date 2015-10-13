@@ -1,9 +1,6 @@
 #include "passport_office.h"
 #include "../userprog/syscall.h"
 
-#include <string>
-#include <cstdlib>
-
 // Thread runners: Takes an int argument and casts to correct pointer,
 // and runs this specific object.
 namespace thread_runners {

@@ -1,10 +1,6 @@
 #ifndef PASSPORT_OFFICE_PASSPORT_OFFICE_H_
 #define PASSPORT_OFFICE_PASSPORT_OFFICE_H_
 
-#include <vector>
-#include <set>
-#include <string>
-
 #include "clerks.h"
 #include "customer.h"
 #include "senator.h"
