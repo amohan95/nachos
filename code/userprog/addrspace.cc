@@ -231,6 +231,15 @@ void AddrSpace::DeallocateStack() {
   }
 }
 
+void AddrSpace::DeallocateAllPages() {
+  MutexLock l(&page_manager->lock_);
+  for (int i = 0; i < numPages; ++i) {
+    if (pageTable[i].valid) {
+      page_manager->FreePage(pageTable[i].physicalPage);
+    }
+  }
+}
+
 //----------------------------------------------------------------------
 // AddrSpace::InitRegisters
 // 	Set the initial values for the user-level register set.

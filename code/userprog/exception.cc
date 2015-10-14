@@ -301,12 +301,13 @@ void Exit_Syscall(int status) {
   ASSERT(processThreadTable.find(currentThread->space)
       != processThreadTable.end());
   if (processThreadTable[currentThread->space] > 1) {
+    currentThread->space->DeallocateStack();
     processThreadTable[currentThread->space] -= 1;
   } else {
+    currentThread->space->DeallocateAllPages();
     processThreadTable.erase(currentThread->space);
   }
   if (processThreadTable.size() > 0) {
-    currentThread->space->DeallocateStack();
     currentThread->Finish();
   } else {
     interrupt->Halt();
