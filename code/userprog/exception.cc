@@ -30,11 +30,6 @@
 
 using namespace std;
 
-KernelLock* lockTable[NUM_SYSTEM_LOCKS] = {NULL};
-KernelCondition* conditionTable[NUM_SYSTEM_CONDITIONS] = {NULL};
-std::map<AddrSpace*, uint32_t> processThreadTable =
-    std::map<AddrSpace*, uint32_t>();
-
 int copyin(unsigned int vaddr, int len, char *buf) {
   // Copy len bytes from the current thread's virtual address vaddr.
   // Return the number of bytes so read, or -1 if an error occors.
@@ -303,7 +298,7 @@ void Exec_Syscall(int vaddr, int len) {
 }
 
 void Exit_Syscall(int status) {
-  assert(processThreadTable.find(currentThread->space)
+  ASSERT(processThreadTable.find(currentThread->space)
       != processThreadTable.end());
   if (processThreadTable[currentThread->space] > 1) {
     processThreadTable[currentThread->space] -= 1;
@@ -323,115 +318,194 @@ void Yield_Syscall() {
 }
 
 int CreateLock_Syscall(char* name) {
+  lockTableLock->Acquire();
   for (int i = 0; i < NUM_SYSTEM_LOCKS; ++i) {
     if (lockTable[i] == NULL) {
       lockTable[i] = new KernelLock();
       lockTable[i]->lock = new Lock(name);
       lockTable[i]->addrSpace = currentThread->space;
       lockTable[i]->toBeDeleted = false;
-      return i;
-    } else if (lockTable[i]->toBeDeleted) {
-      lockTable[i]->addrSpace = currentThread->space;
-      lockTable[i]->toBeDeleted = false;
+      lockTable[i]->threadsUsing = 0;
+      lockTableLock->Release();
       return i;
     }
   }
-  return -1;
+  lockTableLock->Release();
+  return UNSUCCESSFUL_SYSCALL;
 }
 
-void DestroyLock_Syscall(int lock) {
+int DestroyLock_Syscall(int lock) {
+  lockTableLock->Acquire();
   if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
       || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
       || lockTable[lock]->addrSpace != currentThread->space) {
-    return;
+    lockTableLock->Release();
+    return UNSUCCESSFUL_SYSCALL;
   }
-  lockTable[lock]->toBeDeleted = true;
+  if (lockTable[lock]->threadsUsing == 0) {
+    delete lockTable[lock]->lock;
+    delete lockTable[lock];
+    lockTable[lock] = NULL;
+  } else {
+    lockTable[lock]->toBeDeleted = true;
+  }
+  lockTableLock->Release();
+  return 0;
 }
 
 int CreateCondition_Syscall(char* name) {
+  conditionTableLock->Acquire();
   for (int i = 0; i < NUM_SYSTEM_CONDITIONS; ++i) {
     if (conditionTable[i] == NULL) {
       conditionTable[i] = new KernelCondition();
       conditionTable[i]->condition = new Condition(name);
       conditionTable[i]->addrSpace = currentThread->space;
       conditionTable[i]->toBeDeleted = false;
-      return i;
-    } else if (conditionTable[i]->toBeDeleted) {
-      conditionTable[i]->addrSpace = currentThread->space;
-      conditionTable[i]->toBeDeleted = false;
+      conditionTable[i]->threadsUsing = 0;
+      conditionTableLock->Release();
       return i;
     }
   }
-  return -1;
+  conditionTableLock->Release();
+  return UNSUCCESSFUL_SYSCALL;
 }
 
-void DestroyCondition_Syscall(int cv) {
+int DestroyCondition_Syscall(int cv) {
+  conditionTableLock->Acquire();
   if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
       || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
       || conditionTable[cv]->addrSpace != currentThread->space) {
-    return;
+    conditionTableLock->Release();
+    return UNSUCCESSFUL_SYSCALL;
   }
-  conditionTable[cv]->toBeDeleted = true;
+  if (conditionTable[cv]->threadsUsing == 0) {
+    delete conditionTable[cv]->condition;
+    delete conditionTable[cv];
+    conditionTable[cv] = NULL;
+  } else {
+    conditionTable[cv]->toBeDeleted = true;
+  }
+  conditionTableLock->Release();
+  return 0;
 }
 
-void Acquire_Syscall(int lock) {
+int Acquire_Syscall(int lock) {
+  lockTableLock->Acquire();
   if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
       || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
       || lockTable[lock]->addrSpace != currentThread->space) {
-    return;
+    lockTableLock->Release();
+    return UNSUCCESSFUL_SYSCALL;
   }
+  int threadsUsing = ++lockTable[lock]->threadsUsing;
+  lockTableLock->Release();
   lockTable[lock]->lock->Acquire();
+  return threadsUsing;
 }
 
-void Release_Syscall(int lock) {
+int Release_Syscall(int lock) {
+  lockTableLock->Acquire();
   if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
       || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
       || lockTable[lock]->addrSpace != currentThread->space) {
-    return;
+    lockTableLock->Release();
+    return UNSUCCESSFUL_SYSCALL;
   }
   lockTable[lock]->lock->Release();
+  int threadsUsing = --lockTable[lock]->threadsUsing;
+  if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
+    delete lockTable[lock]->lock;
+    delete lockTable[lock];
+    lockTable[lock] = NULL;
+  }
+  lockTableLock->Release();
+  return threadsUsing;
 }
 
-void Wait_Syscall(int cv, int lock) {
+int Wait_Syscall(int cv, int lock) {
+  conditionTableLock->Acquire();
   if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
       || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
       || conditionTable[cv]->addrSpace != currentThread->space) {
-    return;
+    conditionTableLock->Release();
+    return UNSUCCESSFUL_SYSCALL;
   }
   if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
       || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
       || lockTable[lock]->addrSpace != currentThread->space) {
-    return;
+    conditionTableLock->Release();
+    return UNSUCCESSFUL_SYSCALL;
   }
+  int threadsUsing = ++conditionTable[cv]->threadsUsing;
+  conditionTableLock->Release();
+  lockTableLock->Acquire();
+  ++lockTable[lock]->threadsUsing;
+  lockTableLock->Release();
   conditionTable[cv]->condition->Wait(lockTable[lock]->lock);
+  return threadsUsing;
 }
 
-void Signal_Syscall(int cv, int lock) {
+int Signal_Syscall(int cv, int lock) {
+  conditionTableLock->Acquire();
   if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
       || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
       || conditionTable[cv]->addrSpace != currentThread->space) {
-    return;
+    return UNSUCCESSFUL_SYSCALL;
   }
   if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
       || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
       || lockTable[lock]->addrSpace != currentThread->space) {
-    return;
+    return UNSUCCESSFUL_SYSCALL;
   }
+  int threadsUsing = --conditionTable[cv]->threadsUsing;
   conditionTable[cv]->condition->Signal(lockTable[lock]->lock);
+  if (conditionTable[cv]->threadsUsing == 0 && conditionTable[cv]->toBeDeleted) {
+    delete conditionTable[cv]->condition;
+    delete conditionTable[cv];
+    conditionTable[cv] = NULL;
+  }
+  conditionTableLock->Release();
+  lockTableLock->Acquire();
+  --lockTable[lock]->threadsUsing;
+  if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
+    delete lockTable[lock]->lock;
+    delete lockTable[lock];
+    lockTable[lock] = NULL;
+  }
+  lockTableLock->Release();
+  return threadsUsing;
 }
 
-void Broadcast_Syscall(int cv, int lock) {
+int Broadcast_Syscall(int cv, int lock) {
+  conditionTableLock->Acquire();
   if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
       || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
       || conditionTable[cv]->addrSpace != currentThread->space) {
-    return;
+    return UNSUCCESSFUL_SYSCALL;
   }
   if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
       || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
       || lockTable[lock]->addrSpace != currentThread->space) {
-    return;
+    return UNSUCCESSFUL_SYSCALL;
   }
+  int formerThreadsUsing = conditionTable[cv]->threadsUsing;
+  conditionTable[cv]->threadsUsing = 0;
   conditionTable[cv]->condition->Broadcast(lockTable[lock]->lock);
+  if (conditionTable[cv]->toBeDeleted) {
+    delete conditionTable[cv]->condition;
+    delete conditionTable[cv];
+    conditionTable[cv] = NULL;
+  }
+  conditionTableLock->Release();
+  lockTableLock->Acquire();
+  lockTable[lock]->threadsUsing -= formerThreadsUsing;
+  if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
+    delete lockTable[lock]->lock;
+    delete lockTable[lock];
+    lockTable[lock] = NULL;
+  }
+  lockTableLock->Release();
+  return 0;
 }
 
 int Rand_Syscall() {
