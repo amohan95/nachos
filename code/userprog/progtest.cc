@@ -37,7 +37,6 @@ StartProcess(char *filename)
     }
    
     space = new AddrSpace(executable);
-    space->AllocateStackPages();
     currentThread->space = space;
 
     delete executable;			// close file

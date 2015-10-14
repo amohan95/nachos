@@ -277,11 +277,9 @@ void Exit_Syscall(int status) {
   }
 }
 
-void KernelProcess(int stack_addr) {
+void KernelProcess(int dummy) {
   currentThread->space->InitRegisters();   // set the initial register values
   currentThread->space->RestoreState();    // load page table register
-
-  machine->WriteRegister(StackReg, stack_addr);
 
   machine->Run();     // jump to the user progam
   ASSERT(FALSE);      // machine->Run never returns;
@@ -307,19 +305,12 @@ void Exec_Syscall(int vaddr, int len) {
 
   Thread* thread = new Thread("New Process Thread");
   thread->space = new AddrSpace(executable);
-  int stack_addr = thread->space->AllocateStackPages();
-  if (stack_addr == -1) {
-    printf("Unable to allocate enough memory for stack pages.\n");
-    delete thread;
-    delete executable;
-    return;
-  }
 
   delete executable;
 
   processThreadTable[thread->space] += 1;
 
-  thread->Fork(KernelProcess, stack_addr);
+  thread->Fork(KernelProcess, 0);
 }
 
 void Yield_Syscall() {
