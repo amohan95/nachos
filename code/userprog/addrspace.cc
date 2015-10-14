@@ -139,10 +139,14 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
   size = numPages * PageSize;
 
   MutexLock l(&page_manager->lock_);
-  ASSERT(numPages <= page_manager->num_available_pages());
+  if (page_manager->num_available_pages() < numPages) {
+    printf("Nachos is out of memory. Terminating.\n");
+    interrupt->Halt();
+  }
 
   DEBUG('a', "Initializing address space, num pages %d, size %d\n", 
 				numPages, size);
+
   // first, set up the translation 
   pageTable = new TranslationEntry[numPages];
   for (int i = 0; i < numPages; i++) {
@@ -215,6 +219,16 @@ int AddrSpace::AllocateStackPages() {
   numPages += num_new_pages;
   RestoreState();
   return numPages * PageSize - 16;
+}
+
+void AddrSpace::DeallocateStack() {
+  MutexLock l(&page_manager->lock_);
+  int stack_bottom = currentThread->stack_vaddr_bottom_;
+  int num_stack_pages = divRoundUp(UserStackSize, PageSize);
+  for (int i = stack_bottom; i < stack_bottom + num_stack_pages; ++i) {
+    pageTable[i].valid = false;
+    page_manager->FreePage(pageTable[i].physicalPage);
+  }
 }
 
 //----------------------------------------------------------------------

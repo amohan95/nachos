@@ -244,6 +244,9 @@ void KernelThread(int vaddr) {
            currentThread->getName());
     return;
   }
+  currentThread->stack_vaddr_bottom_ =
+      currentThread->space->num_pages() - divRoundUp(UserStackSize, PageSize);
+
   currentThread->space->InitRegisters();
   currentThread->space->RestoreState();
 
@@ -260,21 +263,6 @@ void Fork_Syscall(int vaddr) {
   thread->space = currentThread->space;
   processThreadTable[thread->space] += 1;
   thread->Fork(KernelThread, vaddr);
-}
-
-void Exit_Syscall(int status) {
-  assert(processThreadTable.find(currentThread->space)
-      != processThreadTable.end());
-  if (processThreadTable[currentThread->space] > 1) {
-    processThreadTable[currentThread->space] -= 1;
-  } else {
-    processThreadTable.erase(currentThread->space);
-  }
-  if (processThreadTable.size() > 0) {
-    currentThread->Finish();
-  } else {
-    interrupt->Halt();
-  }
 }
 
 void KernelProcess(int dummy) {
@@ -305,12 +293,29 @@ void Exec_Syscall(int vaddr, int len) {
 
   Thread* thread = new Thread("New Process Thread");
   thread->space = new AddrSpace(executable);
-
+  thread->stack_vaddr_bottom_ =
+      thread->space->num_pages() - divRoundUp(UserStackSize, PageSize);
   delete executable;
 
   processThreadTable[thread->space] += 1;
 
   thread->Fork(KernelProcess, 0);
+}
+
+void Exit_Syscall(int status) {
+  assert(processThreadTable.find(currentThread->space)
+      != processThreadTable.end());
+  if (processThreadTable[currentThread->space] > 1) {
+    processThreadTable[currentThread->space] -= 1;
+  } else {
+    processThreadTable.erase(currentThread->space);
+  }
+  if (processThreadTable.size() > 0) {
+    currentThread->space->DeallocateStack();
+    currentThread->Finish();
+  } else {
+    interrupt->Halt();
+  }
 }
 
 void Yield_Syscall() {
