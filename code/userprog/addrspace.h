@@ -41,6 +41,9 @@ class AddrSpace {
     // Deallocates the stack assigned to the current thread.
     void DeallocateStack();
 
+    // Deallocates all pages assigned to the current process.
+    void DeallocateAllPages();
+
     void SaveState();			// Save/restore address space-specific
     void RestoreState();		// info on a context switch
     Table fileTable;			// Table of openfiles
