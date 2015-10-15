@@ -1,16 +1,18 @@
 #include "../userprog/syscall.h"
 
 #define NUM_SYSTEM_LOCKS 100
+#define NUM_SYSTEM_CONDITIONS 100
 #define NULL 0
 
 void test_result(int result);
 void create_destroy_lock();
-void acquire_release_lock_basic();
 void acquire_release_lock();
+void create_destroy_condition();
 
 int main() {
   create_destroy_lock();
   acquire_release_lock();
+  create_destroy_condition();
   Exit(0);
 }
 
@@ -116,4 +118,42 @@ void acquire_release_lock() {
   test_result(result == -1);
   result = Release(1);
   test_result(result == -1);
+
+  DestroyLock(lock);
+  DestroyCondition(cv);
 }
+
+void create_destroy_condition() {
+  int cvs[NUM_SYSTEM_CONDITIONS];
+  int i;
+  int cv;
+  int result;
+
+  Write("=== BEGIN CreateCondition Basic Test ===\n", 42, ConsoleOutput);
+  cvs[0] = CreateCondition("Test Condition #1");
+  test_result(cvs[0] >= 0 && cvs[0] < NUM_SYSTEM_LOCKS);
+
+  Write("=== BEGIN CreateCondition Too Many Test ===\n", 44, ConsoleOutput);
+  for (i = 1; i < NUM_SYSTEM_CONDITIONS; ++i) {
+    cvs[i] = CreateCondition("Another Test Condition");
+  }
+  cv = CreateCondition("Another Test Condition");
+  test_result(cv == -1);
+
+  Write("=== BEGIN DestroyCondition Basic Test ===\n", 42, ConsoleOutput);
+  result = DestroyCondition(cvs[0]);
+  test_result(result != -1);
+  for (i = 1; i < NUM_SYSTEM_CONDITIONS; ++i) {
+    DestroyCondition(cvs[i]);
+  }
+
+  Write("=== BEGIN DestroyCondition Invalid Argument Test ===\n", 53, ConsoleOutput);
+  result = DestroyCondition(-1);
+  test_result(result == -1);
+  result = DestroyCondition(NUM_SYSTEM_CONDITIONS);
+  test_result(result == -1);
+  result = DestroyCondition(0);
+  test_result(result == -1);
+}
+
+

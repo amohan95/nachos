@@ -144,7 +144,7 @@ void Yield();
 int CreateLock(char* name);
 int DestroyLock(int lock);
 int CreateCondition(char* name);
-int DestroyCondition(char* name);
+int DestroyCondition(int cv);
 int Acquire(int lock);
 int Release(int lock);
 int Wait(int cv, int lock);
