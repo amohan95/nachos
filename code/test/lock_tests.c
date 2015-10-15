@@ -5,6 +5,7 @@
 
 void test_result(int result);
 void create_destroy_lock();
+void acquire_release_lock_basic();
 void acquire_release_lock();
 
 int main() {
@@ -46,9 +47,73 @@ void create_destroy_lock() {
   }
 
   Write("=== BEGIN DestroyLock Invalid Argument Test ===\n", 48, ConsoleOutput);
+  result = DestroyLock(-1);
+  test_result(result == -1);
+  result = DestroyLock(NUM_SYSTEM_LOCKS);
+  test_result(result == -1);
   result = DestroyLock(0);
   test_result(result == -1);
 }
 
+int acquireReleaseBasicVariable = 1;
+void acquire_release_lock_basic() {
+  int result;
+  int i;
+
+  result = Acquire(0);
+  test_result(result != -1);
+
+  for (i = 0; i < 10; ++i) {
+    acquireReleaseBasicVariable =
+        acquireReleaseBasicVariable + acquireReleaseBasicVariable;
+  }
+
+  result = Release(0);
+  test_result(result != -1);
+
+  test_result(acquireReleaseBasicVariable == 1 << 20);
+
+  Signal(0, 0);
+  Exit(0);
+}
+
 void acquire_release_lock() {
+  int lock;
+  int cv;
+  int result;
+  int i;
+
+  lock = CreateLock("Acquire Release Test Lock");
+  cv = CreateCondition("Acquire Release Test Condition");
+
+  Write("=== BEGIN Acquire/Release Basic Test ===\n", 41, ConsoleOutput);
+  result = Acquire(lock);
+  test_result(result != -1);
+
+  Fork(acquire_release_lock_basic);
+
+  for (i = 0; i < 10; ++i) {
+    acquireReleaseBasicVariable =
+        acquireReleaseBasicVariable + acquireReleaseBasicVariable;
+  }
+
+  Wait(cv, lock);
+  result = Release(lock);
+  test_result(result != -1);
+
+  Write("=== BEGIN Acquire Invalid Argument Test ===\n", 44, ConsoleOutput);
+  result = Acquire(-1);
+  test_result(result == -1);
+  result = Acquire(NUM_SYSTEM_LOCKS);
+  test_result(result == -1);
+  result = Acquire(1);
+  test_result(result == -1);
+
+  Write("=== BEGIN Release Invalid Argument Test ===\n", 44, ConsoleOutput);
+  result = Release(-1);
+  test_result(result == -1);
+  result = Release(NUM_SYSTEM_LOCKS);
+  test_result(result == -1);
+  result = Release(1);
+  test_result(result == -1);
 }

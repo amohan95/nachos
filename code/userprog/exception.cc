@@ -574,45 +574,45 @@ void ExceptionHandler(ExceptionType which) {
       case SC_DestroyLock:
         DEBUG('a', "DestroyLock syscall.\n");
         int lock = machine->ReadRegister(4);
-        DestroyLock_Syscall(lock);
+        rv = DestroyLock_Syscall(lock);
         break;
       case SC_CreateCondition:
         DEBUG('a', "CreateCondition syscall.\n");
         name = reinterpret_cast<char*>(machine->ReadRegister(4));
-        rv =CreateCondition_Syscall(name);
+        rv = CreateCondition_Syscall(name);
         break;
       case SC_DestroyCondition:
         DEBUG('a', "DestroyCondition syscall.\n");
         int cv = machine->ReadRegister(4);
-        DestroyCondition_Syscall(cv);
+        rv = DestroyCondition_Syscall(cv);
         break;
       case SC_Acquire:
         DEBUG('a', "Acquire syscall.\n");
         lock = machine->ReadRegister(4);
-        Acquire_Syscall(lock);
+        rv = Acquire_Syscall(lock);
         break;
       case SC_Release:
         DEBUG('a', "Release syscall.\n");
         lock = machine->ReadRegister(4);
-        Release_Syscall(lock);
+        rv = Release_Syscall(lock);
         break;
       case SC_Wait:
         DEBUG('a', "Wait syscall.\n");
         cv = machine->ReadRegister(4);
         lock = machine->ReadRegister(5);
-        Wait_Syscall(cv, lock);
+        rv = Wait_Syscall(cv, lock);
         break;
       case SC_Signal:
         DEBUG('a', "Signal syscall.\n");
         cv = machine->ReadRegister(4);
         lock = machine->ReadRegister(5);
-        Signal_Syscall(cv, lock);
+        rv = Signal_Syscall(cv, lock);
         break;
       case SC_Broadcast:
         DEBUG('a', "Broadcast syscall.\n");
         cv = machine->ReadRegister(4);
         lock = machine->ReadRegister(5);
-        Broadcast_Syscall(cv, lock);
+        rv = Broadcast_Syscall(cv, lock);
         break;
       case SC_Rand:
         DEBUG('a', "Rand syscall.\n");
