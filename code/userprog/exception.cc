@@ -318,12 +318,14 @@ void Yield_Syscall() {
   currentThread->Yield();
 }
 
-int CreateLock_Syscall(char* name) {
+int CreateLock_Syscall(int name, int len) {
   lockTableLock->Acquire();
   for (int i = 0; i < NUM_SYSTEM_LOCKS; ++i) {
     if (lockTable[i] == NULL) {
       lockTable[i] = new KernelLock();
-      lockTable[i]->lock = new Lock(name);
+      lockTable[i]->name = new char[len + 1];
+      copyin(name, len, lockTable[i]->name);
+      lockTable[i]->lock = new Lock(lockTable[i]->name);
       lockTable[i]->addrSpace = currentThread->space;
       lockTable[i]->toBeDeleted = false;
       lockTable[i]->threadsUsing = 0;
@@ -345,6 +347,7 @@ int DestroyLock_Syscall(int lock) {
   }
   if (lockTable[lock]->threadsUsing == 0) {
     delete lockTable[lock]->lock;
+    delete [] lockTable[lock]->name;
     delete lockTable[lock];
     lockTable[lock] = NULL;
   } else {
@@ -354,12 +357,14 @@ int DestroyLock_Syscall(int lock) {
   return 0;
 }
 
-int CreateCondition_Syscall(char* name) {
+int CreateCondition_Syscall(int name, int len) {
   conditionTableLock->Acquire();
   for (int i = 0; i < NUM_SYSTEM_CONDITIONS; ++i) {
     if (conditionTable[i] == NULL) {
       conditionTable[i] = new KernelCondition();
-      conditionTable[i]->condition = new Condition(name);
+      conditionTable[i]->name = new char[len];
+      copyin(name, len, conditionTable[i]->name);
+      conditionTable[i]->condition = new Condition(conditionTable[i]->name);
       conditionTable[i]->addrSpace = currentThread->space;
       conditionTable[i]->toBeDeleted = false;
       conditionTable[i]->threadsUsing = 0;
@@ -381,6 +386,7 @@ int DestroyCondition_Syscall(int cv) {
   }
   if (conditionTable[cv]->threadsUsing == 0) {
     delete conditionTable[cv]->condition;
+    delete [] conditionTable[cv]->name;
     delete conditionTable[cv];
     conditionTable[cv] = NULL;
   } else {
@@ -416,6 +422,7 @@ int Release_Syscall(int lock) {
   int threadsUsing = --lockTable[lock]->threadsUsing;
   if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
     delete lockTable[lock]->lock;
+    delete [] lockTable[lock]->name;
     delete lockTable[lock];
     lockTable[lock] = NULL;
   }
@@ -462,6 +469,7 @@ int Signal_Syscall(int cv, int lock) {
   conditionTable[cv]->condition->Signal(lockTable[lock]->lock);
   if (conditionTable[cv]->threadsUsing == 0 && conditionTable[cv]->toBeDeleted) {
     delete conditionTable[cv]->condition;
+    delete [] conditionTable[cv]->name;
     delete conditionTable[cv];
     conditionTable[cv] = NULL;
   }
@@ -470,6 +478,7 @@ int Signal_Syscall(int cv, int lock) {
   --lockTable[lock]->threadsUsing;
   if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
     delete lockTable[lock]->lock;
+    delete [] lockTable[lock]->name;
     delete lockTable[lock];
     lockTable[lock] = NULL;
   }
@@ -494,6 +503,7 @@ int Broadcast_Syscall(int cv, int lock) {
   conditionTable[cv]->condition->Broadcast(lockTable[lock]->lock);
   if (conditionTable[cv]->toBeDeleted) {
     delete conditionTable[cv]->condition;
+    delete [] conditionTable[cv]->name;
     delete conditionTable[cv];
     conditionTable[cv] = NULL;
   }
@@ -502,6 +512,7 @@ int Broadcast_Syscall(int cv, int lock) {
   lockTable[lock]->threadsUsing -= formerThreadsUsing;
   if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
     delete lockTable[lock]->lock;
+    delete [] lockTable[lock]->name;
     delete lockTable[lock];
     lockTable[lock] = NULL;
   }
@@ -568,8 +579,7 @@ void ExceptionHandler(ExceptionType which) {
         break;
       case SC_CreateLock:
         DEBUG('a', "CreateLock syscall.\n");
-        char* name = reinterpret_cast<char*>(machine->ReadRegister(4));
-        rv = CreateLock_Syscall(name);
+        rv = CreateLock_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
         break;
       case SC_DestroyLock:
         DEBUG('a', "DestroyLock syscall.\n");
@@ -578,8 +588,7 @@ void ExceptionHandler(ExceptionType which) {
         break;
       case SC_CreateCondition:
         DEBUG('a', "CreateCondition syscall.\n");
-        name = reinterpret_cast<char*>(machine->ReadRegister(4));
-        rv = CreateCondition_Syscall(name);
+        rv = CreateCondition_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
         break;
       case SC_DestroyCondition:
         DEBUG('a', "DestroyCondition syscall.\n");

@@ -41,6 +41,7 @@ struct KernelLock {
   AddrSpace* addrSpace;
   bool toBeDeleted;
   uint32_t threadsUsing;
+  char* name;
 };
 extern Lock* lockTableLock;
 extern KernelLock* lockTable[NUM_SYSTEM_LOCKS];
@@ -52,6 +53,7 @@ struct KernelCondition {
   AddrSpace* addrSpace;
   bool toBeDeleted;
   uint32_t threadsUsing;
+  char* name;
 };
 extern Lock* conditionTableLock;
 extern KernelCondition* conditionTable[NUM_SYSTEM_CONDITIONS];

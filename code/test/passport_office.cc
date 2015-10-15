@@ -33,26 +33,26 @@ PassportOffice::PassportOffice(
     int num_application_clerks, int num_picture_clerks,
     int num_passport_clerks, int num_cashier_clerks) :
       clerks_(clerk_types::Size, std::vector<Clerk*>()),
-      breaking_clerks_lock_(CreateLock("breaking clerks lock")),
+      breaking_clerks_lock_(CreateLock("breaking clerks lock", 20)),
       line_counts_(clerk_types::Size, std::vector<int>()),
       bribe_line_counts_(clerk_types::Size, std::vector<int>()),
-      senator_lock_(CreateLock("senator lock")),
-      senator_condition_(CreateCondition("senator condition")),
-      customer_count_lock_(CreateLock("customer count lock")),
-      customers_served_lock_(CreateLock("num customers being served lock")),
-      customers_served_cv_(CreateCondition("num customers being served cv")),
+      senator_lock_(CreateLock("senator lock", 12)),
+      senator_condition_(CreateCondition("senator condition", 17)),
+      customer_count_lock_(CreateLock("customer count lock", 19)),
+      customers_served_lock_(CreateLock("num customers being served lock", 31)),
+      customers_served_cv_(CreateCondition("num customers being served cv", 29)),
       num_customers_being_served_(0),
-      num_customers_waiting_lock_(CreateLock("customer waiting counter")),
+      num_customers_waiting_lock_(CreateLock("customer waiting counter", 24)),
       num_customers_waiting_(0),
-      num_senators_lock_(CreateLock("num senators lock")),
+      num_senators_lock_(CreateLock("num senators lock", 17)),
       num_senators_(0),
-      outside_line_lock_(CreateLock("outside line lock")),
-      outside_line_cv_(CreateCondition("outside line condition")),
+      outside_line_lock_(CreateLock("outside line lock", 17)),
+      outside_line_cv_(CreateCondition("outside line condition", 22)),
       manager_thread_("manager thread") {
   for (int i = 0; i < clerk_types::Size; ++i) {
     char* name = new char[80];
     sprintf(name, "Line Lock %d", i);
-    line_locks_.push_back(CreateLock(name));
+    line_locks_.push_back(CreateLock(name, std::strlen(name)));
   }
 
   for (int i = 0; i < num_application_clerks; ++i) {

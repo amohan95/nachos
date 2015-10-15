@@ -141,9 +141,9 @@ void Yield();
 /* Synchronization operations: Acquire, Release, Wait, Signal, and
  * Broadcast.
  */
-int CreateLock(char* name);
+int CreateLock(char* name, int len);
 int DestroyLock(int lock);
-int CreateCondition(char* name);
+int CreateCondition(char* name, int len);
 int DestroyCondition(int cv);
 int Acquire(int lock);
 int Release(int lock);

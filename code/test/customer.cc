@@ -19,8 +19,8 @@ Customer CreateCustomer(PassportOffice* passport_office,
   customer.passport_verified_ = 0;
   customer.picture_taken_ = 0;
   customer.running_ = 0;
-  customer.join_line_lock_ = CreateLock("jll");
-  customer.join_line_lock_cv_ = CreateCondition("jllcv");
+  customer.join_line_lock_ = CreateLock("jll", 3);
+  customer.join_line_lock_cv_ = CreateCondition("jllcv", 5);
   return customer;
 }
 
@@ -35,8 +35,8 @@ Customer CreateCustomer(PassportOffice* passport_office, int money__) {
   customer.passport_verified_ = 0;
   customer.picture_taken_ = 0;
   customer.running_ = 0;
-  customer.join_line_lock_ = CreateLock("jll");
-  customer.join_line_lock_cv_ = CreateCondition("jllcv");
+  customer.join_line_lock_ = CreateLock("jll", 3);
+  customer.join_line_lock_cv_ = CreateCondition("jllcv", 5);
   return customer;
 }
 

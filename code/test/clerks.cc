@@ -28,14 +28,14 @@ Clerk CreateClerk(
   clerk.collected_money_ = 0;
   clerk.identifier_ = identifier;
   clerk.running_ = 0;
-  clerk.lines_lock_ = CreateLock("Clerk Lines Lock");
-  clerk.bribe_line_lock_cv_ = CreateCondition("Clerk Bribe Line Condition"); 
-  clerk.bribe_line_lock_ = CreateLock("Clerk Bribe Line Lock");
-  clerk.regular_line_lock_cv_ = CreateCondition("Clerk Regular Line Condition"); 
-  clerk.regular_line_lock_ = CreateLock("Clerk Regular Line Lock");
-  clerk.wakeup_lock_cv_ = CreateCondition("Clerk Wakeup Condition");
-  clerk.wakeup_lock_ = CreateLock("Clerk Wakeup Lock");
-  clerk.money_lock_ = CreateLock("Clerk Money Lock");
+  clerk.lines_lock_ = CreateLock("Clerk Lines Lock", 16);
+  clerk.bribe_line_lock_cv_ = CreateCondition("Clerk Bribe Line Condition", 27);
+  clerk.bribe_line_lock_ = CreateLock("Clerk Bribe Line Lock", 21);
+  clerk.regular_line_lock_cv_ = CreateCondition("Clerk Regular Line Condition", 27);
+  clerk.regular_line_lock_ = CreateLock("Clerk Regular Line Lock", 23);
+  clerk.wakeup_lock_cv_ = CreateCondition("Clerk Wakeup Condition", 22);
+  clerk.wakeup_lock_ = CreateLock("Clerk Wakeup Lock", 17);
+  clerk.money_lock_ = CreateLock("Clerk Money Lock", 16);
   clerk.type_ = type;
 
   switch(type) {

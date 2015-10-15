@@ -5,8 +5,8 @@
 Manager CreateManager(PassportOffice* passport_office) {
   Manager manager;
   manager.passport_office_ = passport_office;
-  manager.wakeup_condition_ = CreateCondition("Manager Wakeup Lock Condition");
-  manager.wakeup_condition_lock_ = CreateLock("Manager Wakeup Lock");
+  manager.wakeup_condition_ = CreateCondition("Manager Wakeup Lock Condition", 29);
+  manager.wakeup_condition_lock_ = CreateLock("Manager Wakeup Lock", 19);
   running_ = true;
   elapsed_ = 0;
   return manager;
