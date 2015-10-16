@@ -37,13 +37,14 @@ StartProcess(char *filename)
     }
    
     space = new AddrSpace(executable);
-    space->AllocateStackPages();
     currentThread->space = space;
 
     delete executable;			// close file
 
     space->InitRegisters();		// set the initial register values
     space->RestoreState();		// load page table register
+    currentThread->stack_vaddr_bottom_ =
+        space->num_pages() - divRoundUp(UserStackSize, PageSize);
 
     processThreadTable[space] += 1;
 

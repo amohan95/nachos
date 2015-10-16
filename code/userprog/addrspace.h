@@ -38,9 +38,17 @@ class AddrSpace {
     // it returns the starting position of the new stack for the thread.
     int AllocateStackPages();
 
+    // Deallocates the stack assigned to the current thread.
+    void DeallocateStack();
+
+    // Deallocates all pages assigned to the current process.
+    void DeallocateAllPages();
+
     void SaveState();			// Save/restore address space-specific
     void RestoreState();		// info on a context switch
     Table fileTable;			// Table of openfiles
+
+    int num_pages() { return numPages; }
 
  private:
     TranslationEntry *pageTable;	// Assume linear page table translation

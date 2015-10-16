@@ -118,68 +118,53 @@ SwapHeader (NoffHeader *noffH)
 //----------------------------------------------------------------------
 
 AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
-    NoffHeader noffH;
-    int size;
+  NoffHeader noffH;
+  int size;
 
-    // Don't allocate the input or output to disk files
-    fileTable.Put(0);
-    fileTable.Put(0);
+  // Don't allocate the input or output to disk files
+  fileTable.Put(0);
+  fileTable.Put(0);
 
-    executable->ReadAt((char *)&noffH, sizeof(noffH), 0);
-    if ((noffH.noffMagic != NOFFMAGIC) && 
-		(WordToHost(noffH.noffMagic) == NOFFMAGIC))
-    	SwapHeader(&noffH);
-    ASSERT(noffH.noffMagic == NOFFMAGIC);
+  executable->ReadAt((char *)&noffH, sizeof(noffH), 0);
+  if ((noffH.noffMagic != NOFFMAGIC) && 
+	(WordToHost(noffH.noffMagic) == NOFFMAGIC))
+  	SwapHeader(&noffH);
+  ASSERT(noffH.noffMagic == NOFFMAGIC);
 
-    size = noffH.code.size + noffH.initData.size + noffH.uninitData.size;
- 
-    int data_code_pages = divRoundUp(size, PageSize); 
-    numPages = data_code_pages;
+  size = noffH.code.size + noffH.initData.size + noffH.uninitData.size;
 
-    size = numPages * PageSize;
+  int data_code_pages = divRoundUp(size, PageSize); 
+  numPages = data_code_pages + divRoundUp(UserStackSize, PageSize);
 
-    MutexLock l(&page_manager->lock_);
-    ASSERT(numPages <= page_manager->num_available_pages());
+  size = numPages * PageSize;
 
-    DEBUG('a', "Initializing address space, num pages %d, size %d\n", 
-					numPages, size);
-    // first, set up the translation 
-    pageTable = new TranslationEntry[numPages];
-    for (int i = 0; i < numPages; i++) {
-    	pageTable[i].virtualPage = i;
-    	pageTable[i].physicalPage = page_manager->ObtainFreePage();
-    	pageTable[i].valid = TRUE;
-    	pageTable[i].use = FALSE;
-    	pageTable[i].dirty = FALSE;
-    	pageTable[i].readOnly = FALSE;  // if the code segment was entirely on 
-					// a separate page, we could set its 
-					// pages to be read-only
+  MutexLock l(&page_manager->lock_);
+  if (page_manager->num_available_pages() < numPages) {
+    printf("Nachos is out of memory. Terminating.\n");
+    interrupt->Halt();
+  }
 
-      // Zero out the pages of memory.
-      bzero(
-          &machine->mainMemory[PageSize * pageTable[i].physicalPage], PageSize);
+  DEBUG('a', "Initializing address space, num pages %d, size %d\n", 
+				numPages, size);
+
+  // first, set up the translation 
+  pageTable = new TranslationEntry[numPages];
+  for (int i = 0; i < numPages; i++) {
+  	pageTable[i].virtualPage = i;
+  	pageTable[i].physicalPage = page_manager->ObtainFreePage();
+  	pageTable[i].valid = TRUE;
+  	pageTable[i].use = FALSE;
+  	pageTable[i].dirty = FALSE;
+  	pageTable[i].readOnly = FALSE;  // if the code segment was entirely on 
+				// a separate page, we could set its 
+				// pages to be read-only
+    
+    if (i < data_code_pages) {
+      executable->ReadAt(
+        &(machine->mainMemory[pageTable[i].physicalPage * PageSize]),
+        PageSize, PageSize * i + 40);
     }
-
-    // copy in the code and data segments into memory
-    if (noffH.code.size > 0) {
-        DEBUG('a', "Initializing code segment, at 0x%x, size %d\n", 
-  		noffH.code.virtualAddr, noffH.code.size);
-        executable->ReadAt(
-            &(machine->mainMemory[noffH.code.virtualAddr + 
-                                  pageTable[0].physicalPage * PageSize]),
-  		      noffH.code.size,
-            noffH.code.inFileAddr);
-    }
-
-    if (noffH.initData.size > 0) {
-        DEBUG('a', "Initializing data segment, at 0x%x, size %d\n", 
-  		noffH.initData.virtualAddr, noffH.initData.size);
-        executable->ReadAt(
-            &(machine->mainMemory[noffH.initData.virtualAddr +
-                                  pageTable[0].physicalPage * PageSize]),
-  		      noffH.initData.size,
-            noffH.initData.inFileAddr);
-    }
+  }
 }
 
 
@@ -202,6 +187,7 @@ int AddrSpace::AllocateStackPages() {
   
   if (page_manager->num_available_pages() < num_new_pages) {
     printf("Out of physical pages. Failed to allocate more stack.\n");
+    interrupt->Halt();
     return -1;
   }
 
@@ -209,7 +195,12 @@ int AddrSpace::AllocateStackPages() {
       new TranslationEntry[numPages + num_new_pages];
 
   for (int i = 0; i < numPages; ++i) {
-    new_page_table[i] = pageTable[i];
+    new_page_table[i].virtualPage = pageTable[i].virtualPage;
+    new_page_table[i].physicalPage = pageTable[i].physicalPage;
+    new_page_table[i].valid = pageTable[i].valid;
+    new_page_table[i].use = pageTable[i].use;
+    new_page_table[i].dirty = pageTable[i].dirty;
+    new_page_table[i].readOnly = pageTable[i].readOnly;
   }
 
   for (int i = numPages; i < num_new_pages + numPages; ++i) {
@@ -226,8 +217,27 @@ int AddrSpace::AllocateStackPages() {
   pageTable = new_page_table;
 
   numPages += num_new_pages;
-  machine->pageTable = pageTable;
-  return (pageTable[numPages - 1].physicalPage + 1) * PageSize - 16;
+  RestoreState();
+  return numPages * PageSize - 16;
+}
+
+void AddrSpace::DeallocateStack() {
+  MutexLock l(&page_manager->lock_);
+  int stack_bottom = currentThread->stack_vaddr_bottom_;
+  int num_stack_pages = divRoundUp(UserStackSize, PageSize);
+  for (int i = stack_bottom; i < stack_bottom + num_stack_pages; ++i) {
+    pageTable[i].valid = false;
+    page_manager->FreePage(pageTable[i].physicalPage);
+  }
+}
+
+void AddrSpace::DeallocateAllPages() {
+  MutexLock l(&page_manager->lock_);
+  for (int i = 0; i < numPages; ++i) {
+    if (pageTable[i].valid) {
+      page_manager->FreePage(pageTable[i].physicalPage);
+    }
+  }
 }
 
 //----------------------------------------------------------------------

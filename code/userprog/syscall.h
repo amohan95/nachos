@@ -18,6 +18,7 @@
 /* system call codes -- used by the stubs to tell the kernel which system call
  * is being asked for
  */
+
 #define SC_Halt		           0
 #define SC_Exit		           1
 #define SC_Exec		           2
@@ -138,18 +139,19 @@ void Fork(void (*func)());
  */
 void Yield();
 
+#define UNSUCCESSFUL_SYSCALL -1
 /* Synchronization operations: Acquire, Release, Wait, Signal, and
  * Broadcast.
  */
-int CreateLock(char* name);
-void DestroyLock(int lock);
-int CreateCondition(char* name);
-void DestroyCondition(char* name);
-void Acquire(int lock);
-void Release(int lock);
-void Wait(int cv, int lock);
-void Signal(int cv, int lock);
-void Broadcast(int cv, int lock);
+int CreateLock(char* name, int len);
+int DestroyLock(int lock);
+int CreateCondition(char* name, int len);
+int DestroyCondition(int cv);
+int Acquire(int lock);
+int Release(int lock);
+int Wait(int cv, int lock);
+int Signal(int cv, int lock);
+int Broadcast(int cv, int lock);
 
 int Rand();
 void Print(char* string);
