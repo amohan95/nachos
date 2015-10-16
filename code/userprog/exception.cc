@@ -557,11 +557,11 @@ void ExceptionHandler(ExceptionType which) {
         break;
       case SC_Print:
         DEBUG('a', "Print string syscall.\n");
-        Print_Syscall(machine->ReadRegister(4));
+        Print_Syscall(reinterpret_cast<char*>(machine->ReadRegister(4)));
         break;
       case SC_PrintNum:
         DEBUG('a', "Print number syscall.\n");
-        PrintNum_Syscall(machine->ReadRegister(4));
+        PrintNum_Syscall(reinterpret_cast<char*>(machine->ReadRegister(4)));
         break; 
     }
 
