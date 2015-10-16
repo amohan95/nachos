@@ -122,8 +122,12 @@ void DoClerkWork(Customer* customer, Clerk* clerk) {
   Acquire(clerk->wakeup_lock_);
   clerk->customer_ssn_ = customer->ssn_;
   clerk->current_customer_ = customer;
-  std::cout << CustomerIdentifierString(customer) << " has given SSN [" 
-      << customer->ssn_ << "] to " << ClerkIdentifierString(clerk) << '.' 
+  Print(CustomerIdentifierString(customer));
+  Print(" has given SSN [");
+  PrintNum(customer->ssn_);
+  Print("] to ");
+  Print(ClerkIdentifierString(clerk))
+  Print(".\n");
       << std::endl;
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
@@ -157,14 +161,19 @@ void DoClerkWork(Customer* customer, Clerk* clerk) {
 }
 
 void PrintLineJoin(Customer* customer, Clerk* clerk, int bribed) const {
-  std::cout << CustomerIdentifierString(customer) << " has gotten in " 
-      << (bribed ? "bribe" : "regular") << " line for " 
-      << ClerkIdentifierString(clerk)  << "." << std::endl;
+  Print(CustomerIdentifierString(customer));
+  Print(" has gotten in ");
+  Print((bribed ? "bribe" : "regular");
+  Print(" line for "); 
+  Print(ClerkIdentifierString(clerk));
+  Print(".\n");
 }
 
 std::string SenatorIdentifierString(Customer* customer) const {
   std::stringstream ss;
-  ss << "Senator [" << customer->ssn_ << ']';
+  Print("Senator [");
+  PrintNum(customer->ssn_);
+  Print(']');
   return ss.str();
 }
 
@@ -241,9 +250,11 @@ void SenatorRun(Customer* customer) {
   }
 
   if (customer->passport_verified_ {
-    std::cout << SenatorIdentifierString() << " is leaving the Passport Office." << std::endl;
+    Print(SenatorIdentifierString());
+    Print(" is leaving the Passport Office.\n");
   } else {
-    std::cout << SenatorIdentifierString() << " terminated early because it is impossible to get a passport." << std::endl;
+    Print(SenatorIdentifierString());
+    Print(" terminated early because it is impossible to get a passport.\n");
   }
 
   /* Leaving the office - if there are no more senators left waiting, then
@@ -264,9 +275,8 @@ void CustomerRun(Customer* customer) {
     if (num_senators_ > 0) {
       Release(num_senators_lock_);
       Acquire(outside_line_lock_);
-      std::cout << customer->CustomerIdentifierString() << " is going outside "
-          << "the Passport Office because there is a Senator present."
-          << std::endl;
+      Print(customer->CustomerIdentifierString());
+      Print(" is going outside the Passport Office because there is a Senator present.\n");
       Wait(outside_line_cv_, outside_line_lock_);
       Release(outside_line_lock_);
       continue;
@@ -381,9 +391,11 @@ void CustomerRun(Customer* customer) {
     Release(clerk->wakeup_lock_);
   }
   if (customer->passport_verified_ {
-    std::cout << customer->CustomerIdentifierString() << " is leaving the Passport Office." << std::endl;
+    Print(customer->CustomerIdentifierString());
+    Print(" is leaving the Passport Office.\n");
   } else {
-    std::cout << customer->CustomerIdentifierString() << " terminated early because it is impossible to get a passport." << std::endl;
+    Print(customer->CustomerIdentifierString());
+    Print(" terminated early because it is impossible to get a passport.\n");
   }
   Acquire(customers_served_lock_);
   --num_customers_being_served_;
@@ -507,8 +519,11 @@ void GetNextCustomer(Clerk* clerk) {
   Release(clerk->regular_line_lock_);
 
   if (bribe_line_count > 0) {
-    std::cout << clerk->clerk_type_ << " [" << clerk->identifier_
-      << "] has signalled a Customer to come to their counter." << std::endl;
+    Print(clerk->clerk_type_);
+    Print(" [");
+    PrintNum(clerk->identifier_);
+    Print("] has signalled a Customer to come to their counter.\n");
+
     Acquire(clerk->bribe_line_lock_);
     Acquire(clerk->wakeup_lock_);
     Signal(clerk->bribe_line_lock_cv_, clerk->bribe_line_lock_);
@@ -516,8 +531,11 @@ void GetNextCustomer(Clerk* clerk) {
     clerk->state_ = clerk_states::kBusy;
     bribe_line_counts_[clerk->type_][clerk->identifier_]--;
   } else if (regular_line_count > 0) {
-    std::cout << clerk->clerk_type_ << " [" << clerk->identifier_
-      << "] has signalled a Customer to come to their counter." << std::endl;
+    Print(clerk->clerk_type_);
+    Print(" [");
+    PrintNum(clerk->identifier_);
+    Print("] has signalled a Customer to come to their counter.\n");
+
     Acquire(clerk->regular_line_lock_);
     Acquire(clerk->wakeup_lock_);
     Signal(clerk->regular_line_lock_cv_, clerk->regular_line_lock_);
@@ -535,31 +553,44 @@ void ApplicationClerkWork(Clerk* clerk) {
   /* Wait for customer to put passport on counter. */
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   clerk->current_customer_->completed_application_ = 1;
-  std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
-      << "] has recorded a completed application for " 
-      << clerk->current_customer_->IdentifierString() << std::endl;
+  Print(clerk->clerk_type_);
+  Print(" [");
+  PrintNum(clerk->identifier);
+  Print("] has recorded a completed application for ");
+  Print(clerk->current_customer_->IdentifierString());
+  Print("\n");
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
 }
 
 void PictureClerkWork(Clerk* clerk) {
   /* Take Customer's picture and wait to hear if they like it. */
-  std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ << "] has taken a picture of "
-            << clerk->current_customer_->IdentifierString() << std::endl;
+  Print(" [");
+  PrintNum(clerk->identifier_);
+  Print("] has taken a picture of ");
+  Print(clerk->current_customer_->IdentifierString());
+  Print("\n");
+
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   int picture_accepted = customer_input_;
 
   /* If they don't like their picture don't set their picture to taken.  They go back in line. */
   if (!picture_accepted) {
-    std::cout << clerk_type_ << " [" << clerk->identifier_ 
-        << "] has been told that " << clerk->current_customer_->IdentifierString()
-        << " does not like their picture" << std::endl;
+    Print(clerk_type_);
+    Print(" [");
+    PrintNum(clerk->identifier_);
+    Print("] has been told that ");
+    Print(clerk->current_customer_->IdentifierString());
+    Print(" does not like their picture\n");
   } else {
     /* Set picture taken. */
     clerk->current_customer_->picture_taken_ = 1;
-    std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
-        << "] has been told that " << clerk->current_customer_->IdentifierString() 
-        << " does like their picture" << std::endl;
+    Print(clerk->clerk_type_);
+    Print(" [");
+    PrintNum(clerk->identifier_); 
+    Print("] has been told that ");
+    Print(clerk->current_customer_->IdentifierString());
+    Print(" does like their picture\n");
   }
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
 }
@@ -947,7 +978,7 @@ int main() {
   }
 
   /* Stop the Passport Office */
-  printf("Attempting to stop passport office\n");
+  Print("Attempting to stop passport office\n");
   while (customers_size > 0) {
     bool done = true;
     Acquire(breaking_clerks_lock_);
@@ -987,14 +1018,14 @@ int main() {
     Release(line_locks_[i]);
   }
   manager_.running = false;
-  std::cout << "Set manager running false" << std::endl;
+  Print("Set manager running false\n");
   Acquire(manager_.wakeup_condition_lock_);
   Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
   Release(manager_.wakeup_condition_lock_);
   for (int i = 0; i < 1000; ++i) {
     currentThread->Yield();
   }
-  printf("Passport office stopped\n");
+  Print("Passport office stopped\n");
   /*for (unsigned int i = 0 ; i < thread_list_.size(); ++i) {
     thread_list_[i]->Finish();
   }

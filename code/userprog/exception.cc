@@ -442,6 +442,14 @@ int Rand_Syscall() {
   return rand();
 }
 
+void Print_Syscall(char* c) {
+  printf(c);
+}
+
+void PrintNum_Syscall(int num) {
+  printf("%d", num);
+}
+
 void ExceptionHandler(ExceptionType which) {
   int type = machine->ReadRegister(2); // Which syscall?
   int rv=0; 	// the return value from a syscall
@@ -546,7 +554,15 @@ void ExceptionHandler(ExceptionType which) {
       case SC_Rand:
         DEBUG('a', "Rand syscall.\n");
         rv = Rand_Syscall();
-        break;        
+        break;
+      case SC_Print:
+        DEBUG('a', "Print string syscall.\n");
+        Print_Syscall(machine->ReadRegister(4));
+        break;
+      case SC_PrintNum:
+        DEBUG('a', "Print number syscall.\n");
+        PrintNum_Syscall(machine->ReadRegister(4));
+        break; 
     }
 
     // Put in the return value and increment the PC

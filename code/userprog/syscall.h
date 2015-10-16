@@ -39,6 +39,8 @@
 #define SC_Signal           18
 #define SC_Broadcast        19
 #define SC_Rand             20
+#define SC_Print            21
+#define SC_PrintNum         22
 
 #define MAXFILENAME 256
 
@@ -150,6 +152,9 @@ void Signal(int cv, int lock);
 void Broadcast(int cv, int lock);
 
 int Rand();
+void Print(char* string);
+void PrintNum(int num);
+
 
 #endif /* IN_ASM */
 

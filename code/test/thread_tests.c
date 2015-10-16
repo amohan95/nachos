@@ -8,9 +8,13 @@ void fork_function() {
 }
 
 int main() {
-  char c = 'c';
-  char d = 'd';
-  Write("Hello from the main thread!\n", 28, ConsoleOutput);
-  Fork(&fork_function);
+  // char c = 'c';
+  // char d = 'd';
+  // Write("Hello from the main thread!\n", 28, ConsoleOutput);
+  // Fork(&fork_function);
+
+  char * c = 'hi';
+  Print(c);
+
   Exit(0);
 }
