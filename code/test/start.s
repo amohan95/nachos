@@ -209,6 +209,22 @@ Rand:
 	syscall
 	j	$31
 	.end Rand
+	
+	.globl Print
+	.ent Print
+Print:
+	addiu $2,$0,SC_Print
+	syscall
+	j	$31
+	.end Print
+
+	.globl PrintNum
+	.ent PrintNum
+PrintNum:
+	addiu $2,$0,SC_PrintNum
+	syscall
+	j	$31
+	.end PrintNum
 
 /* dummy function to keep gcc happy */
         .globl  __main
