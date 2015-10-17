@@ -603,19 +603,26 @@ void PassportClerkWork(Clerk* clerk) {
 
   /* Check to make sure their picture has been taken and passport verified. */
   if (!picture_taken_and_passport_verified) {
-    std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
-        << "] has determined that " << clerk->current_customer_->IdentifierString() 
-        << " does not have both their application and picture completed" 
-        << std::endl;
+    Print(clerk->clerk_type_);
+    Print(" [", 2);
+    PrintNum(clerk->identifier_);
+    Print("] has determined that ", 22);
+    Print(clerk->current_customer_->IdentifierString());
+    Print(" does not have both their application and picture completed\n", 60);
   } else {
-    std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
-        << "] has determined that " << clerk->current_customer_->IdentifierString() 
-        << " does have both their application and picture completed" 
-        << std::endl;
+    Print(clerk->clerk_type_);
+    Print(" [", 2);
+    PrintNum(clerk->identifier_); 
+    Print("] has determined that ", 22);
+    Print(clerk->current_customer_->IdentifierString());
+    Print(" does have both their application and picture completed\n", 46);
     clerk->current_customer_->certified_ = 1;
-    std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
-        << "] has recorded " << clerk->current_customer_->IdentifierString() 
-        << " passport documentation" << std::endl;
+    Print(clerk->clerk_type_);
+    Print(" [", 2);
+    PrintNum(clerk->identifier_); 
+    Print("] has recorded ", 16);
+    Print(clerk->current_customer_->IdentifierString());
+    Print(" passport documentation\n", 24);
   }
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
 }
