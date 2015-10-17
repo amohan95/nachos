@@ -37,7 +37,7 @@ struct Manager;
 
 typedef struct {
   int money_;
-  const int ssn_;
+  int ssn_;
   int join_line_lock_;
   int join_line_lock_cv_;
   int bribed_;
@@ -62,7 +62,7 @@ typedef struct {
   Customer* current_customer_;
   int customer_money_;
   int customer_input_;
-  char * clerk_type_;
+  char* clerk_type_;
   clerk_types::Type type_;
   clerk_states::State state_;
   int collected_money_;

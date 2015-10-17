@@ -1,5 +1,5 @@
 #include "../userprog/syscall.h"
-#include "utitlities.h"
+#include "utilities.h"
 
 int num_customers = 15;
 int num_senators = 1;
@@ -13,41 +13,66 @@ int num_clerks_[clerk_types::Size]
     = {num_application_clerks, num_picture_clerks, num_passport_clerks, 
         num_cashier_clerks};
 
-int breaking_clerks_lock_ = CreateLock("breaking clerks lock"));
-int senator_lock_ = CreateLock("senator lock"));
-int senator_condition_ = CreateCondition("senator condition"));
-int customer_count_lock_ = CreateLock("customer count lock"));
-int customers_served_lock_ = CreateLock("num customers being served lock"));
-int customers_served_cv_ = CreateCondition("num customers being served cv"));
+int breaking_clerks_lock_ = CreateLock("breaking clerks lock", 20);
+int senator_lock_ = CreateLock("senator lock", 10);
+int senator_condition_ = CreateCondition("senator condition", 17);
+int customer_count_lock_ = CreateLock("customer count lock", 19);
+int customers_served_lock_ = CreateLock("num customers being served lock", 31);
+int customers_served_cv_ = CreateCondition("num customers being served cv", 29);
 int num_customers_being_served_ = 0;
-int num_customers_waiting_lock_ = CreateLock("customer waiting counter"));
+int num_customers_waiting_lock_ = CreateLock("customer waiting counter", 24);
 int num_customers_waiting_ = 0;
-int num_senators_lock_ = CreateLock("num senators lock"));
+int num_senators_lock_ = CreateLock("num senators lock", 17);
 int num_senators_ = 0;
-int outside_line_lock_ = CreateLock("outside line lock"));
-int outside_line_cv_ = CreateCondition("outside line condition"));
+int outside_line_lock_ = CreateLock("outside line lock", 17);
+int outside_line_cv_ = CreateCondition("outside line condition", 22);
 
 Clerk breaking_clerks[total_clerks];
 int line_locks_[clerk_types::Size];
-Customer* customers[num_customers+num_senators];
+Customer customers[num_customers+num_senators];
 int customers_size = 0;
-Thread* thread_list[num_customers + num_senators + total_clerks + 1];
+int thread_list[num_customers + num_senators + total_clerks + 1];
 int num_threads = 0;
 
-Clerk* clerks_[clerk_types::Size];
-int* line_counts_[clerk_types::Size];
-int* bribe_line_counts_[clerk_types::Size];
+Clerk clerks_[clerk_types::Size];
+int line_counts_[clerk_types::Size];
+int bribe_line_counts_[clerk_types::Size];
 
-static const int INITIAL_MONEY_AMOUNTS[] = {100, 600, 1100, 1600};
-static int CURRENT_UNUSED_SSN = 0;
-static int SENATOR_UNUSED_SSN = 0;
+int INITIAL_MONEY_AMOUNTS[] = {100, 600, 1100, 1600};
+int CURRENT_UNUSED_SSN = 0;
+int SENATOR_UNUSED_SSN = 0;
+
+void AddNewCustomer(Customer* customer);
+void AddNewSenator(Senator* senator);
+void DestroyCustomer(Customer* customer);
+void PrintCustomerIdentifierString(Customer* customer);
+void DoClerkWork(Customer* customer, Clerk* clerk);
+void PrintLineJoin(Customer* customer, Clerk* clerk, int bribed);
+void PrintSenatorIdentifierString(Customer* customer);
+void SenatorRun(Customer* customer);
+void CustomerRun(Customer* customer);
+void PrintNameForClerkType(clerk_types::Type type);
+void PrintClerkIdentifierString(Clerk* clerk);
+void DestroyClerk(Clerk* clerk);
+void JoinLine(Clerk* clerk, int bribe);
+void GetNextCustomer(Clerk* clerk);
+void ApplicationClerkWork(Clerk* clerk);
+void PictureClerkWork(Clerk* clerk);
+void PassportClerkWork(Clerk* clerk);
+void CashierClerkWork(Clerk* clerk);
+void ClerkRun(Clerk* clerk);
+void ManagerPrintMoneyReport(Manager* manager);
+void ManagerRun(Manager* manager);
+void WakeWaitingCustomers();
+void WakeClerksForSenator();
 
 /* Gets the total number of customers waiting in line for a clerk type. */
-int GetNumCustomersForClerkType(clerk_types::Type type) const {
+int GetNumCustomersForClerkType(clerk_types::Type type) {
   int total = 0;
-  for (unsigned int j = 0; j < num_clerks_[type]; ++j) {
-    total += line_counts_[type][j];
-    total += bribe_line_counts_[type][j];
+  int i;
+  for (i = 0; i < num_clerks_[type]; ++i) {
+    total += line_counts_[type][i];
+    total += bribe_line_counts_[type][i];
   }
   return total;
 }
@@ -55,10 +80,7 @@ int GetNumCustomersForClerkType(clerk_types::Type type) const {
 /* Adds a new customer to the passport office by creating a new thread and
   forking it. Additionally, this will add the customer to the customers_ set.*/
 void AddNewCustomer(Customer* customer) {
-  std::string id = CustomerIdentifierString(&customer);
-  char* id_str = new char[id.length()];
-  std::strcpy(id_str, id.c_str());
-  Thread* thread = new Thread(id_str);
+  Thread* thread = new Thread("Customer");
   thread->Fork(thread_runners::RunCustomer, reinterpret_cast<int>(customer));
   thread_list_[num_threads++] = thread;
   Acquire(customer_count_lock_);
@@ -87,8 +109,8 @@ Customer CreateCustomer(customer_types::Type type = customer_types::kCustomer) {
   customer.passport_verified_ = 0;
   customer.picture_taken_ = 0;
   customer.running_ = 0;
-  customer.join_line_lock_ = CreateLock("jll");
-  customer.join_line_lock_cv_ = CreateCondition("jllcv");
+  customer.join_line_lock_ = CreateLock("jll", 3);
+  customer.join_line_lock_cv_ = CreateCondition("jllcv", 5);
   return customer;
 }
 
@@ -102,8 +124,8 @@ Customer CreateCustomer(int money__) {
   customer.passport_verified_ = 0;
   customer.picture_taken_ = 0;
   customer.running_ = 0;
-  customer.join_line_lock_ = CreateLock("jll");
-  customer.join_line_lock_cv_ = CreateCondition("jllcv");
+  customer.join_line_lock_ = CreateLock("jll", 3);
+  customer.join_line_lock_cv_ = CreateCondition("jllcv", 5);
   return customer;
 }
 
@@ -112,21 +134,21 @@ void DestroyCustomer(Customer* customer) {
   DestroyCondition(customer->join_line_lock_cv_);
 }
 
-std::string CustomerIdentifierString(Customer* customer) const {
-  std::stringstream ss;
-  ss << "Customer [" << customer->ssn_ << ']';
-  return ss.str();
+void PrintCustomerIdentifierString(Customer* customer) {
+  Print("Customer [", 10);
+  PrintNum(customer->ssn_)
+  Print("]", 1);
 }
 
 void DoClerkWork(Customer* customer, Clerk* clerk) {
   Acquire(clerk->wakeup_lock_);
   clerk->customer_ssn_ = customer->ssn_;
   clerk->current_customer_ = customer;
-  Print(CustomerIdentifierString(customer));
+  PrintCustomerIdentifierString(customer);
   Print(" has given SSN [", 16);
   PrintNum(customer->ssn_);
   Print("] to ", 5);
-  Print(ClerkIdentifierString(clerk))
+  PrintClerkIdentifierString(clerk);
   Print(".\n", 2);
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
@@ -160,20 +182,18 @@ void DoClerkWork(Customer* customer, Clerk* clerk) {
 }
 
 void PrintLineJoin(Customer* customer, Clerk* clerk, int bribed) const {
-  Print(CustomerIdentifierString(customer));
+  PrintCustomerIdentifierString(customer);
   Print(" has gotten in ", 15);
   Print((bribed ? "bribe" : "regular"), (bribed ? 5 : 7));
   Print(" line for "); 
-  Print(ClerkIdentifierString(clerk));
+  Print(PrintClerkIdentifierString(clerk));
   Print(".\n", 2);
 }
 
-std::string SenatorIdentifierString(Customer* customer) const {
-  std::stringstream ss;
-  Print("Senator [");
+void PrintSenatorIdentifierString(Customer* customer) {
+  Print("Senator [", 9);
   PrintNum(customer->ssn_);
-  Print(']');
-  return ss.str();
+  Print("]", 1);
 }
 
 void SenatorRun(Customer* customer) {
@@ -190,7 +210,7 @@ void SenatorRun(Customer* customer) {
     they can join the outside line. */
   while (num_customers_being_served_ > 0) {
     manager_->WakeWaitingCustomers();
-    currentThread->Yield();
+    Yield();
   }
 
   /* Reset the line counts to 0 since there are no customers in the office
@@ -205,11 +225,11 @@ void SenatorRun(Customer* customer) {
   }
   
   /* Wait for all clerks to get off of their breaks, if necessary. */
-  for (int i = 0; i < 500; ++i) { currentThread->Yield(); }
+  for (int i = 0; i < 500; ++i) { Yield(); }
 
   while (customer->running_ &&
         (!customer->passport_verified_ || !customer->picture_taken_ ||
-         !customer->completed_application_ || !customer->certified_) {
+         !customer->completed_application_ || !customer->certified_)) {
     clerk_types::Type next_clerk;
     if (!customer->completed_application_ && !customer->picture_taken_ && 
         num_application_clerks > 0 &&
@@ -248,11 +268,11 @@ void SenatorRun(Customer* customer) {
     Release(clerk->wakeup_lock_);
   }
 
-  if (customer->passport_verified_ {
-    Print(SenatorIdentifierString());
+  if (customer->passport_verified_) {
+    PrintSenatorIdentifierString(customer);
     Print(" is leaving the Passport Office.\n", 33);
   } else {
-    Print(SenatorIdentifierString());
+    PrintSenatorIdentifierString(customer);
     Print(" terminated early because it is impossible to get a passport.\n", 62);
   }
 
@@ -274,7 +294,7 @@ void CustomerRun(Customer* customer) {
     if (num_senators_ > 0) {
       Release(num_senators_lock_);
       Acquire(outside_line_lock_);
-      Print(customer->CustomerIdentifierString());
+      PrintCustomerIdentifierString(customer);
       Print(" is going outside the Passport Office because there is a Senator present.\n", 74);
       Wait(outside_line_cv_, outside_line_lock_);
       Release(outside_line_lock_);
@@ -389,11 +409,11 @@ void CustomerRun(Customer* customer) {
     Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
     Release(clerk->wakeup_lock_);
   }
-  if (customer->passport_verified_ {
-    Print(customer->CustomerIdentifierString());
+  if (customer->passport_verified_) {
+    PrintCustomerIdentifierString(customer);
     Print(" is leaving the Passport Office.\n", 33);
   } else {
-    Print(customer->CustomerIdentifierString());
+    PrintCustomerIdentifierString(customer);
     Print(" terminated early because it is impossible to get a passport.\n", 62);
   }
   Acquire(customers_served_lock_);
@@ -409,20 +429,28 @@ void CustomerRun(Customer* customer) {
 }
 
 /* ######## Clerk Functionality ######## */
-const char* NameForClerkType(clerk_types::Type type) {
-  static const char* NAMES[] = {
-    "ApplicationClerk",
-    "PictureClerk",
-    "PassportClerk",
-    "Cashier"
-  };
-  return NAMES[type];
+void PrintNameForClerkType(clerk_types::Type type) {
+  switch (type) {
+    case clerk_types::kApplication :     
+      Print("ApplicationClerk", 16);
+      break;
+    case clerk_types::kPicture :
+      Print("PictureClerk", 12);
+      break;
+    case clerk_types::kPassport :
+      Print("PassportClerk", 13);
+      break;
+    case clerk_types::kCashier :
+      Print("Cashier", 7);
+      break;
+  }
 }
 
-std::string ClerkIdentifierString(Clerk* clerk) const {
-  std::stringstream ss;
-  ss << NameForClerkType(clerk->type_) << " [" << clerk->identifier_ << ']';
-  return ss.str();
+void PrintClerkIdentifierString(Clerk* clerk) {
+  PrintNameForClerkType(clerk->type_);
+  Print(" [", 2);
+  PrintNum(clerk->identifier_);
+  Print("]", 1);
 }
 
 Clerk CreateClerk(int identifier, clerk_types::Type type) {
@@ -433,14 +461,14 @@ Clerk CreateClerk(int identifier, clerk_types::Type type) {
   clerk.collected_money_ = 0;
   clerk.identifier_ = identifier;
   clerk.running_ = 0;
-  clerk.lines_lock_ = CreateLock("Clerk Lines Lock");
-  clerk.bribe_line_lock_cv_ = CreateCondition("Clerk Bribe Line Condition"); 
+  clerk.lines_lock_ = CreateLock("Clerk Lines Lock", 16);
+  clerk.bribe_line_lock_cv_ = CreateCondition("Clerk Bribe Line Condition", 26); 
   clerk.bribe_line_lock_ = CreateLock("Clerk Bribe Line Lock");
-  clerk.regular_line_lock_cv_ = CreateCondition("Clerk Regular Line Condition"); 
-  clerk.regular_line_lock_ = CreateLock("Clerk Regular Line Lock");
-  clerk.wakeup_lock_cv_ = CreateCondition("Clerk Wakeup Condition");
-  clerk.wakeup_lock_ = CreateLock("Clerk Wakeup Lock");
-  clerk.money_lock_ = CreateLock("Clerk Money Lock");
+  clerk.regular_line_lock_cv_ = CreateCondition("Clerk Regular Line Condition", 28); 
+  clerk.regular_line_lock_ = CreateLock("Clerk Regular Line Lock", 23);
+  clerk.wakeup_lock_cv_ = CreateCondition("Clerk Wakeup Condition", 22);
+  clerk.wakeup_lock_ = CreateLock("Clerk Wakeup Lock", 17);
+  clerk.money_lock_ = CreateLock("Clerk Money Lock", 16);
   clerk.type_ = type;
 
   switch(type) {
@@ -508,20 +536,21 @@ int GetNumCustomersInLine(Clerk* clerk) const {
 }
 
 void GetNextCustomer(Clerk* clerk) {
+  int bribe_line_count;
+  int regular_line_count;
+  
   Acquire(line_locks_[clerk->type_]);
   Acquire(clerk->bribe_line_lock_);
-  int bribe_line_count = bribe_line_counts_[clerk->type_][clerk->identifier_];
+  bribe_line_count = bribe_line_counts_[clerk->type_][clerk->identifier_];
   Release(clerk->bribe_line_lock_);
 
   Acquire(clerk->regular_line_lock_);
-  int regular_line_count = line_counts_[clerk->type_][clerk->identifier_];
+  regular_line_count = line_counts_[clerk->type_][clerk->identifier_];
   Release(clerk->regular_line_lock_);
 
   if (bribe_line_count > 0) {
-    Print(clerk->clerk_type_);
-    Print(" [", 2);
-    PrintNum(clerk->identifier_);
-    Print("] has signalled a Customer to come to their counter.\n", 53);
+    PrintClerkIdentifierString(clerk);
+    Print(" has signalled a Customer to come to their counter.\n", 52);
 
     Acquire(clerk->bribe_line_lock_);
     Acquire(clerk->wakeup_lock_);
@@ -530,10 +559,8 @@ void GetNextCustomer(Clerk* clerk) {
     clerk->state_ = clerk_states::kBusy;
     bribe_line_counts_[clerk->type_][clerk->identifier_]--;
   } else if (regular_line_count > 0) {
-    Print(clerk->clerk_type_);
-    Print(" [", 2);
-    PrintNum(clerk->identifier_);
-    Print("] has signalled a Customer to come to their counter.\n", 53);
+    PrintClerkIdentifierString(clerk);
+    Print(" has signalled a Customer to come to their counter.\n", 52);
 
     Acquire(clerk->regular_line_lock_);
     Acquire(clerk->wakeup_lock_);
@@ -552,81 +579,74 @@ void ApplicationClerkWork(Clerk* clerk) {
   /* Wait for customer to put passport on counter. */
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   clerk->current_customer_->completed_application_ = 1;
-  Print(clerk->clerk_type_);
-  Print(" [", 2);
-  PrintNum(clerk->identifier);
-  Print("] has recorded a completed application for ", 43);
-  Print(clerk->current_customer_->IdentifierString());
+  PrintClerkIdentifierString(clerk);
+  Print(" has recorded a completed application for ", 42);
+  PrintCustomerIdentifierString(clerk->current_customer_);
   Print("\n", 1);
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
 }
 
 void PictureClerkWork(Clerk* clerk) {
+  int picture_accepted;
   /* Take Customer's picture and wait to hear if they like it. */
   Print(" [", 2);
   PrintNum(clerk->identifier_);
-  Print("] has taken a picture of ", 25);
-  Print(clerk->current_customer_->IdentifierString());
+  Print(" has taken a picture of ", 24);
+  PrintCustomerIdentifierString(clerk->current_customer_);
   Print("\n", 1);
 
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
-  int picture_accepted = customer_input_;
+  picture_accepted = customer_input_;
 
   /* If they don't like their picture don't set their picture to taken.  They go back in line. */
   if (!picture_accepted) {
     Print(clerk_type_);
     Print(" [", 2);
     PrintNum(clerk->identifier_);
-    Print("] has been told that ", 21);
-    Print(clerk->current_customer_->IdentifierString());
+    Print(" has been told that ", 20);
+    PrintCustomerIdentifierString(clerk->current_customer_);
     Print(" does not like their picture\n", 28);
   } else {
     /* Set picture taken. */
     clerk->current_customer_->picture_taken_ = 1;
-    Print(clerk->clerk_type_);
-    Print(" [", 2);
-    PrintNum(clerk->identifier_); 
-    Print("] has been told that ", 21);
-    Print(clerk->current_customer_->IdentifierString());
+    PrintClerkIdentifierString(clerk); 
+    Print(" has been told that ", 20);
+    PrintCustomerIdentifierString(clerk->current_customer_);
     Print(" does like their picture\n", 25);
   }
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
 }
 
 void PassportClerkWork(Clerk* clerk) {
+  int picture_taken_and_passport_verified;
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   /* Wait for customer to show whether or not they got their picture taken and passport verified. */
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
-  int picture_taken_and_passport_verified = clerk->customer_input_;
+  picture_taken_and_passport_verified = clerk->customer_input_;
 
   /* Check to make sure their picture has been taken and passport verified. */
   if (!picture_taken_and_passport_verified) {
-    Print(clerk->clerk_type_);
-    Print(" [", 2);
-    PrintNum(clerk->identifier_);
-    Print("] has determined that ", 22);
-    Print(clerk->current_customer_->IdentifierString());
+    PrintClerkIdentifierString(clerk);
+    Print(" has determined that ", 21);
+    PrintCustomerIdentifierString(clerk->current_customer_);
     Print(" does not have both their application and picture completed\n", 60);
   } else {
-    Print(clerk->clerk_type_);
-    Print(" [", 2);
-    PrintNum(clerk->identifier_); 
-    Print("] has determined that ", 22);
-    Print(clerk->current_customer_->IdentifierString());
+    PrintClerkIdentifierString(clerk); 
+    Print(" has determined that ", 21);
+    PrintCustomerIdentifierString(clerk->current_customer_);
     Print(" does have both their application and picture completed\n", 46);
     clerk->current_customer_->certified_ = 1;
-    Print(clerk->clerk_type_);
-    Print(" [", 2);
-    PrintNum(clerk->identifier_); 
-    Print("] has recorded ", 16);
-    Print(clerk->current_customer_->IdentifierString());
+    PrintClerkIdentifierString(clerk); 
+    Print(" has recorded ", 15);
+    PrintCustomerIdentifierString(clerk->current_customer_);
     Print(" passport documentation\n", 24);
   }
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
 }
 
 void CashierClerkWork(Clerk* clerk) {
+  int certified;
   /* Collect application fee. */
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
@@ -638,15 +658,14 @@ void CashierClerkWork(Clerk* clerk) {
   /* Wait for the customer to show you that they are certified. */
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
-  int certified = clerk->customer_input_;
+  certified = clerk->customer_input_;
 
   /* Check to make sure they have been certified. */
   if (!certified) {
-    std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
-        << "] has received the $100 from "
-        << clerk->current_customer_->IdentifierString() 
-        << " before certification. They are to go to the back of my line." 
-        << std::endl;
+    PrintClerkIdentifierString(clerk) 
+    Print(" has received the $100 from ", 28);
+    PrintCustomerIdentifierString(clerk->current_customer_); 
+    Print(" before certification. They are to go to the back of my line.\n", 62);
 
     /* Give money back. */
     Acquire(clerk->money_lock_);
@@ -654,22 +673,22 @@ void CashierClerkWork(Clerk* clerk) {
     Release(clerk->money_lock_);
     clerk->current_customer_->money_ += 100;
   } else {
-    std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
-        << "] has received the $100 from "
-        << clerk->current_customer_->IdentifierString() 
-        << " after certification." << std::endl;
+    PrintClerkIdentifierString(clerk) 
+    Print(" has received the $100 from ", 28);
+    PrintCustomerIdentifierString(clerk->current_customer_); 
+    Print(" after certification.\n", 23);
 
     /* Give customer passport. */
-    std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
-        << "] has provided "
-        << clerk->current_customer_->IdentifierString() 
-        << " their completed passport." << std::endl;
+    PrintClerkIdentifierString(clerk) 
+    Print(" has provided ", 14);
+    PrintCustomerIdentifierString(clerk->current_customer_); 
+    Print(" their completed passport.\n", 28);
 
     /* Record passport was given to customer. */
-    std::cout << clerk->clerk_type_ << " [" << clerk->identifier_ 
-        << "] has recorded that "
-        << clerk->current_customer_->IdentifierString() 
-        << " has been given their completed passport." << std::endl;
+    PrintClerkIdentifierString(clerk) 
+    Print(" has recorded that ", 19);
+    PrintCustomerIdentifierString(clerk->current_customer_); 
+    Print(" has been given their completed passport.\n", 43);
 
     clerk->current_customer_->passport_verified_ = 1;
   }
@@ -678,16 +697,20 @@ void CashierClerkWork(Clerk* clerk) {
 
 void ClerkRun(Clerk* clerk) {
   clerk->running_ = 1;
+  int bribe;
+  int i;
   while (clerk->running_) {
     GetNextCustomer(clerk);
     if (clerk->state_ == clerk_states::kBusy || clerk->state_ == clerk_states::kAvailable) {
       /* Wait for customer to come to counter and give SSN. */
       Wait(clerk->wakeup_lock_cv_ , clerk->wakeup_lock_);
       /* Take Customer's SSN and verify passport. */
-      std::cout << IdentifierString() << " has received SSN "
-                << clerk->customer_ssn_ << " from "
-                << clerk->current_customer_->IdentifierString()
-                << std::endl;
+      PrintClerkIdentifierString(clerk);
+      Print(" has received SSN ", 18);
+      PrintNum(clerk->customer_ssn_);
+      Print(" from ", 6);
+      PrintCustomerIdentifierString(clerk->current_customer_);
+      Print("\n", 1);
       /* Do work specific to the type of clerk. */
       switch(clerk->type_) {
         case clerk_types::kApplication :     
@@ -707,35 +730,39 @@ void ClerkRun(Clerk* clerk) {
       /* Collect bribe money. */
       if (clerk->current_customer_->bribed_) {
         Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
-        int bribe = clerk->customer_money_;
+        bribe = clerk->customer_money_;
         clerk->customer_money_ = 0;
         Acquire(clerk->money_lock_);
         clerk->collected_money_ += bribe;
         Release(clerk->money_lock_);
-        std::cout << IdentifierString() << " has received $"
-                  << bribe << " from Customer " << clerk->customer_ssn_
-                  << std::endl;
+        PrintClerkIdentifierString(clerk);
+        Print(" has received $", 15);
+        PrintNum(bribe)
+        Print(" from ")
+        PrintCustomerIdentifierString(clerk->current_customer_);
+        Print("\n", 1);
         Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       }
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       /* Random delay. */
-      int random_time = Rand() % 80 + 20;
-      for (int i = 0; i < random_time; ++i) {
-        currentThread->Yield();
+      for (i = 0; i < Rand() % 80 + 20; ++i) {
+        Yield();
       }
       /* Wakeup customer. */
     } else if (clerk->state_ == clerk_states::kOnBreak) {
       Acquire(clerk->wakeup_lock_);
       /* Wait until woken up. */
-      std::cout << IdentifierString() << " is going on break" << std::endl;
+      PrintClerkIdentifierString(clerk);
+      Print(" is going on break\n", 19);
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       clerk->state_ = clerk_states::kAvailable;
       if (!clerk->running_) {
         break;
       }
-      std::cout << IdentifierString() << " is coming off break" << std::endl;
-      for (int i = 0; i < 25; ++i) { currentThread->Yield(); }
+      PrintClerkIdentifierString(clerk);
+      Print(" is coming off break\n", 21);
+      for (i = 0; i < 25; ++i) { Yield(); }
     }
     Release(clerk->wakeup_lock_);
   }
@@ -763,7 +790,7 @@ void ManagerPrintMoneyReport(Manager* manager) {
     for (int i = 0; i < clerk_types::Size; ++i) {
       total += manager->money_[i];
       std::cout << "Manager has counted a total of $" << manager->money_[i] << " for "
-                << Clerk::NameForClerkType(static_cast<clerk_types::Type>(i)) << 's' << std::endl;
+                << Clerk::PrintNameForClerkType(static_cast<clerk_types::Type>(i)) << 's' << std::endl;
     }
     std::cout << "Manager has counted a total of $" << total
               <<  " for the passport office" << std::endl;
@@ -800,7 +827,7 @@ void ManagerRun(Manager* manager) {
             Release(clerk->wakeup_lock_);
             std::cout << "Manager has woken up a"
               << (clerk->type_ == clerk_types::kApplication ? "n " : " ")
-              << Clerk::NameForClerkType(clerk->type_) << std::endl;
+              << Clerk::PrintNameForClerkType(clerk->type_) << std::endl;
           }
         }
       }
@@ -928,9 +955,6 @@ int main() {
       thread_runners::RunManager, reinterpret_cast<int>(manager_));
   for (unsigned i = 0; i < clerk_types::Size; ++i) {
     for (unsigned j = 0; j < num_clerks_[i]; ++j) {
-      std::string id = ClerkIdentifierString(clerks_[i][j]);
-      char* id_str = new char[id.length()];
-      std::strcpy(id_str, id.c_str());
       Thread* thread = new Thread(id_str);
       thread_list_[num_threads++] = thread;
       thread->Fork(
@@ -952,7 +976,7 @@ int main() {
   /* WaitOnFinish for the Passport Office */
   while (customers_size > 0) {
     for (int i = 0; i < 400; ++i) {
-      currentThread->Yield();
+      Yield();
     }
     if (num_senators_ > 0) continue;
     Acquire(num_customers_waiting_lock_);
@@ -979,9 +1003,7 @@ int main() {
       Release(num_customers_waiting_lock_);
     }
   }
-  for (int i = 0; i < 1000; ++i) {
-    currentThread->Yield();
-  }
+  for (int i = 0; i < 1000; ++i) { Yield(); }
 
   /* Stop the Passport Office */
   Print("Attempting to stop passport office\n");
@@ -1000,7 +1022,7 @@ int main() {
       break;
     } else {
       for (int i = 0; i < 100; ++i) {
-        currentThread->Yield();
+        Yield();
       }
     }
   }
@@ -1029,7 +1051,7 @@ int main() {
   Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
   Release(manager_.wakeup_condition_lock_);
   for (int i = 0; i < 1000; ++i) {
-    currentThread->Yield();
+    Yield();
   }
   Print("Passport office stopped\n");
   /*for (unsigned int i = 0 ; i < thread_list_.size(); ++i) {
