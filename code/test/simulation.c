@@ -1,49 +1,52 @@
 #include "../userprog/syscall.h"
 #include "utilities.h"
 
-int num_customers = 15;
-int num_senators = 1;
-int num_application_clerks = 3;
-int num_picture_clerks = 3;
-int num_passport_clerks = 3;
-int num_cashier_clerks = 3;
-int total_clerks = num_application_clerks + num_picture_clerks 
-    + num_passport_clerks + num_cashier_clerks;
-int num_clerks_[clerk_types::Size] 
-    = {num_application_clerks, num_picture_clerks, num_passport_clerks, 
-        num_cashier_clerks};
+#define NUM_CUSTOMERS 15
+#define NUM_SENATORS 1
+#define NUM_APPLICATION_CLERKS 3
+#define NUM_PICTURE_CLERKS 3
+#define NUM_PASSPORT_CLERKS 3
+#define NUM_CASHIER_CLERKS 3
+#define NUM_TOTAL_CLERKS NUM_APPLICATION_CLERKS + NUM_PICTURE_CLERKS + NUM_PASSPORT_CLERKS + NUM_CASHIER_CLERKS;
+int num_clerks_[NUM_CLERK_TYPES] 
+    = {NUM_APPLICATION_CLERKS, NUM_PICTURE_CLERKS, NUM_PASSPORT_CLERKS, 
+        NUM_CASHIER_CLERKS};
 
-int breaking_clerks_lock_ = CreateLock("breaking clerks lock", 20);
-int senator_lock_ = CreateLock("senator lock", 10);
-int senator_condition_ = CreateCondition("senator condition", 17);
-int customer_count_lock_ = CreateLock("customer count lock", 19);
-int customers_served_lock_ = CreateLock("num customers being served lock", 31);
-int customers_served_cv_ = CreateCondition("num customers being served cv", 29);
+int clerk_init_lock_;
+int clerk_init_count = 0;
+
+int breaking_clerks_lock_;
+int senator_lock_;
+int senator_condition_;
+int customer_count_lock_;
+int customers_served_lock_;
+int customers_served_cv_;
 int num_customers_being_served_ = 0;
-int num_customers_waiting_lock_ = CreateLock("customer waiting counter", 24);
+int num_customers_waiting_lock_;
 int num_customers_waiting_ = 0;
-int num_senators_lock_ = CreateLock("num senators lock", 17);
+int num_senators_lock_;
 int num_senators_ = 0;
-int outside_line_lock_ = CreateLock("outside line lock", 17);
-int outside_line_cv_ = CreateCondition("outside line condition", 22);
+int outside_line_lock_;
+int outside_line_cv_;
 
-Clerk breaking_clerks[total_clerks];
-int line_locks_[clerk_types::Size];
-Customer customers[num_customers+num_senators];
+int line_locks_[NUM_CLERK_TYPES];
+Customer customers[NUM_CUSTOMERS + NUM_SENATORS];
 int customers_size = 0;
-int thread_list[num_customers + num_senators + total_clerks + 1];
 int num_threads = 0;
 
-Clerk clerks_[clerk_types::Size];
-int line_counts_[clerk_types::Size];
-int bribe_line_counts_[clerk_types::Size];
+Clerk clerks_[NUM_CLERK_TYPES][MAX_NUM_CLERKS];
+int line_counts_[NUM_CLERK_TYPES][MAX_NUM_CLERKS];
+int bribe_line_counts_[NUM_CLERK_TYPES][MAX_NUM_CLERKS];
 
+Manager manager_;
+
+int NUM_INITIAL_MONEY_AMOUNTS = 4;
 int INITIAL_MONEY_AMOUNTS[] = {100, 600, 1100, 1600};
 int CURRENT_UNUSED_SSN = 0;
 int SENATOR_UNUSED_SSN = 0;
 
 void AddNewCustomer(Customer* customer);
-void AddNewSenator(Senator* senator);
+void AddNewSenator(Customer* senator);
 void DestroyCustomer(Customer* customer);
 void PrintCustomerIdentifierString(Customer* customer);
 void DoClerkWork(Customer* customer, Clerk* clerk);
@@ -51,7 +54,7 @@ void PrintLineJoin(Customer* customer, Clerk* clerk, int bribed);
 void PrintSenatorIdentifierString(Customer* customer);
 void SenatorRun(Customer* customer);
 void CustomerRun(Customer* customer);
-void PrintNameForClerkType(clerk_types::Type type);
+void PrintNameForClerkType(ClerkType type);
 void PrintClerkIdentifierString(Clerk* clerk);
 void DestroyClerk(Clerk* clerk);
 void JoinLine(Clerk* clerk, int bribe);
@@ -67,7 +70,7 @@ void WakeWaitingCustomers();
 void WakeClerksForSenator();
 
 /* Gets the total number of customers waiting in line for a clerk type. */
-int GetNumCustomersForClerkType(clerk_types::Type type) {
+int GetNumCustomersForClerkType(ClerkType type) {
   int total = 0;
   int i;
   for (i = 0; i < num_clerks_[type]; ++i) {
@@ -80,44 +83,29 @@ int GetNumCustomersForClerkType(clerk_types::Type type) {
 /* Adds a new customer to the passport office by creating a new thread and
   forking it. Additionally, this will add the customer to the customers_ set.*/
 void AddNewCustomer(Customer* customer) {
-  Thread* thread = new Thread("Customer");
+/*  Thread* thread = new Thread("Customer");
   thread->Fork(thread_runners::RunCustomer, reinterpret_cast<int>(customer));
-  thread_list_[num_threads++] = thread;
   Acquire(customer_count_lock_);
   customers[customers_size++] = customer;
   Release(customer_count_lock_);
-}
+*/}
 
 /* Adds a new senator to the passport office by creating a new thread and
   forking it. */
-void AddNewSenator(Senator* senator) {
-  Thread* thread = new Thread("senator thread");
+void AddNewSenator(Customer* senator) {
+/*  Thread* thread = new Thread("senator thread");
   thread->Fork(thread_runners::RunSenator, reinterpret_cast<int>(senator));
-  thread_list_[num_threads++] = thread;
-}
+*/}
 
 /* ######## Customer Functionality ######## */
-Customer CreateCustomer(customer_types::Type type = customer_types::kCustomer) {
+Customer CreateCustomer(CustomerType type, int money) {
   Customer customer;
   customer.type_ = type;
-  customer.money_ = INITIAL_MONEY_AMOUNTS[Rand() % NUM_INITIAL_MONEY_AMOUNTS];
-  customer.ssn_ = (type == customer_types::kCustomer ?
+  customer.money_ =
+      (money == 0 ? INITIAL_MONEY_AMOUNTS[Rand() % NUM_INITIAL_MONEY_AMOUNTS]
+                  : money);
+  customer.ssn_ = (type == kCustomer ?
       CURRENT_UNUSED_SSN++ : SENATOR_UNUSED_SSN++);
-  customer.bribed_ = 0;
-  customer.certified_ = 0;
-  customer.completed_application_ = 0;
-  customer.passport_verified_ = 0;
-  customer.picture_taken_ = 0;
-  customer.running_ = 0;
-  customer.join_line_lock_ = CreateLock("jll", 3);
-  customer.join_line_lock_cv_ = CreateCondition("jllcv", 5);
-  return customer;
-}
-
-Customer CreateCustomer(int money__) {
-  Customer customer;
-  customer.money_ = money__;
-  customer.ssn_ = CURRENT_UNUSED_SSN++; 
   customer.bribed_ = 0;
   customer.certified_ = 0;
   customer.completed_application_ = 0;
@@ -136,7 +124,7 @@ void DestroyCustomer(Customer* customer) {
 
 void PrintCustomerIdentifierString(Customer* customer) {
   Print("Customer [", 10);
-  PrintNum(customer->ssn_)
+  PrintNum(customer->ssn_);
   Print("]", 1);
 }
 
@@ -154,16 +142,16 @@ void DoClerkWork(Customer* customer, Clerk* clerk) {
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   
   switch (clerk->type_) {
-    case clerk_types::kApplication:
+    case kApplication:
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       break;
-    case clerk_types::kPicture:
+    case kPicture:
       clerk->customer_input_ = (Rand() % 10) > 0;
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       break;
-    case clerk_types::kCashier:
+    case kCashier:
       clerk->customer_money_ = PASSPORT_FEE;
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
@@ -171,21 +159,21 @@ void DoClerkWork(Customer* customer, Clerk* clerk) {
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       break;
-    case clerk_types::kPassport:
+    case kPassport:
       clerk->customer_input_ = 1;
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       break;
-    case clerk_types::Size:
+    case NUM_CLERK_TYPES:
       break;
   }
 }
 
-void PrintLineJoin(Customer* customer, Clerk* clerk, int bribed) const {
+void PrintLineJoin(Customer* customer, Clerk* clerk, int bribed) {
   PrintCustomerIdentifierString(customer);
   Print(" has gotten in ", 15);
   Print((bribed ? "bribe" : "regular"), (bribed ? 5 : 7));
-  Print(" line for "); 
+  Print(" line for ", 10); 
   PrintClerkIdentifierString(clerk);
   Print(".\n", 2);
 }
@@ -197,6 +185,10 @@ void PrintSenatorIdentifierString(Customer* customer) {
 }
 
 void SenatorRun(Customer* customer) {
+  int i, j;
+  ClerkType next_clerk;
+  Clerk* clerk;
+  
   customer->running_ = 1;
   /* Increment the number of senators in the office so that others know 
      that a senator is there. */
@@ -215,9 +207,9 @@ void SenatorRun(Customer* customer) {
 
   /* Reset the line counts to 0 since there are no customers in the office
     at this point. */
-  for (unsigned i = 0; i < clerk_types::Size; ++i) {
+  for (i = 0; i < NUM_CLERK_TYPES; ++i) {
     Acquire(line_locks_[i]);
-    for (unsigned j = 0; j < num_clerks_[i]; ++j) {
+    for (j = 0; j < num_clerks_[i]; ++j) {
       line_counts_[i][j] = 0;
       bribe_line_counts_[i][j] = 0;      
     }
@@ -225,39 +217,38 @@ void SenatorRun(Customer* customer) {
   }
   
   /* Wait for all clerks to get off of their breaks, if necessary. */
-  for (int i = 0; i < 500; ++i) { Yield(); }
+  for (i = 0; i < 500; ++i) { Yield(); }
 
   while (customer->running_ &&
         (!customer->passport_verified_ || !customer->picture_taken_ ||
          !customer->completed_application_ || !customer->certified_)) {
-    clerk_types::Type next_clerk;
     if (!customer->completed_application_ && !customer->picture_taken_ && 
-        num_application_clerks > 0 &&
-        num_picture_clerks > 0) {
-      next_clerk = (clerk_types::Type)(Rand() % 2); /* either kApplication (0) or kPicture (1)*/
+        NUM_APPLICATION_CLERKS > 0 &&
+        NUM_PICTURE_CLERKS > 0) {
+      next_clerk = (ClerkType)(Rand() % 2); /* either kApplication (0) or kPicture (1)*/
     } else if (!customer->completed_application_) {
-      next_clerk = clerk_types::kApplication;
+      next_clerk = kApplication;
     } else if (!customer->picture_taken_) {
-      next_clerk = clerk_types::kPicture;
+      next_clerk = kPicture;
     } else if (!customer->certified_) {
-      next_clerk = clerk_types::kPassport;
+      next_clerk = kPassport;
     } else {
-      next_clerk = clerk_types::kCashier;
+      next_clerk = kCashier;
     }
-    if (clerks_[next_clerk].empty()) {
+    if (num_clerks_[next_clerk] < 1) {
       break;
     }
-    Clerk* clerk = clerks_[next_clerk][0];
+    clerk = &(clerks_[next_clerk][0]);
     Acquire(line_locks_[next_clerk]);
     ++line_counts_[next_clerk][0];
     Release(line_locks_[next_clerk]);
     
     Signal(manager_->wakeup_condition_, manager_->wakeup_condition_lock_);
 
-    PrintLineJoin(customer, clerk, bribed_);
-    JoinLine(clerk, bribed_);
+    PrintLineJoin(customer, clerk, 0);
+    JoinLine(clerk, 0);
 
-    DoClerkWork(clerk);
+    DoClerkWork(customer, clerk);
 
     Acquire(line_locks_[next_clerk]);
     --line_counts_[next_clerk][0];
@@ -288,14 +279,14 @@ void SenatorRun(Customer* customer) {
 void CustomerRun(Customer* customer) {
   int shortest;
   int bribe_shortest;
-  clerk_types::Type next_clerk;
+  ClerkType next_clerk;
   int i;
   Clerk* clerk;
 
   customer->running_ = 1;
   while (customer->running_ &&
       (!customer->passport_verified_ || !customer->picture_taken_ ||
-      !customer->completed_application_ || !customer->certified_) {
+      !customer->completed_application_ || !customer->certified_)) {
     Acquire(num_senators_lock_);
     if (num_senators_ > 0) {
       Release(num_senators_lock_);
@@ -314,16 +305,16 @@ void CustomerRun(Customer* customer) {
     Release(customers_served_lock_);
 
     customer->bribed_ = 0;
-    if (!customer->completed_application_ && !customer->picture_taken_ && num_application_clerks > 0 && num_picture_clerks > 0) {
-      next_clerk = (clerk_types::Type>)(Rand() % 2); /*either kApplication (0) or kPicture (1) */
+    if (!customer->completed_application_ && !customer->picture_taken_ && NUM_APPLICATION_CLERKS > 0 && NUM_PICTURE_CLERKS > 0) {
+      next_clerk = (ClerkType)(Rand() % 2); /*either kApplication (0) or kPicture (1) */
     } else if (!customer->completed_application_) {
-      next_clerk = clerk_types::kApplication;
+      next_clerk = kApplication;
     } else if (!customer->picture_taken_) {
-      next_clerk = clerk_types::kPicture;
+      next_clerk = kPicture;
     } else if (!customer->certified_) {
-      next_clerk = clerk_types::kPassport;
+      next_clerk = kPassport;
     } else {
-      next_clerk = clerk_types::kCashier;
+      next_clerk = kCashier;
     }
     clerk = NULL;
     Acquire(line_locks_[next_clerk]);
@@ -350,10 +341,10 @@ void CustomerRun(Customer* customer) {
       }
       if (bribe_line_counts_[next_clerk][bribe_shortest]
           < line_counts_[next_clerk][shortest]) {
-        clerk = clerks_[next_clerk][bribe_shortest];
+        clerk = &(clerks_[next_clerk][bribe_shortest]);
         customer->bribed_ = 1;
       } else {
-        clerk = clerks_[next_clerk][shortest];
+        clerk = &(clerks_[next_clerk][shortest]);
       }
     } else {
       if (shortest == -1) {
@@ -361,7 +352,7 @@ void CustomerRun(Customer* customer) {
         customer->running_ = 0;
         continue;
       }
-      clerk = clerks_[next_clerk][shortest];
+      clerk = &(clerks_[next_clerk][shortest]);
     }
     Release(line_locks_[next_clerk]);
 
@@ -429,23 +420,23 @@ void CustomerRun(Customer* customer) {
   Release(customers_served_lock_);
   
   Acquire(customer_count_lock_);
-  customers_.erase(this);
+  /*customers_.erase(this);*/
   Release(customer_count_lock_);
 }
 
 /* ######## Clerk Functionality ######## */
-void PrintNameForClerkType(clerk_types::Type type) {
+void PrintNameForClerkType(ClerkType type) {
   switch (type) {
-    case clerk_types::kApplication :     
+    case kApplication :     
       Print("ApplicationClerk", 16);
       break;
-    case clerk_types::kPicture :
+    case kPicture :
       Print("PictureClerk", 12);
       break;
-    case clerk_types::kPassport :
+    case kPassport :
       Print("PassportClerk", 13);
       break;
-    case clerk_types::kCashier :
+    case kCashier :
       Print("Cashier", 7);
       break;
   }
@@ -458,17 +449,17 @@ void PrintClerkIdentifierString(Clerk* clerk) {
   Print("]", 1);
 }
 
-Clerk CreateClerk(int identifier, clerk_types::Type type) {
+Clerk CreateClerk(int identifier, ClerkType type) {
   Clerk clerk;
   clerk.customer_money_ = 0;
   clerk.customer_input_ = 0;
-  clerk.state_ = clerk_states::kAvailable;
+  clerk.state_ = kAvailable;
   clerk.collected_money_ = 0;
   clerk.identifier_ = identifier;
   clerk.running_ = 0;
   clerk.lines_lock_ = CreateLock("Clerk Lines Lock", 16);
   clerk.bribe_line_lock_cv_ = CreateCondition("Clerk Bribe Line Condition", 26); 
-  clerk.bribe_line_lock_ = CreateLock("Clerk Bribe Line Lock");
+  clerk.bribe_line_lock_ = CreateLock("Clerk Bribe Line Lock", 21);
   clerk.regular_line_lock_cv_ = CreateCondition("Clerk Regular Line Condition", 28); 
   clerk.regular_line_lock_ = CreateLock("Clerk Regular Line Lock", 23);
   clerk.wakeup_lock_cv_ = CreateCondition("Clerk Wakeup Condition", 22);
@@ -477,16 +468,16 @@ Clerk CreateClerk(int identifier, clerk_types::Type type) {
   clerk.type_ = type;
 
   switch(type) {
-    case clerk_types::kApplication :     
+    case kApplication :     
       clerk.clerk_type_ = "ApplicationClerk";
       break;
-    case clerk_types::kPicture :
+    case kPicture :
       clerk.clerk_type_ = "PictureClerk";
       break;
-    case clerk_types::kPassport :
+    case kPassport :
       clerk.clerk_type_ = "PassportClerk";
       break;
-    case clerk_types::kCashier :
+    case kCashier :
       clerk.clerk_type_ = "Cashier";
       break;
   }
@@ -526,7 +517,7 @@ void JoinLine(Clerk* clerk, int bribe) {
     Release(clerk->bribe_line_lock_);
   } else {
     Acquire(clerk->regular_line_lock_);
-    ++clerk->line_counts_[clerk->type_][clerk->identifier_];
+    ++line_counts_[clerk->type_][clerk->identifier_];
     if (GetNumCustomersForClerkType(clerk->type_) > 
         CLERK_WAKEUP_THRESHOLD) {
       Signal(manager_->wakeup_condition_, manager_->wakeup_condition_lock_);
@@ -536,7 +527,7 @@ void JoinLine(Clerk* clerk, int bribe) {
   }
 }
 
-int GetNumCustomersInLine(Clerk* clerk) const {
+int GetNumCustomersInLine(Clerk* clerk) {
   return line_counts_[clerk->type_][clerk->identifier_] +
       bribe_line_counts_[clerk->type_][clerk->identifier_];
 }
@@ -562,7 +553,7 @@ void GetNextCustomer(Clerk* clerk) {
     Acquire(clerk->wakeup_lock_);
     Signal(clerk->bribe_line_lock_cv_, clerk->bribe_line_lock_);
     Release(clerk->bribe_line_lock_);
-    clerk->state_ = clerk_states::kBusy;
+    clerk->state_ = kBusy;
     bribe_line_counts_[clerk->type_][clerk->identifier_]--;
   } else if (regular_line_count > 0) {
     PrintClerkIdentifierString(clerk);
@@ -572,10 +563,10 @@ void GetNextCustomer(Clerk* clerk) {
     Acquire(clerk->wakeup_lock_);
     Signal(clerk->regular_line_lock_cv_, clerk->regular_line_lock_);
     Release(clerk->regular_line_lock_);
-    clerk->state_ = clerk_states::kBusy;
+    clerk->state_ = kBusy;
     line_counts_[clerk->type_][clerk->identifier_]--;
   } else {
-    clerk->state_ = clerk_states::kOnBreak;
+    clerk->state_ = kOnBreak;
   }
   Release(line_locks_[clerk->type_]);
 }
@@ -603,13 +594,11 @@ void PictureClerkWork(Clerk* clerk) {
 
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
-  picture_accepted = customer_input_;
+  picture_accepted = clerk->customer_input_;
 
   /* If they don't like their picture don't set their picture to taken.  They go back in line. */
   if (!picture_accepted) {
-    Print(clerk_type_);
-    Print(" [", 2);
-    PrintNum(clerk->identifier_);
+    PrintClerkIdentifierString(clerk);
     Print(" has been told that ", 20);
     PrintCustomerIdentifierString(clerk->current_customer_);
     Print(" does not like their picture\n", 28);
@@ -668,7 +657,7 @@ void CashierClerkWork(Clerk* clerk) {
 
   /* Check to make sure they have been certified. */
   if (!certified) {
-    PrintClerkIdentifierString(clerk) 
+    PrintClerkIdentifierString(clerk);
     Print(" has received the $100 from ", 28);
     PrintCustomerIdentifierString(clerk->current_customer_); 
     Print(" before certification. They are to go to the back of my line.\n", 62);
@@ -679,19 +668,19 @@ void CashierClerkWork(Clerk* clerk) {
     Release(clerk->money_lock_);
     clerk->current_customer_->money_ += 100;
   } else {
-    PrintClerkIdentifierString(clerk) 
+    PrintClerkIdentifierString(clerk);
     Print(" has received the $100 from ", 28);
     PrintCustomerIdentifierString(clerk->current_customer_); 
     Print(" after certification.\n", 23);
 
     /* Give customer passport. */
-    PrintClerkIdentifierString(clerk) 
+    PrintClerkIdentifierString(clerk);
     Print(" has provided ", 14);
     PrintCustomerIdentifierString(clerk->current_customer_); 
     Print(" their completed passport.\n", 28);
 
     /* Record passport was given to customer. */
-    PrintClerkIdentifierString(clerk) 
+    PrintClerkIdentifierString(clerk);
     Print(" has recorded that ", 19);
     PrintCustomerIdentifierString(clerk->current_customer_); 
     Print(" has been given their completed passport.\n", 43);
@@ -702,12 +691,13 @@ void CashierClerkWork(Clerk* clerk) {
 }
 
 void ClerkRun(Clerk* clerk) {
-  clerk->running_ = 1;
-  int bribe;
   int i;
+  int bribe;
+
+  clerk->running_ = 1;
   while (clerk->running_) {
     GetNextCustomer(clerk);
-    if (clerk->state_ == clerk_states::kBusy || clerk->state_ == clerk_states::kAvailable) {
+    if (clerk->state_ == kBusy || clerk->state_ == kAvailable) {
       /* Wait for customer to come to counter and give SSN. */
       Wait(clerk->wakeup_lock_cv_ , clerk->wakeup_lock_);
       /* Take Customer's SSN and verify passport. */
@@ -719,16 +709,16 @@ void ClerkRun(Clerk* clerk) {
       Print("\n", 1);
       /* Do work specific to the type of clerk. */
       switch(clerk->type_) {
-        case clerk_types::kApplication :     
+        case kApplication :     
           ApplicationClerkWork(clerk);
           break;
-        case clerk_types::kPicture :
+        case kPicture :
           PictureClerkWork(clerk);
           break;
-        case clerk_types::kPassport :
+        case kPassport :
           PassportClerkWork(clerk);
           break;
-        case clerk_types::kCashier :
+        case kCashier :
           CashierClerkWork(clerk);
           break;
       }
@@ -743,8 +733,8 @@ void ClerkRun(Clerk* clerk) {
         Release(clerk->money_lock_);
         PrintClerkIdentifierString(clerk);
         Print(" has received $", 15);
-        PrintNum(bribe)
-        Print(" from ")
+        PrintNum(bribe);
+        Print(" from ", 6);
         PrintCustomerIdentifierString(clerk->current_customer_);
         Print("\n", 1);
         Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
@@ -755,14 +745,14 @@ void ClerkRun(Clerk* clerk) {
         Yield();
       }
       /* Wakeup customer. */
-    } else if (clerk->state_ == clerk_states::kOnBreak) {
+    } else if (clerk->state_ == kOnBreak) {
       Acquire(clerk->wakeup_lock_);
       /* Wait until woken up. */
       PrintClerkIdentifierString(clerk);
       Print(" is going on break\n", 19);
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
-      clerk->state_ = clerk_states::kAvailable;
+      clerk->state_ = kAvailable;
       if (!clerk->running_) {
         break;
       }
@@ -777,29 +767,29 @@ void ClerkRun(Clerk* clerk) {
 /* ######## Manager Functionality ######## */
 Manager CreateManager() {
   Manager manager;
-  manager.wakeup_condition_ = CreateCondition("Manager Wakeup Lock Condition");
-  manager.wakeup_condition_lock_ = CreateLock("Manager Wakeup Lock");
-  running_ = true;
-  elapsed_ = 0;
+  manager.wakeup_condition_ = CreateCondition("Manager Wakeup Lock Condition", 29);
+  manager.wakeup_condition_lock_ = CreateLock("Manager Wakeup Lock", 19);
+  manager.running_ = 1;
+  manager.elapsed_ = 0;
   return manager;
 }
 
 void ManagerPrintMoneyReport(Manager* manager) {
   int i, j, m, total;
   while (manager->running_) {
-    for (i = 0; i < clerk_types::Size; ++i) {
+    for (i = 0; i < NUM_CLERK_TYPES; ++i) {
       for (j = 0; j < num_clerks_[i]; ++j) {
-        m = CollectMoney(clerks_[i][j]);
-        manager->money_[clerks_[i][i]->type_] += m;
+        m = CollectMoney(&(clerks_[i][j]));
+        manager->money_[clerks_[i][j].type_] += m;
       }
     }
     total = 0;
-    for (i = 0; i < clerk_types::Size; ++i) {
+    for (i = 0; i < NUM_CLERK_TYPES; ++i) {
       total += manager->money_[i];
       Print("Manager has counted a total of $", 32);
       PrintNum(manager->money_[i]);
       Print(" for ", 5);
-      PrintNameForClerkType((clerk_types::Type)(i));
+      PrintNameForClerkType((ClerkType)(i));
       Print("s\n", 2);
     }
     Print("Manager has counted a total of $", 32);
@@ -813,7 +803,7 @@ void ManagerPrintMoneyReport(Manager* manager) {
 }
 
 void ManagerRun(Manager* manager) {
-  int i;
+  int i, j;
   Clerk* clerk;
 
   manager->running_ = true;
@@ -825,27 +815,29 @@ void ManagerRun(Manager* manager) {
     if (!manager->running_) {
       break;
     }
-    for (int i = 0; i < clerk_types::Size; ++i) {
+
+    for (i = 0; i < NUM_CLERK_TYPES; ++i) {
       Acquire(line_locks_[i]);
     }
-    for (int i = 0; i < clerk_types::Size; ++i) {
-      if (GetNumCustomersForClerkType((clerk_types::Type)(i))
+    for (i = 0; i < NUM_CLERK_TYPES; ++i) {
+      if (GetNumCustomersForClerkType((ClerkType)(i))
           > CLERK_WAKEUP_THRESHOLD || num_senators_ > 0) {
-        for (int j = 0; j < num_clerks[i]; ++j) {
-          clerk = clerks_[i][j];
-          if (clerk->state_ == clerk_states::kOnBreak) {
+        for (j = 0; j < num_clerks_[i]; ++j) {
+          clerk = &(clerks_[i][j]);
+          if (clerk->state_ == kOnBreak) {
             Acquire(clerk->wakeup_lock_);
             Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
-            clerk->state_ = clerk_states::kAvailable;
+            clerk->state_ = kAvailable;
             Release(clerk->wakeup_lock_);
-            std::cout << "Manager has woken up a"
-              << (clerk->type_ == clerk_types::kApplication ? "n " : " ")
-              << Clerk::PrintNameForClerkType(clerk->type_) << std::endl;
+            Print("Manager has worken up a", 23);
+            if (clerk->type_ == kApplication) Print("n", 1);
+            PrintNameForClerkType(clerk->type_);
+            Print("\n", 1);
           }
         }
       }
     }
-    for (i = 0; i < clerk_types::Size; ++i) {
+    for (i = 0; i < NUM_CLERK_TYPES; ++i) {
       Release(line_locks_[i]);
     }
     Release(wakeup_condition_lock_);
@@ -856,9 +848,9 @@ void WakeWaitingCustomers() {
   int i, j;
   Clerk* clerk;
 
-  for (i = 0; i < clerk_type_;:Size; ++i) {
+  for (i = 0; i < NUM_CLERK_TYPES; ++i) {
     for (j = 0; j < num_clerks_[i]; ++j) {
-      clerk = clerks_[i][j];
+      clerk = &(clerks_[i][j]);
       Broadcast(clerk->bribe_line_lock_cv_, clerk->bribe_line_lock_);
       Broadcast(clerk->regular_line_lock_cv_, clerk->regular_line_lock_);
     }
@@ -869,12 +861,12 @@ void WakeClerksForSenator() {
   int i;
   Clerk* clerk;
 
-  for (i = 0; i < clerk_types::Size; ++i) {
-    if (!clerks_[i].empty()) {
+  for (i = 0; i < NUM_CLERK_TYPES; ++i) {
+    if (num_clerks_[i] > 0) {
       Acquire(line_locks_[i]);
-      clerk = clerks_[i][0];
-      if (clerk->state_ == clerk_states::kOnBreak) {
-        clerk->state_ = clerk_states::kAvailable;
+      clerk = &(clerks_[i][0]);
+      if (clerk->state_ == kOnBreak) {
+        clerk->state_ = kAvailable;
         Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       }
       Release(line_locks_[i]);
@@ -883,112 +875,118 @@ void WakeClerksForSenator() {
 }
 
 /* ######## Thread Runners ######## */
-namespace thread_runners {
+void RunManager() {
 
-  void RunManager(int arg) {
-    Manager* manager = reinterpret_cast<Manager*>(arg);
-    ManagerRun(manager);
-  }
-
-  void RunClerk(int arg) {
-    Clerk* clerk = reinterpret_cast<Clerk*>(arg);
-    ClerkRun(clerk);
-  }
-
-  void RunCustomer(int arg) {
-    Customer* customer = reinterpret_cast<Customer*>(arg);
-    CustomerRun(customer);
-  }
-
-  void RunSenator(int arg) {
-    Senator* senator = reinterpret_cast<Senator*>(arg);
-    SenatorRun(senator);
-  }
 }
 
+void RunClerk() {
+
+}
+
+void RunCustomer() {
+
+}
+
+void RunSenator() {
+
+}
+
+void SetupPassportOffice() {
+  int i;
+  int temp_line_app[NUM_APPLICATION_CLERKS];
+  Clerk temp_app[NUM_APPLICATION_CLERKS];
+  Clerk temp_picture[NUM_PICTURE_CLERKS];
+  Clerk temp_passport[NUM_PASSPORT_CLERKS];
+  Clerk temp_bribe_app[NUM_APPLICATION_CLERKS];
+  int temp_line_picture[NUM_PICTURE_CLERKS];  
+  int temp_bribe_picture[NUM_PICTURE_CLERKS];
+  int temp_line_passport[NUM_PASSPORT_CLERKS];
+  int temp_bribe_passport[NUM_PASSPOR T_CLERKS];
+  Clerk temp_cashier[NUM_CASHIER_CLERKS];
+
+  int breaking_clerks_lock_ = CreateLock("breaking clerks lock", 20);
+  int senator_lock_ = CreateLock("senator lock", 10);
+  int senator_condition_ = CreateCondition("senator condition", 17);
+  int customer_count_lock_ = CreateLock("customer count lock", 19);
+  int customers_served_lock_ = CreateLock("num customers being served lock", 31);
+  int customers_served_cv_ = CreateCondition("num customers being served cv", 29);
+  int num_customers_waiting_lock_ = CreateLock("customer waiting counter", 24);
+  int num_senators_lock_ = CreateLock("num senators lock", 17);
+  int outside_line_lock_ = CreateLock("outside line lock", 17);
+  int outside_line_cv_ = CreateCondition("outside line condition", 22);
+
+  for (i = 0; i < NUM_CLERK_TYPES; ++i) {
+    line_locks_[i] = CreateLock("Line Lock", 9);
+  }
+
+  clerks_[kApplication] = temp_app;
+  line_counts_[kApplication] = temp_line_app;
+  bribe_line_counts_[kApplication] = temp_bribe_app;
+
+  for (i = 0; i < NUM_APPLICATION_CLERKS; ++i) {
+    clerks_[kApplication][i] = CreateClerk(i, kApplication));
+    line_counts_[kApplication][i] = 0;
+    bribe_line_counts_[kApplication][i] = 0;
+  }
+
+  clerks_[kPicture] = temp_picture;
+  line_counts_[kPicture] = temp_line_picture;
+  bribe_line_counts_[kPicture] = temp_bribe_picture;
+
+  for (i = 0; i < NUM_PICTURE_CLERKS; ++i) {
+    clerks_[kPicture][i] = CreateClerk(i, kPicture);
+    line_counts_[kPicture][i] = 0;
+    bribe_line_counts_[kPicture][i] = 0;
+  }
+
+  clerks_[kPassport] = temp_passport;
+  line_counts_[kPassport] = temp_line_passport;
+  bribe_line_counts_[kPassport] = temp_bribe_passport;
+
+  for (i = 0; i < NUM_PASSPORT_CLERKS; ++i) {
+    clerks_[kPassport][i] = CreateClerk(i, kPassport);
+    line_counts_[kPassport][i] = 0;
+    bribe_line_counts_[kPassport][i] = 0;
+  }
+
+  clerks_[kCashier] = temp_cashier;
+  int temp_line_cashier[NUM_CASHIER_CLERKS];
+  line_counts_[kCashier] = temp_line_cashier;
+  int temp_bribe_cashier[NUM_CASHIER_CLERKS];
+  bribe_line_counts_[kCashier] = temp_bribe_cashier;
+
+  for (int i = 0; i < NUM_CASHIER_CLERKS; ++i) {
+    clerks_[kCashier][i] = CreateClerk(i, kCashier);
+    line_counts_[kCashier][i] = 0;
+    bribe_line_counts_[kCashier][i] = 0;
+  }
+
+  manager_ = CreateManager();
+}
+
+void StartPassportOffice() {
+  int i, j;
+}
 
 int main() {
-  for (int i = 0; i < clerk_types::Size; ++i) {
-    char* name = new char[80];
-    sprintf(name, "Line Lock %d", i);
-    line_locks_[i] = CreateLock(name);
-  }
-
-  Clerk temp_app[num_application_clerks];
-  clerks_[clerk_types::kApplication] = temp_app;
-  int temp_line_app[num_application_clerks];
-  line_counts_[clerk_types::kApplication] = temp_line_app;
-  int temp_bribe_app[num_application_clerks];
-  bribe_line_counts_[clerk_types::kApplication] = temp_bribe_app;
-
-  for (int i = 0; i < num_application_clerks; ++i) {
-    clerks_[clerk_types::kApplication][i] = CreateClerk(i, clerk_types::kApplication));
-    line_counts_[clerk_types::kApplication][i] = 0;
-    bribe_line_counts_[clerk_types::kApplication][i] = 0;
-  }
-
-  Clerk temp_picture[num_picture_clerks];
-  clerks_[clerk_types::kPicture] = temp_picture;
-  int temp_line_picture[num_picture_clerks];
-  line_counts_[clerk_types::kPicture] = temp_line_picture;
-  int temp_bribe_picture[num_picture_clerks];
-  bribe_line_counts_[clerk_types::kPicture] = temp_bribe_picture;
-
-  for (int i = 0; i < num_picture_clerks; ++i) {
-    clerks_[clerk_types::kPicture][i] = CreateClerk(i, clerk_types::kPicture);
-    line_counts_[clerk_types::kPicture][i] = 0;
-    bribe_line_counts_[clerk_types::kPicture][i] = 0;
-  }
-
-  Clerk temp_passport[num_paassport_clerks];
-  clerks_[clerk_types::kPassport] = temp_passport;
-  int temp_line_passport[num_passport_clerks];
-  line_counts_[clerk_types::kPassport] = temp_line_passport;
-  int temp_bribe_passport[num_passport_clerks];
-  bribe_line_counts_[clerk_types::kPassport] = temp_bribe_passport;
-
-  for (int i = 0; i < num_passport_clerks; ++i) {
-    clerks_[clerk_types::kPassport][i] = CreateClerk(i, clerk_types::kPassport);
-    line_counts_[clerk_types::kPassport][i] = 0;
-    bribe_line_counts_[clerk_types::kPassport][i] = 0;
-  }
-
-  Clerk temp_cashier[num_cashier_clerks];
-  clerks_[clerk_types::kCashier] = temp_cashier;
-  int temp_line_cashier[num_cashier_clerks];
-  line_counts_[clerk_types::kCashier] = temp_line_cashier;
-  int temp_bribe_cashier[num_cashier_clerks];
-  bribe_line_counts_[clerk_types::kCashier] = temp_bribe_cashier;
-
-  for (int i = 0; i < num_cashier_clerks; ++i) {
-    clerks_[clerk_types::kCashier][i] = CreateClerk(i, clerk_types::kCashier);
-    line_counts_[clerk_types::kCashier][i] = 0;
-    bribe_line_counts_[clerk_types::kCashier][i] = 0;
-  }
-
-  // TODO make manager a thread.
-  manager_ = CreateManager(this);
-
   /* Start the Passport Office */
   manager_thread_.Fork(
       thread_runners::RunManager, reinterpret_cast<int>(manager_));
-  for (unsigned i = 0; i < clerk_types::Size; ++i) {
+  for (unsigned i = 0; i < NUM_CLERK_TYPES; ++i) {
     for (unsigned j = 0; j < num_clerks_[i]; ++j) {
       Thread* thread = new Thread(id_str);
-      thread_list_[num_threads++] = thread;
       thread->Fork(
           thread_runners::RunClerk, reinterpret_cast<int>(clerks_[i][j]));
     }
   }
 
-  while (num_customers + num_senators > 0) {
-    int next_customer_type = Rand() % (num_customers + num_senators);
-    if (next_customer_type >= num_customers) {
-      AddNewSenator(CreateCustomer(customer_types::kSenator));
-      --num_senators;
+  while (NUM_CUSTOMERS + NUM_SENATORS > 0) {
+    if (Rand() % (NUM_CUSTOMERS + NUM_SENATORS) >= NUM_CUSTOMERS) {
+      AddNewSenator(CreateCustomer(kSenator, 0));
+      --NUM_SENATORS;
     } else {
-      AddNewCustomer(CreateCustomer());
-      --num_customers;
+      AddNewCustomer(CreateCustomer(kCustomer, 0));
+      --NUM_CUSTOMERS;
     }
   }
 
@@ -1003,11 +1001,11 @@ int main() {
       Release(num_customers_waiting_lock_);
       bool done = true;
       Acquire(breaking_clerks_lock_);
-      for (unsigned int i = 0; i < clerk_types::Size; ++i) {
+      for (unsigned int i = 0; i < NUM_CLERK_TYPES; ++i) {
         Acquire(line_locks_[i]);
         for (unsigned int j = 0; j < num_clerks_[i]; ++j) {
-          if (clerks_[i][j].state_ != clerk_states::kOnBreak ||
-              GetNumCustomersForClerkType((clerk_types::Type)(i)) > 
+          if (clerks_[i][j].state_ != kOnBreak ||
+              GetNumCustomersForClerkType((ClerkType)(i)) > 
               CLERK_WAKEUP_THRESHOLD) {
             done = false;
             break;
@@ -1029,9 +1027,9 @@ int main() {
   while (customers_size > 0) {
     bool done = true;
     Acquire(breaking_clerks_lock_);
-    for (unsigned int i = 0; i < clerk_types::Size; ++i) {
+    for (unsigned int i = 0; i < NUM_CLERK_TYPES; ++i) {
       for (unsigned int j = 0; j < num_clerks_[i]; ++j) {
-        if (clerks_[i][j].state_ != clerk_states::kOnBreak) {
+        if (clerks_[i][j].state_ != kOnBreak) {
           done = false;
         }
       }
@@ -1048,7 +1046,7 @@ int main() {
   for (int i = 0; i < customers_size; ++itr) {
     customers[i].running_ = false;
   }
-  for (unsigned int i = 0; i < clerk_types::Size; ++i) {
+  for (unsigned int i = 0; i < NUM_CLERK_TYPES; ++i) {
     Acquire(line_locks_[i]);
     for (unsigned int j = 0; j < num_clerks_[i]; ++j) {
       Acquire(clerks_[i][j].regular_line_lock_);
@@ -1073,13 +1071,7 @@ int main() {
     Yield();
   }
   Print("Passport office stopped\n");
-  /*for (unsigned int i = 0 ; i < thread_list_.size(); ++i) {
-    thread_list_[i]->Finish();
-  }
-  manager_thread_.Finish();*/
-
-
-  currentThread->Finish();
+  Exit(0);
 
   /* Delete Locks and CVs */
   DeleteLock(breaking_clerks_lock_);
@@ -1092,17 +1084,17 @@ int main() {
   DeleteLock(num_senators_lock_);
   DeleteLock(outside_line_lock_);
   DeleteCondition(outside_line_cv_);
-  for (int i = 0; i < clerk_types::Size; ++i) {
+  for (int i = 0; i < NUM_CLERK_TYPES; ++i) {
     DeleteLock(line_locks_[i]);
   }
 
-  for (int i = 0; i < clerk_types::Size; ++i) {
+  for (int i = 0; i < NUM_CLERK_TYPES; ++i) {
     for (int j = 0; j < num_clerks_[i]; ++j) {
       DeleteClerk(clerks[i][j]);
     }
   }
 
-  for (int i = 0; i < num_customers; ++i) {
+  for (int i = 0; i < NUM_CUSTOMERS; ++i) {
     DeleteCustomer(customers[i]);
   }
 
