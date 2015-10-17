@@ -154,7 +154,7 @@ int Signal(int cv, int lock);
 int Broadcast(int cv, int lock);
 
 int Rand();
-void Print(char* string);
+void Print(char* string, int len);
 void PrintNum(int num);
 
 

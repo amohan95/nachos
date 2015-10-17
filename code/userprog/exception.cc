@@ -524,8 +524,22 @@ int Rand_Syscall() {
   return rand();
 }
 
-void Print_Syscall(char* c) {
-  printf(c);
+void Print_Syscall(unsigned int c, int len) {
+  char *buf;
+  if ( !(buf = new char[len]) ) {
+    printf("%s","Error allocating kernel buffer for write!\n");
+    return;
+  } else {
+    if ( copyin(c,len,buf) == -1 ) {
+      printf("%s","Bad pointer passed to to write: data not written\n");
+      delete[] buf;
+      return;
+    }
+  }
+  for (int i=0; i<len; i++) {
+    printf("%c",buf[i]);
+  }
+  delete[] buf;
 }
 
 void PrintNum_Syscall(int num) {
@@ -637,11 +651,11 @@ void ExceptionHandler(ExceptionType which) {
         break;
       case SC_Print:
         DEBUG('a', "Print string syscall.\n");
-        Print_Syscall(reinterpret_cast<char*>(machine->ReadRegister(4)));
+        Print_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
         break;
       case SC_PrintNum:
         DEBUG('a', "Print number syscall.\n");
-        PrintNum_Syscall(reinterpret_cast<char*>(machine->ReadRegister(4)));
+        PrintNum_Syscall(machine->ReadRegister(4));
         break; 
     }
 

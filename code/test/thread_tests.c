@@ -15,10 +15,7 @@ void fork_function_1() {
 }
 
 int main() {
-  char * c = 'hi';
-  Print(c);
-
-  /*char a = 'a';
+  char a = 'a';
   char b = 'b';
   int i;
 
@@ -30,7 +27,7 @@ int main() {
     } else {
       Fork(fork_function_0);
     }
-  }*/
+  }
 
   Exit(0);
 }
