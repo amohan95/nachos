@@ -128,7 +128,6 @@ void DoClerkWork(Customer* customer, Clerk* clerk) {
   Print("] to ", 5);
   Print(ClerkIdentifierString(clerk))
   Print(".\n", 2);
-      << std::endl;
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   
