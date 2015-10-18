@@ -298,9 +298,12 @@ void Exec_Syscall(int vaddr, int len) {
 }
 
 void Exit_Syscall(int status) {
+  // A thread cannot be executing if it doesn't belong to a process in the system
+  //   process table
   ASSERT(processThreadTable.find(currentThread->space)
       != processThreadTable.end());
   if (processThreadTable[currentThread->space] > 1) {
+    // Not the last thread in the process
     currentThread->space->DeallocateStack();
     processThreadTable[currentThread->space] -= 1;
   } else {
@@ -308,6 +311,7 @@ void Exit_Syscall(int status) {
     processThreadTable.erase(currentThread->space);
   }
   if (processThreadTable.size() > 0) {
+    // Not the last process running
     currentThread->Finish();
   } else {
     interrupt->Halt();
@@ -323,6 +327,7 @@ int CreateLock_Syscall(int name, int len) {
   for (int i = 0; i < NUM_SYSTEM_LOCKS; ++i) {
     if (lockTable[i] == NULL) {
       lockTable[i] = new KernelLock();
+      // Allocate memory to store name of lock in kernel memory
       lockTable[i]->name = new char[len + 1];
       copyin(name, len, lockTable[i]->name);
       lockTable[i]->lock = new Lock(lockTable[i]->name);
@@ -333,12 +338,18 @@ int CreateLock_Syscall(int name, int len) {
       return i;
     }
   }
+  // Didn't find any available entries in system lock table
   lockTableLock->Release();
   return UNSUCCESSFUL_SYSCALL;
 }
 
 int DestroyLock_Syscall(int lock) {
   lockTableLock->Acquire();
+  // Lock must:
+  //   - be a valid index in the system lock table
+  //   - be allocated
+  //   - not marked for deletion already
+  //   - owned by the current process
   if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
       || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
       || lockTable[lock]->addrSpace != currentThread->space) {
@@ -346,11 +357,13 @@ int DestroyLock_Syscall(int lock) {
     return UNSUCCESSFUL_SYSCALL;
   }
   if (lockTable[lock]->threadsUsing == 0) {
+    // Deallocate since no more threads are using lock
     delete lockTable[lock]->lock;
     delete [] lockTable[lock]->name;
     delete lockTable[lock];
     lockTable[lock] = NULL;
   } else {
+    // Mark for deletion when no longer in use
     lockTable[lock]->toBeDeleted = true;
   }
   lockTableLock->Release();
@@ -421,6 +434,7 @@ int Release_Syscall(int lock) {
   lockTable[lock]->lock->Release();
   int threadsUsing = --lockTable[lock]->threadsUsing;
   if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
+    // Deallocate if marked for deletion and no more threads using it
     delete lockTable[lock]->lock;
     delete [] lockTable[lock]->name;
     delete lockTable[lock];
@@ -447,6 +461,9 @@ int Wait_Syscall(int cv, int lock) {
   int threadsUsing = ++conditionTable[cv]->threadsUsing;
   conditionTableLock->Release();
   lockTableLock->Acquire();
+  // Need to increment number of threads using lock as well,
+  //   because we cannot allow lock to be deallocated while
+  //   condition is still using it
   ++lockTable[lock]->threadsUsing;
   lockTableLock->Release();
   conditionTable[cv]->condition->Wait(lockTable[lock]->lock);
@@ -509,6 +526,9 @@ int Broadcast_Syscall(int cv, int lock) {
   }
   conditionTableLock->Release();
   lockTableLock->Acquire();
+  // Lock might be in use by other threads not related to this condition,
+  //   so we must be careful to only decrement by number of threads that were using
+  //   condition
   lockTable[lock]->threadsUsing -= formerThreadsUsing;
   if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
     delete lockTable[lock]->lock;
