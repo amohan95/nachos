@@ -143,35 +143,44 @@ void Yield();
 /* Synchronization operations: Acquire, Release, Wait, Signal, and
  * Broadcast.
  */
-// Allocates a new system lock with the specified name
-//   Returns the index in the lock table of the new lock
+/* Allocates a new system lock with the specified name
+ *   Returns the index in the lock table of the new lock
+ */
 int CreateLock(char* name, int len);
-// Deallocates the system lock at the specified index in the lock table
-//   Returns 0 on success
+/* Deallocates the system lock at the specified index in the lock table
+ *   Returns 0 on success
+ */
 int DestroyLock(int lock);
-// Allocates a new system condition with the specified name
-//   Returns the index in the condition table of the new condition
+/* Allocates a new system condition with the specified name
+ *   Returns the index in the condition table of the new condition
+ */
 int CreateCondition(char* name, int len);
-// Deallocates the sytem condition at the specified index in the condition table
-//   Returns 0 on success
+/* Deallocates the sytem condition at the specified index in the condition table
+ *   Returns 0 on success
+ */
 int DestroyCondition(int cv);
-// Acquires the system lock at the specified index in the lock table
-//   Returns the number of threads currently using the lock, after acquire
+/* Acquires the system lock at the specified index in the lock table
+ *   Returns the number of threads currently using the lock, after acquire
+ */
 int Acquire(int lock);
-// Releases the system lock at the specified index in the lock table
-//   Returns the number of threads currently using the lock, after release
+/* Releases the system lock at the specified index in the lock table
+ *   Returns the number of threads currently using the lock, after release
+ */
 int Release(int lock);
-// Waits on the system condition at the specified index in the condition table
-//   with the system lock at the specified index in the lock table
-//   Returns the number of threads currently using the condition, after wait
+/* Waits on the system condition at the specified index in the condition table
+ *   with the system lock at the specified index in the lock table
+ *   Returns the number of threads currently using the condition, after wait
+ */
 int Wait(int cv, int lock);
-// Signals the system condition at the specified index in the condition table
-//   with the system lock at the specified index in the lock table
-//   Returns the number of threads currently using the condition, after signal
+/* Signals the system condition at the specified index in the condition table
+ *   with the system lock at the specified index in the lock table
+ *   Returns the number of threads currently using the condition, after signal
+ */
 int Signal(int cv, int lock);
-// Broadcasts to the system condition at the specified index in the condition table
-//   with the system lock at the specified index in the lock table
-//   Returns the number of threads currently using the condition, after broadcast
+/* Broadcasts to the system condition at the specified index in the condition table
+ *   with the system lock at the specified index in the lock table
+ *   Returns the number of threads currently using the condition, after broadcast
+ */
 int Broadcast(int cv, int lock);
 
 int Rand();
