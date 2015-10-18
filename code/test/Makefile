@@ -29,9 +29,10 @@ LD = $(GCCDIR)ld
 CPP = $(GCCDIR)cpp
 
 INCDIR =-I../userprog -I../threads
-CFLAGS = -G 0 -c $(INCDIR)
+CFLAGS = -G 0 -c $(INCDIR) 
 
-all: halt matmult sort testfiles thread_tests exec_test lock_tests condition_tests
+all: halt matmult sort testfiles thread_tests exec_test lock_tests \
+		 condition_tests system_test system_test_exec
 
 start.o: start.s ../userprog/syscall.h
 	$(CPP) $(CPPFLAGS) start.s > strt.s
@@ -87,5 +88,18 @@ condition_tests.coff: condition_tests.o start.o
 	$(LD) $(LDFLAGS) $^ -o $@
 condition_tests: condition_tests.coff
 	../bin/coff2noff $< $@
+
+system_test.o: system_test.c simulation.c
+	$(CC) $(CFLAGS) -c system_test.c
+system_test: system_test.o start.o
+	$(LD) $(LDFLAGS) start.o system_test.o -o system_test.coff
+	../bin/coff2noff system_test.coff system_test
+
+system_test_exec.o: system_test_exec.c simulation.c
+	$(CC) $(CFLAGS) -c system_test_exec.c
+system_test_exec: system_test_exec.o start.o
+	$(LD) $(LDFLAGS) start.o system_test_exec.o -o system_test_exec.coff
+	../bin/coff2noff system_test_exec.coff system_test_exec
+
 clean:
 	rm -f *.o *.coff
