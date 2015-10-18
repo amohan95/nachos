@@ -1,19 +1,30 @@
 #include "../userprog/syscall.h"
 #include "utilities.h"
 
-#define NUM_CUSTOMERS 15
-#define NUM_SENATORS 1
-#define NUM_APPLICATION_CLERKS 3
-#define NUM_PICTURE_CLERKS 3
-#define NUM_PASSPORT_CLERKS 3
-#define NUM_CASHIER_CLERKS 3
-#define NUM_TOTAL_CLERKS NUM_APPLICATION_CLERKS + NUM_PICTURE_CLERKS + NUM_PASSPORT_CLERKS + NUM_CASHIER_CLERKS;
+
+void* memcpy(void* dst, void* src, int size) {
+  int i;
+  for (i = 0; i < size; ++i) {
+    dst[i] = src[i];
+  }
+  return dst;
+}
+
 int num_clerks_[NUM_CLERK_TYPES] 
     = {NUM_APPLICATION_CLERKS, NUM_PICTURE_CLERKS, NUM_PASSPORT_CLERKS, 
         NUM_CASHIER_CLERKS};
 
-int clerk_init_lock_;
-int clerk_init_count = 0;
+int application_clerk_init_lock_;
+int application_clerk_init_count_ = 0;
+
+int picture_clerk_init_lock_;
+int picture_clerk_init_count_ = 0;
+
+int passport_clerk_init_lock_;
+int passport_clerk_init_count_ = 0;
+
+int cashier_clerk_init_lock_;
+int cashier_clerk_init_count_ = 0;
 
 int breaking_clerks_lock_;
 int senator_lock_;
@@ -30,8 +41,8 @@ int outside_line_lock_;
 int outside_line_cv_;
 
 int line_locks_[NUM_CLERK_TYPES];
-Customer customers[NUM_CUSTOMERS + NUM_SENATORS];
-int customers_size = 0;
+Customer customers_[NUM_CUSTOMERS + NUM_SENATORS];
+int customers_size_ = 0;
 int num_threads = 0;
 
 Clerk clerks_[NUM_CLERK_TYPES][MAX_NUM_CLERKS];
@@ -45,8 +56,8 @@ int INITIAL_MONEY_AMOUNTS[] = {100, 600, 1100, 1600};
 int CURRENT_UNUSED_SSN = 0;
 int SENATOR_UNUSED_SSN = 0;
 
-void AddNewCustomer(Customer* customer);
-void AddNewSenator(Customer* senator);
+void AddNewCustomer(Customer customer, int index);
+void AddNewSenator(Customer senator, int index);
 void DestroyCustomer(Customer* customer);
 void PrintCustomerIdentifierString(Customer* customer);
 void DoClerkWork(Customer* customer, Clerk* clerk);
@@ -66,6 +77,13 @@ void CashierClerkWork(Clerk* clerk);
 void ClerkRun(Clerk* clerk);
 void ManagerPrintMoneyReport(Manager* manager);
 void ManagerRun(Manager* manager);
+
+void RunManager();
+void RunManagerMoneyReport();
+void RunClerk();
+void RunCustomer();
+void RunSenator();
+
 void WakeWaitingCustomers();
 void WakeClerksForSenator();
 
@@ -82,17 +100,20 @@ int GetNumCustomersForClerkType(ClerkType type) {
 
 /* Adds a new customer to the passport office by creating a new thread and
   forking it. Additionally, this will add the customer to the customers_ set.*/
-void AddNewCustomer(Customer* customer) {
-/*  Thread* thread = new Thread("Customer");
-  thread->Fork(thread_runners::RunCustomer, reinterpret_cast<int>(customer));
+void AddNewCustomer(Customer customer, int index) {
   Acquire(customer_count_lock_);
-  customers[customers_size++] = customer;
+  customers_[index] = customer;
+  Fork(RunCustomer);
   Release(customer_count_lock_);
-*/}
+}
 
 /* Adds a new senator to the passport office by creating a new thread and
   forking it. */
-void AddNewSenator(Customer* senator) {
+void AddNewSenator(Customer senator, int index) {
+  Acuire(customer_count_lock_);
+  customers_[index] = senator;
+  Fork(RunSenator);
+  Release(customer_count_lock_);
 /*  Thread* thread = new Thread("senator thread");
   thread->Fork(thread_runners::RunSenator, reinterpret_cast<int>(senator));
 */}
@@ -201,7 +222,7 @@ void SenatorRun(Customer* customer) {
   /* Wake up customers that are currently in line in the passport office so that
     they can join the outside line. */
   while (num_customers_being_served_ > 0) {
-    manager_->WakeWaitingCustomers();
+    WakeWaitingCustomers();
     Yield();
   }
 
@@ -243,7 +264,7 @@ void SenatorRun(Customer* customer) {
     ++line_counts_[next_clerk][0];
     Release(line_locks_[next_clerk]);
     
-    Signal(manager_->wakeup_condition_, manager_->wakeup_condition_lock_);
+    Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
 
     PrintLineJoin(customer, clerk, 0);
     JoinLine(clerk, 0);
@@ -282,6 +303,8 @@ void CustomerRun(Customer* customer) {
   ClerkType next_clerk;
   int i;
   Clerk* clerk;
+
+  Release(customer_count_lock_);
 
   customer->running_ = 1;
   while (customer->running_ &&
@@ -358,7 +381,7 @@ void CustomerRun(Customer* customer) {
 
     if (GetNumCustomersForClerkType(next_clerk) > 
         CLERK_WAKEUP_THRESHOLD) {
-      Signal(manager_->wakeup_condition_, manager_->wakeup_condition_lock_);
+      Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
     }
 
     PrintLineJoin(customer, clerk, customer->bribed_);
@@ -511,7 +534,7 @@ void JoinLine(Clerk* clerk, int bribe) {
     ++bribe_line_counts_[clerk->type_][clerk->identifier_];
     if (GetNumCustomersForClerkType(clerk->type_) > 
         CLERK_WAKEUP_THRESHOLD) {
-      Signal(manager_->wakeup_condition_, manager_->wakeup_condition_lock_);
+      Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
     }
     Wait(clerk->bribe_line_lock_cv_, clerk->bribe_line_lock_);
     Release(clerk->bribe_line_lock_);
@@ -520,7 +543,7 @@ void JoinLine(Clerk* clerk, int bribe) {
     ++line_counts_[clerk->type_][clerk->identifier_];
     if (GetNumCustomersForClerkType(clerk->type_) > 
         CLERK_WAKEUP_THRESHOLD) {
-      Signal(manager_->wakeup_condition_, manager_->wakeup_condition_lock_);
+      Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
     }
     Wait(clerk->regular_line_lock_cv_ , clerk->regular_line_lock_);
     Release(clerk->regular_line_lock_);
@@ -694,6 +717,21 @@ void ClerkRun(Clerk* clerk) {
   int i;
   int bribe;
 
+  switch(clerk->type_) {
+    case kApplication :     
+      Release(application_clerk_init_lock_);
+      break;
+    case kPicture :
+      Release(picture_clerk_init_lock_);
+      break;
+    case kPassport :
+      Release(passport_clerk_init_lock_);
+      break;
+    case kCashier :
+      Release(cashier_clerk_init_lock_);
+      break;
+  }
+
   clerk->running_ = 1;
   while (clerk->running_) {
     GetNextCustomer(clerk);
@@ -806,9 +844,7 @@ void ManagerRun(Manager* manager) {
   int i, j;
   Clerk* clerk;
 
-  manager->running_ = true;
-  Thread* report_timer_thread = new Thread("Report timer thread");
-  report_timer_thread->Fork(&RunPrintMoney, reinterpret_cast<int>(this));
+  manager->running_ = 1;
   while(manager->running_) {
     Acquire(manager->wakeup_condition_lock_);
     Wait(manager->wakeup_condition_, manager->wakeup_condition_lock_);
@@ -840,7 +876,7 @@ void ManagerRun(Manager* manager) {
     for (i = 0; i < NUM_CLERK_TYPES; ++i) {
       Release(line_locks_[i]);
     }
-    Release(wakeup_condition_lock_);
+    Release(manager_.wakeup_condition_lock_);
   }
 }
 
@@ -876,86 +912,122 @@ void WakeClerksForSenator() {
 
 /* ######## Thread Runners ######## */
 void RunManager() {
-
+  ManagerRun(&manager_);
+  Exit(0);
 }
 
-void RunClerk() {
+void RunManagerMoneyReport() {
+  ManagerPrintMoneyReport(&manager_);
+  Exit(0);
+}
 
+void RunApplicationClerk() {
+  Acquire(application_clerk_init_lock_);
+  ClerkRun(&(clerks_[kApplication][application_clerk_init_count_++]));
+  Exit(0);
+}
+
+void RunPictureClerk() {
+  Acquire(picture_clerk_init_lock_);
+  ClerkRun(&(clerks_[kPicture][picture_clerk_init_count_++]));
+  Exit(0);
+}
+
+void RunPassportClerk() {
+  Acquire(passport_clerk_init_lock_);
+  ClerkRun(&(clerks_[kPassport][passport_clerk_init_count_++]));
+  Exit(0);
+}
+
+void RunCashierClerk() {
+  Acquire(cashier_clerk_init_lock_);
+  ClerkRun(&(clerks_[kCashier][cashier_clerk_init_count_++]));
+  Exit(0);
 }
 
 void RunCustomer() {
-
+  Acquire(customer_count_lock_);
+  CustomerRun(&(customers_[customers_size_++]));
+  Exit(0);
 }
 
 void RunSenator() {
-
+  Acquire(customer_count_lock_);
+  SenatorRun(&(customers_[customers_size_++]));
+  Exit(0);
 }
 
 void SetupPassportOffice() {
   int i;
   int temp_line_app[NUM_APPLICATION_CLERKS];
-  Clerk temp_app[NUM_APPLICATION_CLERKS];
-  Clerk temp_picture[NUM_PICTURE_CLERKS];
-  Clerk temp_passport[NUM_PASSPORT_CLERKS];
-  Clerk temp_bribe_app[NUM_APPLICATION_CLERKS];
+  int temp_bribe_app[NUM_APPLICATION_CLERKS];
   int temp_line_picture[NUM_PICTURE_CLERKS];  
   int temp_bribe_picture[NUM_PICTURE_CLERKS];
   int temp_line_passport[NUM_PASSPORT_CLERKS];
-  int temp_bribe_passport[NUM_PASSPOR T_CLERKS];
+  int temp_bribe_passport[NUM_PASSPORT_CLERKS];
+  int temp_line_cashier[NUM_CASHIER_CLERKS];
+  int temp_bribe_cashier[NUM_CASHIER_CLERKS];
+  
+  Clerk temp_app[NUM_APPLICATION_CLERKS];
+  Clerk temp_picture[NUM_PICTURE_CLERKS];
+  Clerk temp_passport[NUM_PASSPORT_CLERKS];
   Clerk temp_cashier[NUM_CASHIER_CLERKS];
+  
+  application_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
+  picture_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
+  passport_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
+  cashier_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
 
-  int breaking_clerks_lock_ = CreateLock("breaking clerks lock", 20);
-  int senator_lock_ = CreateLock("senator lock", 10);
-  int senator_condition_ = CreateCondition("senator condition", 17);
-  int customer_count_lock_ = CreateLock("customer count lock", 19);
-  int customers_served_lock_ = CreateLock("num customers being served lock", 31);
-  int customers_served_cv_ = CreateCondition("num customers being served cv", 29);
-  int num_customers_waiting_lock_ = CreateLock("customer waiting counter", 24);
-  int num_senators_lock_ = CreateLock("num senators lock", 17);
-  int outside_line_lock_ = CreateLock("outside line lock", 17);
-  int outside_line_cv_ = CreateCondition("outside line condition", 22);
+  breaking_clerks_lock_ = CreateLock("breaking clerks lock", 20);
+  senator_lock_ = CreateLock("senator lock", 10);
+  senator_condition_ = CreateCondition("senator condition", 17);
+  customer_count_lock_ = CreateLock("customer count lock", 19);
+  customers_served_lock_ = CreateLock("num customers being served lock", 31);
+  customers_served_cv_ = CreateCondition("num customers being served cv", 29);
+  num_customers_waiting_lock_ = CreateLock("customer waiting counter", 24);
+  num_senators_lock_ = CreateLock("num senators lock", 17);
+  outside_line_lock_ = CreateLock("outside line lock", 17);
+  outside_line_cv_ = CreateCondition("outside line condition", 22);
 
   for (i = 0; i < NUM_CLERK_TYPES; ++i) {
     line_locks_[i] = CreateLock("Line Lock", 9);
   }
-
+/*
   clerks_[kApplication] = temp_app;
   line_counts_[kApplication] = temp_line_app;
   bribe_line_counts_[kApplication] = temp_bribe_app;
-
+*/
   for (i = 0; i < NUM_APPLICATION_CLERKS; ++i) {
-    clerks_[kApplication][i] = CreateClerk(i, kApplication));
+    clerks_[kApplication][i] = CreateClerk(i, kApplication);
     line_counts_[kApplication][i] = 0;
     bribe_line_counts_[kApplication][i] = 0;
   }
-
+/*
   clerks_[kPicture] = temp_picture;
   line_counts_[kPicture] = temp_line_picture;
   bribe_line_counts_[kPicture] = temp_bribe_picture;
-
+*/
   for (i = 0; i < NUM_PICTURE_CLERKS; ++i) {
     clerks_[kPicture][i] = CreateClerk(i, kPicture);
     line_counts_[kPicture][i] = 0;
     bribe_line_counts_[kPicture][i] = 0;
   }
-
+/*
   clerks_[kPassport] = temp_passport;
   line_counts_[kPassport] = temp_line_passport;
   bribe_line_counts_[kPassport] = temp_bribe_passport;
-
+*/
   for (i = 0; i < NUM_PASSPORT_CLERKS; ++i) {
     clerks_[kPassport][i] = CreateClerk(i, kPassport);
     line_counts_[kPassport][i] = 0;
     bribe_line_counts_[kPassport][i] = 0;
   }
-
+/*
   clerks_[kCashier] = temp_cashier;
-  int temp_line_cashier[NUM_CASHIER_CLERKS];
   line_counts_[kCashier] = temp_line_cashier;
-  int temp_bribe_cashier[NUM_CASHIER_CLERKS];
   bribe_line_counts_[kCashier] = temp_bribe_cashier;
-
-  for (int i = 0; i < NUM_CASHIER_CLERKS; ++i) {
+*/
+  for (i = 0; i < NUM_CASHIER_CLERKS; ++i) {
     clerks_[kCashier][i] = CreateClerk(i, kCashier);
     line_counts_[kCashier][i] = 0;
     bribe_line_counts_[kCashier][i] = 0;
@@ -966,138 +1038,19 @@ void SetupPassportOffice() {
 
 void StartPassportOffice() {
   int i, j;
-}
-
-int main() {
-  /* Start the Passport Office */
-  manager_thread_.Fork(
-      thread_runners::RunManager, reinterpret_cast<int>(manager_));
-  for (unsigned i = 0; i < NUM_CLERK_TYPES; ++i) {
-    for (unsigned j = 0; j < num_clerks_[i]; ++j) {
-      Thread* thread = new Thread(id_str);
-      thread->Fork(
-          thread_runners::RunClerk, reinterpret_cast<int>(clerks_[i][j]));
-    }
+  for (i = 0; i < num_clerks_[kApplication]; ++i) {
+    Fork(RunApplicationClerk);
+  }
+  for (i = 0; i < num_clerks_[kPicture]; ++i) {
+    Fork(RunPictureClerk);
+  }
+  for (i = 0; i < num_clerks_[kPassport]; ++i) {
+    Fork(RunPassportClerk);
+  }
+  for (i = 0; i < num_clerks_[kCashier]; ++i) {
+    Fork(RunCashierClerk);
   }
 
-  while (NUM_CUSTOMERS + NUM_SENATORS > 0) {
-    if (Rand() % (NUM_CUSTOMERS + NUM_SENATORS) >= NUM_CUSTOMERS) {
-      AddNewSenator(CreateCustomer(kSenator, 0));
-      --NUM_SENATORS;
-    } else {
-      AddNewCustomer(CreateCustomer(kCustomer, 0));
-      --NUM_CUSTOMERS;
-    }
-  }
-
-  /* WaitOnFinish for the Passport Office */
-  while (customers_size > 0) {
-    for (int i = 0; i < 400; ++i) {
-      Yield();
-    }
-    if (num_senators_ > 0) continue;
-    Acquire(num_customers_waiting_lock_);
-    if (customers_size == num_customers_waiting_) {
-      Release(num_customers_waiting_lock_);
-      bool done = true;
-      Acquire(breaking_clerks_lock_);
-      for (unsigned int i = 0; i < NUM_CLERK_TYPES; ++i) {
-        Acquire(line_locks_[i]);
-        for (unsigned int j = 0; j < num_clerks_[i]; ++j) {
-          if (clerks_[i][j].state_ != kOnBreak ||
-              GetNumCustomersForClerkType((ClerkType)(i)) > 
-              CLERK_WAKEUP_THRESHOLD) {
-            done = false;
-            break;
-          }
-        }
-        Release(line_locks_[i]);
-        if (done) break;
-      }
-      Release(breaking_clerks_lock_);
-      if (done) break;
-    } else {
-      Release(num_customers_waiting_lock_);
-    }
-  }
-  for (int i = 0; i < 1000; ++i) { Yield(); }
-
-  /* Stop the Passport Office */
-  Print("Attempting to stop passport office\n");
-  while (customers_size > 0) {
-    bool done = true;
-    Acquire(breaking_clerks_lock_);
-    for (unsigned int i = 0; i < NUM_CLERK_TYPES; ++i) {
-      for (unsigned int j = 0; j < num_clerks_[i]; ++j) {
-        if (clerks_[i][j].state_ != kOnBreak) {
-          done = false;
-        }
-      }
-    }
-    Release(breaking_clerks_lock_);
-    if (done) {
-      break;
-    } else {
-      for (int i = 0; i < 100; ++i) {
-        Yield();
-      }
-    }
-  }
-  for (int i = 0; i < customers_size; ++itr) {
-    customers[i].running_ = false;
-  }
-  for (unsigned int i = 0; i < NUM_CLERK_TYPES; ++i) {
-    Acquire(line_locks_[i]);
-    for (unsigned int j = 0; j < num_clerks_[i]; ++j) {
-      Acquire(clerks_[i][j].regular_line_lock_);
-      Broadcast(clerks_[i][j].regular_line_lock_cv_, clerks_[i][j].regular_line_lock_);
-      Release(clerks_[i][j].regular_line_lock_);
-      Acquire(clerks_[i][j].bribe_line_lock_);
-      Broadcast(clerks_[i][j].bribe_line_lock_cv_, clerks_[i][j].bribe_line_lock_);
-      Release(clerks_[i][j].bribe_line_lock_);
-      clerks_[i][j].running_ = false;
-      Acquire(clerks_[i][j].wakeup_lock_);
-      Broadcast(clerks_[i][j].wakeup_lock_cv_, clerks_[i][j].wakeup_lock_);
-      Release(clerks_[i][j].wakeup_lock_);
-    }
-    Release(line_locks_[i]);
-  }
-  manager_.running = false;
-  Print("Set manager running false\n");
-  Acquire(manager_.wakeup_condition_lock_);
-  Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
-  Release(manager_.wakeup_condition_lock_);
-  for (int i = 0; i < 1000; ++i) {
-    Yield();
-  }
-  Print("Passport office stopped\n");
-  Exit(0);
-
-  /* Delete Locks and CVs */
-  DeleteLock(breaking_clerks_lock_);
-  DeleteLock(senator_lock_);
-  DeleteCondition(senator_condition_;
-  DeleteLock(customer_count_lock_;
-  DeleteLock(customers_served_lock_);
-  DeleteCondition(customers_served_cv_);
-  DeleteLock(num_customers_waiting_lock_);
-  DeleteLock(num_senators_lock_);
-  DeleteLock(outside_line_lock_);
-  DeleteCondition(outside_line_cv_);
-  for (int i = 0; i < NUM_CLERK_TYPES; ++i) {
-    DeleteLock(line_locks_[i]);
-  }
-
-  for (int i = 0; i < NUM_CLERK_TYPES; ++i) {
-    for (int j = 0; j < num_clerks_[i]; ++j) {
-      DeleteClerk(clerks[i][j]);
-    }
-  }
-
-  for (int i = 0; i < NUM_CUSTOMERS; ++i) {
-    DeleteCustomer(customers[i]);
-  }
-
-  DeleteManager(manager_);
-  return 0;
+  Fork(RunManager);
+  Fork(RunManagerMoneyReport);
 }

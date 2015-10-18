@@ -1,6 +1,5 @@
 #ifndef TEST_UTILITIES_H_
 #define TEST_UTILITIES_H_
-
 #define NULL 0
 
 #define MAX_NUM_CLERKS 5
