@@ -59,7 +59,6 @@ typedef struct Clerks {
   Customer* current_customer_;
   int customer_money_;
   int customer_input_;
-  char* clerk_type_;
   ClerkType type_;
   ClerkState state_;
   int collected_money_;
@@ -71,7 +70,6 @@ typedef struct Managers {
   int wakeup_condition_;
   int wakeup_condition_lock_;
   int elapsed_;
-  int money_[NUM_CLERK_TYPES];
   int running_;
 } Manager;
 

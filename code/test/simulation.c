@@ -1,18 +1,29 @@
 #include "../userprog/syscall.h"
 #include "utilities.h"
 
+#define NUM_CUSTOMERS 15
+#define NUM_SENATORS 3
+#define NUM_APPLICATION_CLERKS 3
+#define NUM_PICTURE_CLERKS 3
+#define NUM_PASSPORT_CLERKS 3
+#define NUM_CASHIER_CLERKS 3
+#define NUM_TOTAL_CLERKS NUM_APPLICATION_CLERKS + NUM_PICTURE_CLERKS + NUM_PASSPORT_CLERKS + NUM_CASHIER_CLERKS
 
 void* memcpy(void* dst, void* src, int size) {
   int i;
+  char* cpy_dst = (char*) dst; 
+  char* cpy_src = (char*) src;
   for (i = 0; i < size; ++i) {
-    dst[i] = src[i];
+    cpy_dst[i] = cpy_src[i];
   }
-  return dst;
+  return (void*) cpy_dst;
 }
 
 int num_clerks_[NUM_CLERK_TYPES] 
     = {NUM_APPLICATION_CLERKS, NUM_PICTURE_CLERKS, NUM_PASSPORT_CLERKS, 
         NUM_CASHIER_CLERKS};
+
+int manager_money_[NUM_CLERK_TYPES] = {0, 0, 0, 0};
 
 int application_clerk_init_lock_;
 int application_clerk_init_count_ = 0;
@@ -87,6 +98,9 @@ void RunSenator();
 void WakeWaitingCustomers();
 void WakeClerksForSenator();
 
+void SetupPassportOffice();
+void StartPassportOffice();
+
 /* Gets the total number of customers waiting in line for a clerk type. */
 int GetNumCustomersForClerkType(ClerkType type) {
   int total = 0;
@@ -110,7 +124,7 @@ void AddNewCustomer(Customer customer, int index) {
 /* Adds a new senator to the passport office by creating a new thread and
   forking it. */
 void AddNewSenator(Customer senator, int index) {
-  Acuire(customer_count_lock_);
+  Acquire(customer_count_lock_);
   customers_[index] = senator;
   Fork(RunSenator);
   Release(customer_count_lock_);
@@ -144,7 +158,11 @@ void DestroyCustomer(Customer* customer) {
 }
 
 void PrintCustomerIdentifierString(Customer* customer) {
-  Print("Customer [", 10);
+  if (customer->type_ == kCustomer) {
+    Print("Customer [", 10);
+  } else {
+    Print("Senator [", 9);
+  }
   PrintNum(customer->ssn_);
   Print("]", 1);
 }
@@ -210,6 +228,8 @@ void SenatorRun(Customer* customer) {
   ClerkType next_clerk;
   Clerk* clerk;
   
+  Release(customer_count_lock_);
+
   customer->running_ = 1;
   /* Increment the number of senators in the office so that others know 
      that a senator is there. */
@@ -490,21 +510,6 @@ Clerk CreateClerk(int identifier, ClerkType type) {
   clerk.money_lock_ = CreateLock("Clerk Money Lock", 16);
   clerk.type_ = type;
 
-  switch(type) {
-    case kApplication :     
-      clerk.clerk_type_ = "ApplicationClerk";
-      break;
-    case kPicture :
-      clerk.clerk_type_ = "PictureClerk";
-      break;
-    case kPassport :
-      clerk.clerk_type_ = "PassportClerk";
-      break;
-    case kCashier :
-      clerk.clerk_type_ = "Cashier";
-      break;
-  }
-
   return clerk;
 }
 
@@ -624,14 +629,14 @@ void PictureClerkWork(Clerk* clerk) {
     PrintClerkIdentifierString(clerk);
     Print(" has been told that ", 20);
     PrintCustomerIdentifierString(clerk->current_customer_);
-    Print(" does not like their picture\n", 28);
+    Print(" does not like their picture.\n", 30);
   } else {
     /* Set picture taken. */
     clerk->current_customer_->picture_taken_ = 1;
     PrintClerkIdentifierString(clerk); 
     Print(" has been told that ", 20);
     PrintCustomerIdentifierString(clerk->current_customer_);
-    Print(" does like their picture\n", 25);
+    Print(" does like their picture.\n", 26);
   }
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
 }
@@ -653,7 +658,7 @@ void PassportClerkWork(Clerk* clerk) {
     PrintClerkIdentifierString(clerk); 
     Print(" has determined that ", 21);
     PrintCustomerIdentifierString(clerk->current_customer_);
-    Print(" does have both their application and picture completed\n", 46);
+    Print(" does have both their application and picture completed\n", 56);
     clerk->current_customer_->certified_ = 1;
     PrintClerkIdentifierString(clerk); 
     Print(" has recorded ", 15);
@@ -818,14 +823,14 @@ void ManagerPrintMoneyReport(Manager* manager) {
     for (i = 0; i < NUM_CLERK_TYPES; ++i) {
       for (j = 0; j < num_clerks_[i]; ++j) {
         m = CollectMoney(&(clerks_[i][j]));
-        manager->money_[clerks_[i][j].type_] += m;
+        manager_money_[clerks_[i][j].type_] += m;
       }
     }
     total = 0;
     for (i = 0; i < NUM_CLERK_TYPES; ++i) {
-      total += manager->money_[i];
+      total += manager_money_[i];
       Print("Manager has counted a total of $", 32);
-      PrintNum(manager->money_[i]);
+      PrintNum(manager_money_[i]);
       Print(" for ", 5);
       PrintNameForClerkType((ClerkType)(i));
       Print("s\n", 2);
@@ -866,7 +871,11 @@ void ManagerRun(Manager* manager) {
             clerk->state_ = kAvailable;
             Release(clerk->wakeup_lock_);
             Print("Manager has worken up a", 23);
-            if (clerk->type_ == kApplication) Print("n", 1);
+            if (clerk->type_ == kApplication) {
+              Print("n ", 2);
+            } else {
+              Print(" ", 1);
+            }
             PrintNameForClerkType(clerk->type_);
             Print("\n", 1);
           }
@@ -972,7 +981,9 @@ void SetupPassportOffice() {
   Clerk temp_picture[NUM_PICTURE_CLERKS];
   Clerk temp_passport[NUM_PASSPORT_CLERKS];
   Clerk temp_cashier[NUM_CASHIER_CLERKS];
-  
+
+  Print("Jesus hates me #2.\n", 19);
+
   application_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
   picture_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
   passport_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
@@ -992,16 +1003,28 @@ void SetupPassportOffice() {
   for (i = 0; i < NUM_CLERK_TYPES; ++i) {
     line_locks_[i] = CreateLock("Line Lock", 9);
   }
+
 /*
   clerks_[kApplication] = temp_app;
   line_counts_[kApplication] = temp_line_app;
   bribe_line_counts_[kApplication] = temp_bribe_app;
+*/
+/*
+  PrintNum(NUM_APPLICATION_CLERKS);
+  Print("\n", 1);
+  PrintNum(NUM_PICTURE_CLERKS);
+  Print("\n", 1);
+  PrintNum(NUM_PASSPORT_CLERKS);
+  Print("\n", 1);
+  PrintNum(NUM_CASHIER_CLERKS);
+  Print("\n", 1);
 */
   for (i = 0; i < NUM_APPLICATION_CLERKS; ++i) {
     clerks_[kApplication][i] = CreateClerk(i, kApplication);
     line_counts_[kApplication][i] = 0;
     bribe_line_counts_[kApplication][i] = 0;
   }
+
 /*
   clerks_[kPicture] = temp_picture;
   line_counts_[kPicture] = temp_line_picture;
@@ -1012,6 +1035,7 @@ void SetupPassportOffice() {
     line_counts_[kPicture][i] = 0;
     bribe_line_counts_[kPicture][i] = 0;
   }
+  
 /*
   clerks_[kPassport] = temp_passport;
   line_counts_[kPassport] = temp_line_passport;
@@ -1032,7 +1056,6 @@ void SetupPassportOffice() {
     line_counts_[kCashier][i] = 0;
     bribe_line_counts_[kCashier][i] = 0;
   }
-
   manager_ = CreateManager();
 }
 
