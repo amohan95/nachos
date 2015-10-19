@@ -1,14 +1,6 @@
 #include "../userprog/syscall.h"
 #include "utilities.h"
 
-#define NUM_CUSTOMERS 15
-#define NUM_SENATORS 3
-#define NUM_APPLICATION_CLERKS 3
-#define NUM_PICTURE_CLERKS 3
-#define NUM_PASSPORT_CLERKS 3
-#define NUM_CASHIER_CLERKS 3
-#define NUM_TOTAL_CLERKS NUM_APPLICATION_CLERKS + NUM_PICTURE_CLERKS + NUM_PASSPORT_CLERKS + NUM_CASHIER_CLERKS
-
 void* memcpy(void* dst, void* src, int size) {
   int i;
   char* cpy_dst = (char*) dst; 
@@ -53,7 +45,8 @@ int outside_line_cv_;
 
 int line_locks_[NUM_CLERK_TYPES];
 Customer customers_[NUM_CUSTOMERS + NUM_SENATORS];
-int customers_size_ = 0;
+int customers_size_ = NUM_CUSTOMERS;
+int customers_init_size_ = 0;
 int num_threads = 0;
 
 Clerk clerks_[NUM_CLERK_TYPES][MAX_NUM_CLERKS];
@@ -223,14 +216,14 @@ void PrintSenatorIdentifierString(Customer* customer) {
   Print("]", 1);
 }
 
-void SenatorRun(Customer* customer) {
+void SenatorRun(Customer* senator) {
   int i, j;
   ClerkType next_clerk;
   Clerk* clerk;
   
   Release(customer_count_lock_);
 
-  customer->running_ = 1;
+  senator->running_ = 1;
   /* Increment the number of senators in the office so that others know 
      that a senator is there. */
   Acquire(num_senators_lock_);
@@ -260,18 +253,18 @@ void SenatorRun(Customer* customer) {
   /* Wait for all clerks to get off of their breaks, if necessary. */
   for (i = 0; i < 500; ++i) { Yield(); }
 
-  while (customer->running_ &&
-        (!customer->passport_verified_ || !customer->picture_taken_ ||
-         !customer->completed_application_ || !customer->certified_)) {
-    if (!customer->completed_application_ && !customer->picture_taken_ && 
+  while (senator->running_ &&
+        (!senator->passport_verified_ || !senator->picture_taken_ ||
+         !senator->completed_application_ || !senator->certified_)) {
+    if (!senator->completed_application_ && !senator->picture_taken_ && 
         NUM_APPLICATION_CLERKS > 0 &&
         NUM_PICTURE_CLERKS > 0) {
       next_clerk = (ClerkType)(Rand() % 2); /* either kApplication (0) or kPicture (1)*/
-    } else if (!customer->completed_application_) {
+    } else if (!senator->completed_application_) {
       next_clerk = kApplication;
-    } else if (!customer->picture_taken_) {
+    } else if (!senator->picture_taken_) {
       next_clerk = kPicture;
-    } else if (!customer->certified_) {
+    } else if (!senator->certified_) {
       next_clerk = kPassport;
     } else {
       next_clerk = kCashier;
@@ -286,10 +279,10 @@ void SenatorRun(Customer* customer) {
     
     Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
 
-    PrintLineJoin(customer, clerk, 0);
+    PrintLineJoin(senator, clerk, 0);
     JoinLine(clerk, 0);
 
-    DoClerkWork(customer, clerk);
+    DoClerkWork(senator, clerk);
 
     Acquire(line_locks_[next_clerk]);
     --line_counts_[next_clerk][0];
@@ -300,11 +293,11 @@ void SenatorRun(Customer* customer) {
     Release(clerk->wakeup_lock_);
   }
 
-  if (customer->passport_verified_) {
-    PrintSenatorIdentifierString(customer);
+  if (senator->passport_verified_) {
+    PrintSenatorIdentifierString(senator);
     Print(" is leaving the Passport Office.\n", 33);
   } else {
-    PrintSenatorIdentifierString(customer);
+    PrintSenatorIdentifierString(senator);
     Print(" terminated early because it is impossible to get a passport.\n", 62);
   }
 
@@ -463,7 +456,7 @@ void CustomerRun(Customer* customer) {
   Release(customers_served_lock_);
   
   Acquire(customer_count_lock_);
-  /*customers_.erase(this);*/
+  --customers_size_;
   Release(customer_count_lock_);
 }
 
@@ -870,12 +863,11 @@ void ManagerRun(Manager* manager) {
             Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
             clerk->state_ = kAvailable;
             Release(clerk->wakeup_lock_);
-            Print("Manager has worken up a", 23);
+            Print("Manager has woken up a", 22);
             if (clerk->type_ == kApplication) {
               Print("n ", 2);
-            } else {
-              Print(" ", 1);
             }
+            Print(" ", 1);
             PrintNameForClerkType(clerk->type_);
             Print("\n", 1);
           }
@@ -956,13 +948,13 @@ void RunCashierClerk() {
 
 void RunCustomer() {
   Acquire(customer_count_lock_);
-  CustomerRun(&(customers_[customers_size_++]));
+  CustomerRun(&(customers_[customers_init_size_++]));
   Exit(0);
 }
 
 void RunSenator() {
   Acquire(customer_count_lock_);
-  SenatorRun(&(customers_[customers_size_++]));
+  SenatorRun(&(customers_[customers_init_size_++]));
   Exit(0);
 }
 
@@ -981,8 +973,6 @@ void SetupPassportOffice() {
   Clerk temp_picture[NUM_PICTURE_CLERKS];
   Clerk temp_passport[NUM_PASSPORT_CLERKS];
   Clerk temp_cashier[NUM_CASHIER_CLERKS];
-
-  Print("Jesus hates me #2.\n", 19);
 
   application_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
   picture_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
@@ -1060,7 +1050,13 @@ void SetupPassportOffice() {
 }
 
 void StartPassportOffice() {
-  int i, j;
+  int i, j, done;
+  int index = 0;
+  int num_customers = NUM_CUSTOMERS;
+  int num_senators = NUM_SENATORS;
+
+  Print("I love Jesus?\n", 14);
+
   for (i = 0; i < num_clerks_[kApplication]; ++i) {
     Fork(RunApplicationClerk);
   }
@@ -1074,6 +1070,112 @@ void StartPassportOffice() {
     Fork(RunCashierClerk);
   }
 
+  for (i = 0; i < 500; ++i) { Yield(); }
+
   Fork(RunManager);
   Fork(RunManagerMoneyReport);
+
+  while (num_customers + num_senators > 0) {
+    if (Rand() % (num_customers + num_senators) >= num_customers) {
+      AddNewSenator(CreateCustomer(kSenator, 0), index);
+      --num_senators;
+    } else {
+      AddNewCustomer(CreateCustomer(kCustomer, 0), index);
+      --num_customers;
+    }
+    ++index;
+  }
+
+  /* WaitOnFinish for the Passport Office */
+  while (customers_size_ > 0) {
+    for (i = 0; i < 400; ++i) { Yield(); }
+    if (num_senators_ > 0) continue;
+    Acquire(num_customers_waiting_lock_);
+    if (customers_size_ == num_customers_waiting_) {
+      Release(num_customers_waiting_lock_);
+      done = 1;
+      Acquire(breaking_clerks_lock_);
+      for (i = 0; i < NUM_CLERK_TYPES; ++i) {
+        Acquire(line_locks_[i]);
+        for (j = 0; j < num_clerks_[i]; ++j) {
+          if (clerks_[i][j].state_ != kOnBreak ||
+              GetNumCustomersForClerkType((ClerkType)(i)) > 
+              CLERK_WAKEUP_THRESHOLD) {
+            done = 0;
+            break;
+          }
+        }
+        Release(line_locks_[i]);
+        if (done) break;
+      }
+      Release(breaking_clerks_lock_);
+      if (done) break;
+    } else {
+      Release(num_customers_waiting_lock_);
+    }
+  }
+  for (i = 0; i < 1000; ++i) { Yield(); }
+
+  /* Stop the Passport Office */
+  Print("Attempting to stop passport office\n", 35);
+  while (customers_size_ > 0) {
+    done = 1;
+    Acquire(breaking_clerks_lock_);
+    for (i = 0; i < NUM_CLERK_TYPES; ++i) {
+      for (j = 0; j < num_clerks_[i]; ++j) {
+        if (clerks_[i][j].state_ != kOnBreak) {
+          done = 0;
+        }
+      }
+    }
+    Release(breaking_clerks_lock_);
+    if (done) {
+      break;
+    } else {
+      for (i = 0; i < 100; ++i) { Yield(); }
+    }
+  }
+  for (i = 0; i < customers_size_; ++i) {
+    customers_[i].running_ = 0;
+  }
+  for (i = 0; i < NUM_CLERK_TYPES; ++i) {
+    Acquire(line_locks_[i]);
+    for (j = 0; j < num_clerks_[i]; ++j) {
+      Acquire(clerks_[i][j].regular_line_lock_);
+      Broadcast(clerks_[i][j].regular_line_lock_cv_, clerks_[i][j].regular_line_lock_);
+      Release(clerks_[i][j].regular_line_lock_);
+      Acquire(clerks_[i][j].bribe_line_lock_);
+      Broadcast(clerks_[i][j].bribe_line_lock_cv_, clerks_[i][j].bribe_line_lock_);
+      Release(clerks_[i][j].bribe_line_lock_);
+      clerks_[i][j].running_ = 0;
+      Acquire(clerks_[i][j].wakeup_lock_);
+      Broadcast(clerks_[i][j].wakeup_lock_cv_, clerks_[i][j].wakeup_lock_);
+      Release(clerks_[i][j].wakeup_lock_);
+    }
+    Release(line_locks_[i]);
+  }
+  manager_.running_ = 0;
+  Print("Set manager running false\n", 26);
+  Acquire(manager_.wakeup_condition_lock_);
+  Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
+  Release(manager_.wakeup_condition_lock_);
+  for (i = 0; i < 1000; ++i) { Yield(); }
+  Print("Passport office stopped\n", 24);
+
+  /* Delete Locks and CVs */
+  DestroyLock(breaking_clerks_lock_);
+  DestroyLock(senator_lock_);
+  DestroyCondition(senator_condition_);
+  DestroyLock(customer_count_lock_);
+  DestroyLock(customers_served_lock_);
+  DestroyCondition(customers_served_cv_);
+  DestroyLock(num_customers_waiting_lock_);
+  DestroyLock(num_senators_lock_);
+  DestroyLock(outside_line_lock_);
+  DestroyCondition(outside_line_cv_);
+  for (i = 0; i < NUM_CLERK_TYPES; ++i) {
+    DestroyLock(line_locks_[i]);
+  }
+  
+  Exit(0);
 }
