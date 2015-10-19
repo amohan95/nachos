@@ -254,7 +254,9 @@ void KernelThread(int vaddr) {
 void Fork_Syscall(int vaddr) {
   Thread* thread = new Thread("Forked Thread");
   thread->space = currentThread->space;
+  processTableLock->Acquire();
   processThreadTable[thread->space] += 1;
+  processTableLock->Release();
   thread->Fork(KernelThread, vaddr);
 }
 
