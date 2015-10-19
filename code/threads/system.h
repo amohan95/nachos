@@ -36,7 +36,7 @@ class AddrSpace;
 extern Lock* processTableLock;
 extern std::map<AddrSpace*, uint32_t> processThreadTable;
 
-#define NUM_SYSTEM_LOCKS 100
+#define NUM_SYSTEM_LOCKS 10000
 struct KernelLock {
   Lock* lock;
   AddrSpace* addrSpace;
@@ -48,7 +48,7 @@ extern Lock* lockTableLock;
 extern KernelLock* lockTable[NUM_SYSTEM_LOCKS];
 
 class Condition;
-#define NUM_SYSTEM_CONDITIONS 100
+#define NUM_SYSTEM_CONDITIONS 10000
 struct KernelCondition {
   Condition* condition;
   AddrSpace* addrSpace;

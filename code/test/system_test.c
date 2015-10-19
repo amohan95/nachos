@@ -1,7 +1,7 @@
 #include "../userprog/syscall.h"
 
 #define NUM_CUSTOMERS 15
-#define NUM_SENATORS 3
+#define NUM_SENATORS 0
 #define NUM_APPLICATION_CLERKS 3
 #define NUM_PICTURE_CLERKS 3
 #define NUM_PASSPORT_CLERKS 3
