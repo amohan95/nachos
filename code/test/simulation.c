@@ -862,9 +862,9 @@ void ManagerRun(Manager* manager) {
     for (i = 0; i < NUM_CLERK_TYPES; ++i) {
       if (GetNumCustomersForClerkType((ClerkType)(i))
           > CLERK_WAKEUP_THRESHOLD || num_senators_ > 0) {
-				Print("Customers for clerk type ", 25);
+				/*Print("Customers for clerk type ", 25);
 				PrintNum(i);
-				Print("\n", 1);
+				Print("\n", 1);*/
         for (j = 0; j < num_clerks_[i]; ++j) {
           clerk = &(clerks_[i][j]);
           if (clerk->state_ == kOnBreak) {
