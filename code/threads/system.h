@@ -33,6 +33,7 @@ extern Statistics *stats;			// performance metrics
 extern Timer *timer;				// the hardware alarm clock
 
 class AddrSpace;
+extern Lock* processTableLock;
 extern std::map<AddrSpace*, uint32_t> processThreadTable;
 
 #define NUM_SYSTEM_LOCKS 100

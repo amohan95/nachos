@@ -19,6 +19,7 @@ Statistics *stats;      // performance metrics
 Timer *timer;       // the hardware timer device,
           // for invoking context switches
 
+Lock* processTableLock = new Lock("Kernel Process Table");
 Lock* lockTableLock = new Lock("Kernel Lock Table");
 KernelLock* lockTable[NUM_SYSTEM_LOCKS] = {NULL};
 Lock* conditionTableLock = new Lock("Kernel Condition Table");

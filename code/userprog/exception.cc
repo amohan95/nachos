@@ -292,7 +292,9 @@ void Exec_Syscall(int vaddr, int len) {
       thread->space->num_pages() - divRoundUp(UserStackSize, PageSize);
   delete executable;
 
+  processTableLock->Acquire();
   processThreadTable[thread->space] += 1;
+  processTableLock->Release();
 
   thread->Fork(KernelProcess, 0);
 }
@@ -300,6 +302,7 @@ void Exec_Syscall(int vaddr, int len) {
 void Exit_Syscall(int status) {
   // A thread cannot be executing if it doesn't belong to a process in the system
   //   process table
+  processTableLock->Acquire();
   ASSERT(processThreadTable.find(currentThread->space)
       != processThreadTable.end());
   if (processThreadTable[currentThread->space] > 1) {
@@ -312,8 +315,10 @@ void Exit_Syscall(int status) {
   }
   if (processThreadTable.size() > 0) {
     // Not the last process running
+    processTableLock->Release();
     currentThread->Finish();
   } else {
+    processTableLock->Release();
     interrupt->Halt();
   }
 }
