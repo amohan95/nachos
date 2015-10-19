@@ -203,6 +203,8 @@ int AddrSpace::AllocateStackPages() {
     new_page_table[i].readOnly = pageTable[i].readOnly;
   }
 
+  currentThread->stack_vaddr_bottom_ = numPages;
+
   for (int i = numPages; i < num_new_pages + numPages; ++i) {
     new_page_table[i].virtualPage = i;
     new_page_table[i].physicalPage = page_manager->ObtainFreePage();

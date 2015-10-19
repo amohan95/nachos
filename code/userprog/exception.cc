@@ -239,8 +239,6 @@ void KernelThread(int vaddr) {
            currentThread->getName());
     return;
   }
-  currentThread->stack_vaddr_bottom_ =
-      currentThread->space->num_pages() - divRoundUp(UserStackSize, PageSize);
 
   currentThread->space->InitRegisters();
   currentThread->space->RestoreState();
