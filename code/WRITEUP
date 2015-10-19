@@ -1,255 +1,229 @@
-Title:  Writeup for Project 1, Fall 2015
-Date:  09/20/15
+Title:  Writeup for Project 2, Fall 2015
+Date:  10/18/15
 Group 16:     Name                        Email
               Rochelle (Shelly) Willard   rwillard@usc.edu
-              Ananth Mohan                ananthmo@usc.edu
-              Matthew Burke               matthelb@usc.edu
+              Ananth Mohan                   ananthmo@usc.edu
+              Matthew Burke                  matthelb@usc.edu
 
 I. Requirements:
-Part 1: Implement a lock and condition variable in synch.h.
+Part 1: Implement the following system calls for NACHOS user programs: Fork, Exec, Exit, Yield, CreateLock, DestroyLock, CreateCondition, DestroyCondition, Acquire, Release, Wait, Signal, Broadcast. All system calls must validate arguments properly so that the operating system doesn't crash when a user program uses the system calls incorrectly.
 
-Part 2: Implement a US Passport Office simulation with individual threads for each customer, clerk, and manager. Each class must be implemented to fulfill the following requirements:
+Part 2: Implement multiprogramming including the allocation of physical memory, copying data to/from the kernel from/to the user’s virtual address space, and completing the Fork and Exec system calls.
 
-Customer: Must get their application accepted by the ApplicationClerk, get their official picture taken by the PictureClerk, get their "filed" application and picture recognized by the PassportClerk, and pay the Cashier.  They must get their application accepted and picture taken before they file with the PassportClerk.  They must get their passport verifed before they can pay the CashierClerk. The customer gets in the shortest line available for the type of clerk they are trying to visit.  They can bribe the clerk $500 if they have the money to do so in order to move in front of any customers that have not bribed.
-
-ApplicationClerk: Accepts completed applications from customers.
-PictureClerk: Takes passport pictures for customers.
-PassportClerk: Checks that a Customer has filed their completed application and has an official picture taken and then certified their passport.
-CashierClerk: Once a PassportClerk has "certified" that a proper application has been completed, the Cashier will accept the $100 necessary to pay for the new passport.
-
-Manager: Tells the various Clerks that are on break to start working if there are lines for that type of clerk that have more than 3 people in them. Also collects all of the money given to the clerks and outputs the information periodically.
-
-Senator: A customer that receives special privileges.  All customers currently in line will be kicked out of the passport office when a senator arrives and until the senator finishes.
+Part 3: Implement the passport office simulation as a nachos user program using the system calls created in part 1 and 2.
 
 II. Assumptions:
-Part 1: A condition variable must be used with the same lock until the wait queue for that condition variable is empty.  It then may be reused with a different lock and the previous principle thus applies for this new lock. Additionally, the lock used for the condition variable must be acquired before using any methods in Condition.
+Part 1:
+All user programs will not need more than NUM_SYSTEM_LOCKS = 100 locks and NUM_SYSTEM_CONDITIONS = 100 conditions. These constants can be modified to support user programs that may need more locks or conditions.
+The operating system should halt if all user programs have exited.
 
-Part2:
-Customer:  The customer will get in the shortest line available to them. If they have the money to bribe the clerk and the bribe line for the clerk is strictly shorter than the regular line for the clerk, they will bribe the clerk and join the shorter bribe line.
+Part 2:
+If the amount of pages requested for a user program exceeds the amount of pages left for the operating system to allocate, then Nachos will print an error and halt the machine. Additionally, 8192 pages of physical memory are made available by setting NumPhysPages to 8192 in machine.h.
 
-Clerks General:  Each clerk receives the customer's ssn when they arrive to the clerk's desk.
-
-ApplicationClerk: Nothing assumed not stated in the project writeup.
-
-PictureClerk: If the customer doesn't like their picture the customer must get back in line in order to take another.
-
-PassportClerk: Nothing assumed not stated in the project writeup.
-
-CashierClerk: The writeup and print requirements contradict each other on when to receive the money.  We assume that the money is received prior to the passport certification being checked.  In the case that the passport was not certified, the cashier then returns the $100 application fee to the customer.
-
-Manager: All clerks of a certain type that are breaking need to be awoken if there are more than 3 customers waiting for that type of clerk.
-
-Senator: There is only one senator allowed into the passport office at a time. It also wakes up any clerk as needed, as otherwise it would not get served properly.
+Part 3: All assumptions made were consistent with assumptions made in Project 1.
 
 III. Design:
 
 Part 1:
-InterruptSetter: Implemented in synch.cc. Because most of the operations contain disabling interrupts and then reenabling them after the function finishes, this RAII class was created so that when created, it disables interrupts and stores the old state. Then, on its destructor, it reenables interrupts. This makes sure that any control path out of the function will enable interrupts again.
 
-Lock: Implemented in synch.cc/synch.h. Utilizes setting and resetting interrupts to make sure that operations are atomic. The lock has a waiting queue where it stores threads to wake up who are attempting to acquire the lock while it is already held by a different thread, after it has put them to sleep. This keeps the threads out of the CPU. If a different thread other than the one who originally acquired it attempts to release it, an error message will be printed, and the lock will not be released.
+System calls: Implemented in userprog/exception.cc. userprog/syscall.h, and test/start.s.
+- Exit: A count of the number threads for a process is maintained by the Exec and Exit system calls. Exit decrements the number of threads for the current process. If the current process is the last process running on the operating system and has no more threads running, the operating system is halted. Additionally, Exit deallocates the stack pages for any thread that finishes and will deallocate all the pages for an address space if it is the last thread in a process.
+- Yield: The current thread yields execution in the CPU.
+- CreateLock: A new lock is allocated by the operating system for use by the current process and stored in an operating system lock table. If no entries are available in the table, the system call returns unsuccessfully.
+- DestroyLock: Deallocates the specified lock if there are no threads currently using the lock. Otherwise, the lock is marked to be deleted when all threads are finished using it. This syscall fails if the current process is not the owner of the lock.
+- CreateCondition: A new condition is allocated by the operating system for use by the current process and stored in an operating system condition table. If no entries are available in the table, the system call returns unsuccessfully.
+- DestroyCondition: Deallocates the specified condition if there are no threads currently using the condition. Otherwise, the condition is marked to be deleted when all threads are finished using it. This syscall fails if the current process is not the owner of the condition.
+- Acquire: Acquires the specified lock and increments the number of threads using the lock. This syscall fails if the current process is not the owner of the lock.
+- Release: Releases the specified lock and decrements the number of threads using the lock. If the lock is to be deleted and no more threads are using it, the lock is deallocated. This syscall fails if the current process is not the owner of the lock.
+- Wait: Waits on the specified condition and increments the number of threads using the condition and lock. This syscall fails if the current process is not the owner of the condition and lock.
+- Signal: Signals the specified condition and decrements the number of threads using the condition and lock. This syscall fails if the current process is not the owner of the condition and the lock. If the lock or condition are to be deleted and no more threads are using the lock or condition, they are deallocated. This syscall fails if the current process is not the owner of the condition and lock.
+- Broadcast: Broadcasts to the specified condition, clears the number of threads using the condition and decreases the number of threads using the lock by the number of threads that were using the condition. If the lock or condition are to be deleted and no more threads are using the lock or condition, they are deallocated. This syscall fails if the current process is not the owner of the condition and lock.
 
-Condition: Implemented in synch.cc/synch.h. Utilizes the lock class to implement the methods necessary. Initially, the condition variable can be used with any lock. It is expected that the lock is acquired by the current thread when it attempts to it wait, signal, or broadcast with the condition. After the condition variable has been used with a lock, it is expected that any further calls with the condition will be with the same lock, until the waiting queue has been emptied on the condition.
+Part 2: 
 
-Part 2:
+Create a processThreadTable that maps address spaces to the number of threads in that process.  In addition there will be a lock that controls access to the processThreadTable.
 
-Customer: Implemented in customer.h/customer.cc. The Customer::Run algorithm is implemented as a simple state machine. The customer first decides which clerk that it still needs to visit. If it needs either its application accepted or its picture taken, it will randomly choose. Otherwise, it will choose the appropriate clerk and find the shortest line for those clerk types. The customer can consider the “vip” bribe lines if it has enough money to bribe the clerk. After the customer determines the shortest line for the clerk that it can join, it waits until it is notified that it is at the front of the line. Next, the customer will give the clerk its SSN and perform whatever actions are required for that particular clerk. Once the transaction finishes, the state machine loops back to the beginning, where the customer decides on the next line to join.
+Create a PageManager class to organize memory page assignment to processes.  This class will use a bitmap to determine whether or not a page is free and a lock to ensure modification by only one process at a time.  In addition it will support the following functions:
+- ObtainFreePage:  Find a free page and return the physical page number and increments the number of used pages.  Otherwise return -1.
+- FreePage: Frees the physical page number that is passed in and decrements the number of used pages.
+- num_available_pages: Returns the number of free physical pages.
 
-Clerk: Implemented in clerks.h/clerks.cc.  Has basic implementation for any type of clerk.  Including getting customers from their line, receiving their ssn, receiving bribes, calling currentThread->Yield() to simulate time going by, and going on break.  Has absolute virtual function ClerkWork() for work specific to each clerk.  Gets the next customer in line by first checking their bribe line for customers and then their regular line if their was none in the bribe line.  If there are no customers the clerk goes on break.
+Modify AddrSpace to properly allocate pages for a given process.
+- Modify the constructor of AddrSpace to read the executable into memory and allocate the appropriate number of stack pages properly.  Change the assignment of the physical page number in pageTable to make a call to the PageManager to get a free page.
+- AllocateStackPages: Add more stack pages to the current process (used for forking a new thread within a process) and adjust pageTable and numPages appropriately.
+- DeallocateStack: Deallocates the stack pages for a given thread within a process.
+- DeallocateAllPages: Deallocates all pages used for a given process.
 
-ApplicationClerk: Implemented in clerks.h/clerks.cc.  Inherits from Clerk and has functionality specific to the ApplicationClerk in ClerkWork().
+Exec Syscall: Create a new thread and address space for the process.  Set the stack address for the thread appropriately and increment the processThreadTable entry by 1.  Then call fork on the currentThread, initialize the registers, reset the pageTable, and run the userprogram.
 
-PictureClerk: Implemented in clerks.h/clerks.cc.  Inherits from Clerk and has functionality specific to the PicturenClerk in ClerkWork().
+Fork Syscall: Create a new thread and set the address space to the correct address space for the process.  Increment the entry in the processThreadTable by 1. Then call fork on the currentThread, initialize the registers, reset the pageTable, and run the userprogram.
 
-PassportClerk: Implemented in clerks.h/clerks.cc.  Inherits from Clerk and has functionality specific to the PassportClerk in ClerkWork().
-
-CashierClerk: Implemented in clerks.h/clerks.cc.  Inherits from Clerk and has functionality specific to the CashierClerk in ClerkWork().
-
-Manager: Implemented in manager.h/manager.cc. The Manager::Run() algorithm waits until a new customer has joined a line. Then, it checks the total number of customers waiting for each type of clerk. If the total is greater than 3, then all clerks of that type who are currently on break will be woken up.
-
-Senator: Implemented in senator.h/senator.cc. The Senator::Run() function will first increment the number of senators currently in the office. If there is a senator currently in the office, it waits for them to finish. It then wakes up all customers that are in line, and waits until all customers have left the office. It then proceeds as a normal customer, until it finishes, at which time it checks if there are any more senators waiting; if there are none, it broadcasts on the line containing the customers waiting outside so that they can re-enter the passport office.
-
-PassportOffice: Implemented in passport_office.h/passport_office.cc. The passport office acts as the storage unit for all the shared data between customers, clerks, and the manager. It also implements starting, waiting on and stopping the simulation, by forking the proper threads and checking the finishing condition periodically.
+Part 3:
+ 
+Reimplement passport office using system calls and C.
+System calls.  Replace all locks and condition variables with ints to hold the number corresponding to the condition and lock.  Replace all instantiations with calls to CreateLock and CreateCondition.  Create Destroy functions for each entity (i.e. clerk, customer, etc) that call DestroyLock or DestroyCondition appropriately for each lock/condition in the entity.  Replace calls to release, acquire, broadcast, signal, and wait with the appropriate system call.
+Change classes to structs while maintaining the functionality of their member functions and make appropriate changes to translate from C++ to C.  Remove inheritance in clerks and customer/senator. Remove class structure of the passport_office.
+Implement print and print number system calls in order support print statements.
+Rewrite memcpy to remove error of can’t find memcpy.
 
 IV. Implementation:
 + Files Modified
-threads/Makefile
-threads/synch.h
-threads/synch.cc
+userprog/exception.cc
+userprog/syscall.h
+test/start.s
+threads/system.cc
+threads/system.h
 + Files added
-passport_office/clerks.h
-passport_office/clerks.cc
-passport_office/customer.h
-passport_office/customer.cc
-passport_office/manager.h
-passport_office/manager.cc
-passport_office/passport_office.h
-passport_office/passport_office.cc
+test/simulation.c
+test/system_test.c
+test/system_test_exec.c
 
 + Data Structures added, and the file they were added to.
-class InterruptSetter {            -- in file threads/synch.cc
- public:
-  InterruptSetter() { old_level_ = interrupt->SetLevel(IntOff); }
-  ~InterruptSetter() { interrupt->SetLevel(old_level_); }
- private:
-  IntStatus old_level_;
+struct KernelLock {             -- in file threads/system.h
+  Lock* lock;
+  AddrSpace* addrSpace;
+  bool toBeDeleted;
+  uint32_t threadsUsing;
+  char* name;
+};
+
+struct KernelCondition {       -- in file threads/system.h
+  Condition* condition;
+  AddrSpace* addrSpace;
+  bool toBeDeleted;
+  uint32_t threadsUsing;
+  char* name;
 };
 
 + Data Structures modified, and the file they were added to.
-class Lock {                -- in file synch.cc/synch.h
-  typedef enum LockState {
-    kFree,
-    kBusy
-  } Type;
-  Thread* lock_owner_;
-  LockState lock_state_;
-  List wait_queue_;
-};
-
-
-class MutexLock {            -- in file synch.h
- public:
-  MutexLock(Lock* lock) {
-    lock_ = lock;
-    lock_->Acquire();
-  }
-  ~MutexLock() {
-    lock_->Release();
-  }
- private:
-  Lock* lock_;
-};
-
-class InterruptSetter {            -- in file synch.cc
- public:
-  InterruptSetter() { old_level_ = interrupt->SetLevel(IntOff); }
-  ~InterruptSetter() { interrupt->SetLevel(old_level_); }
- private:
-  IntStatus old_level_;
-};
 
 + Functions added and in which file.
-passport_office/clerks.cc
+userprog/syscall.h, test/start.s, and userprog/exception.cc
+// Allocates a new system lock with the specified name
+//   Returns the index in the lock table of the new lock
+int CreateLock(char* name, int len);
 
-// Base constructor for clerks.
-Clerk::Clerk(PassportOffice * passport_office, int identifier)
+// Deallocates the system lock at the specified index in the lock table
+//   Returns 0 on success
+int DestroyLock(int lock);
 
-// Base destructor for clerks.
-Clerk::~Clerk()
+// Allocates a new system condition with the specified name
+//   Returns the index in the condition table of the new condition
+int CreateCondition(char* name, int len);
 
-// Collects money from the customer.  Uses a money lock to avoid race conditions.
-int Clerk::CollectMoney()
+// Deallocates the sytem condition at the specified index in the condition table
+//   Returns 0 on success
+int DestroyCondition(int cv);
 
-// Gets the number of customers in line for that clerk.
-int Clerk::GetNumCustomersInLine()
+// Acquires the system lock at the specified index in the lock table
+//   Returns the number of threads currently using the lock, after acquire
+int Acquire(int lock);
 
-// Gets the next customer to be served for that clerk.
-void Clerk::GetNextCustomer()
+// Releases the system lock at the specified index in the lock table
+//   Returns the number of threads currently using the lock, after release
+int Release(int lock);
 
-// Provides the basic functionality common to each clerk including getting customers from their line, receiving their ssn, receiving bribes, calling currentThread->Yield() to simulate time going by, and going on break. Also calls ClerkWork.
-void Clerk::Run()
+// Waits on the system condition at the specified index in the condition table
+//   with the system lock at the specified index in the lock table
+//   Returns the number of threads currently using the condition, after wait
+int Wait(int cv, int lock);
 
-// Constructor for ApplicationClerk.
-ApplicationClerk::ApplicationClerk(PassportOffice* passport_office, int identifier)
+// Signals the system condition at the specified index in the condition table
+//   with the system lock at the specified index in the lock table
+//   Returns the number of threads currently using the condition, after signal
+int Signal(int cv, int lock);
 
-// Work specific to the ApplicaitonClerk: verifiying the passport.
-void ApplicationClerk::ClerkWork()
+// Broadcasts to the system condition at the specified index in the condition table
+//   with the system lock at the specified index in the lock table
+//   Returns the number of threads currently using the condition, after broadcast
+int Broadcast(int cv, int lock);
 
-// Constructor for PictureClerk.
-PictureClerk::PictureClerk(PassportOffice* passport_office, int identifier)
+// Print the string of length len. 
+void Print(char* string, int len);
 
-// Work specific to the PictureClerk: takes the customer's picture
-void PictureClerk::ClerkWork()
+// Print the number with value num.
+void PrintNum(int num);
 
-// Constructor for PassportClerk.
-PassportClerk::PassportClerk(PassportOffice* passport_office, int identifier)
+userprog/addrspace.h
+// Adds new stack pages to a thread for Forking. This copies over the memory
+// from the old page table and adds eight more pages of stack. Returns -1
+// if there are not enough pages available to allocate stack. Otherwise,
+// it returns the starting position of the new stack for the thread.
+int AllocateStackPages();
 
-// Work specific to the PassportClerk: makes sure the customer's picture was taken and passport was verified and then certifies their passport if that is true.
-void PassportClerk::ClerkWork()
+// Deallocates the stack assigned to the current thread.
+void DeallocateStack();
 
-// Constructor for CashierClerk.
-CashierClerk::CashierClerk(PassportOffice* passport_office, int identifier)
-
-// Work specific to the CashierClerk: collects the application fee, makes sure the customer was certified by a PassportClerk, gives the customer their passport, and then records the passport as given to the customer.
-void CashierClerk::ClerkWork()
-
-passport_office/passport_office.cc
-
-// Initializes a new passport office with numbers specified for each types of clerk
-PassportOffice::PassportOffice(int num_application_clerks, int num_picture_clerks, int num_passport_clerks, int num_cashier_clerks)
-
-// Starts all the threads for the manager, and clerks. Should be called before starting to run customers.
-void PassportOffice::Start()
-
-// Calls finish on all of the threads that have been started since Start was called.
-void PassportOffice::Stop()
-
-// Adds a new customer to the passport office. This creates a new thread for the customer and calls Customer::Run()
-void PassportOffice::AddNewCustomer(Customer* customer)
-
-// Adds a new senator to the passport office. This creates a new thread for the senator and calls Senator::Run()
-void PassportOffice::AddNewSenator(Senator* senator)
-
-// Function handler to fork a new thread; casts the inputted argument to a Manager*.
-thread_runners::RunManager(int arg)
-
-// Function handler to fork a new thread; casts the inputted argument to a Clerk*.
-thread_runners::RunClerk(int arg)
-
-// Function handler to fork a new thread; casts the inputted argument to a Customer*.
-thread_runners::RunCustomer(int arg)
-
-// Function handler to fork a new thread; casts the inputted argument to a Senator*.
-thread_runners::RunSenator(int arg)
-
-passport_office/customer.cc
-
-// Returns true if and only if the customer has enough money to bribe a clerk
-bool CanBribe() const;
-
-// Returns a string describing the customer. For normal customers, the format is “Customer [ssn]” where ssn is the social security number of the customer. For senators, the format is “Senator [ssn]”
-std::string IdentifierString() const;
-
-// Simulates a customer in a passport office. This method is called by a forked thread and will terminate once the customer has received their passport or once it has been determined that it is impossible for the customer to finish the passport process
-void Run();
-
-// A helper method called by the Customer::Run() method. This performs the necessary tasks for the customer on the current thread for the clerk specified.
-void DoClerkWork(Clerk* clerk);
-
-// A helper method which outputs information about the customer joining the line specified by the clerk and bribed arguments.
-void PrintLineJoin(Clerk* clerk, bool bribed) const;
-
-passport_office/manager.cc
-
-// Collects money from all of the clerks in the passport office and outputs a report detailing the amount of money received from each type of clerk and the total amount of money collected by the passport office
-void PrintMoneyReport();
-
-// Simulates a manager in a passport office. This method is called by a forked thread and will terminate once the manager has been shutdown by the main thread. This should happen when the passport office simulation is complete.
-void Run();
-
-// Signals the manager's wait condition
-void WakeUp();
+// Deallocates all pages assigned to the current process.
+void DeallocateAllPages();
 
 + Functions modified and in which file.
+userprog/exception.cc && userprog/syscall.h
+// This user program is done (status = 0 means exited normally).
+void Exit(int status);
+
+// Yield the CPU to another runnable thread, whether in this address space or not.
+void Yield();
+
+// Execute the process at the given filename.
+void Exec_Syscall(int vaddr, int len);
+
+// Fork a thread in the given process.
+void Fork_Syscall(int vaddr);
+
+userprog/addrspace.h
+// Modified constructor to properly allocate pages for a given process.
+AddrSpace(OpenFile *executable);
+
+***For details on Passport Office Simulation Functions and Classes see Project 1 writeup.  All functionality defined in that writeup was reimplemented in C for this assignment in test/simulation.c***
 
 V. Testing:  (For each test case, you must show)
 + How to test
+- cd userprog
 - gmake
-- ./nachos -T
+- cd ../test
+- gmake
+- ../userprog/nachos -x lock_tests
+- ../userprog/nachos -x condition_tests
+- ../userprog/nachos -x print_tests
+- ../userprog/nachos -x thread_tests
+- ../userprog/nachos -x exec_test
+- ../userprog/nachos -x system_test_exec
 + Test Output
-- Test 1: The output should show that the two customers join different lines from each other because the second customer to join a line will see a line of length 1 and a line of length 0. Thus, the second customer will choose the shorter of the two lines instead of joining a line that is strictly longer.
-- Test 2: The output should show that the manager has collected $4200 dollars total for the passport office. This is because there are 7 customers who each have $600. If the manager tries to read from multiple clerks total money received, the total money received will be counted incorrectly.
-- Test 3: The output should show that all 4 customers have successfully received their passports and exited the passport office. Additionally, the output should show that the cashier never signals another customer before the previous customer has completed their interaction.
-- Test 4: The output should show that all 4 clerks go on break because there are no customers.
-- Test 5: The output should show that the manager wakes up the application clerk after 4 customers have joined the application clerk line.
-- Test 6: The output should show that the manager has collected $1000 dollars total for the passport office. This is because there are 10 customers who each have $100. If total sales suffer from a race condition, the total money received will be counted incorrectly.
-- Test 7: The output should show the passport office beginning the process of serving customers, as normal, before being interrupted by a senator that arrives. The clerks should not serve a normal customer after the senator arrives (except for finishing the current customer) until the senator has received his passport.
-VI. Discussion:
-+ Experiment expectation.
-Run the passport office with 50 normal customers, 1 senator, and 4 of each type of clerk. Expect that every customer successfully receives their passport. Expect that when the senator arrives, all of the customers leave until the senator has received his passport.
-+ Experiment result.
+- CreateLock Basic Test: The output should show a single line of SUCCESS indicating that the CreateLock syscall successfully returned a valid index in the system lock table.
+- CreateLock Too Many Test: The output should show a single line of SUCCESS indicating that the CreateLock syscall returned unsuccessfully when trying to create a lock without any space in the system lock table.
+- DestroyLock Basic Test: The output should show a single line of SUCCESS indicating that the DestroyLock syscall succesfully returned 0 after deallocating the lock.
+- DestroyLock Invalid Argument Test: The output should show three lines of SUCCESS indicating that the DestroyLock syscall returned unsuccessfully when asked to deallocate indices less than 0, greater than the number of entries in the system lock table, and not owned by the current process.
+- Acquire/Release Basic Test: The output should show five lines of SUCCESS indicating that the Acquire/Release syscalls returned successfully when passed a lock owned by the current thread and that the Acquire/Release syscalls work as intended so that sections of code can be made mutually exclusive across multiple threads.
+- Acquire Invalid Argument Test: The output should show three lines of SUCCESS indicating that the Acquire syscall returned unsuccessfully when asked to acquire indices less than 0, greater than the number of entries in the system lock table, and not owned by the current process.
+- Release Invalid Argument Test: The output should show three lines of SUCCESS indicating that the Release syscall returned unsuccessfully when asked to release indices less than 0, greater than the number of entries in the system lock table, and not owned by the current process.
+- CreateCondition Basic Test: The output should show a single line of SUCCESS indicating that the CreateCondition syscall successfully returned a valid index in the system condition table.
+- CreateCondition Too Many Test: The output should show a single line of SUCCESS indicating that the CreateCondition syscall returned unsuccessfully when trying to create a condition without any space in the system condition table.
+- DestroyCondition Basic Test: The output should show a single line of SUCCESS indicating that the DestroyCondition syscall succesfully returned 0 after deallocating the condition.
+- DestroyCondition Invalid Argument Test: The output should show three lines of SUCCESS indicating that the DestroyCondition syscall returned unsuccessfully when asked to deallocate indices less than 0, greater than the number of entries in the system condition table, and not owned by the current process.
+- Wait/Signal Basic Test: The output should show that the main thread waits for the forked thread to signal it before exiting.
+- Wait/Broadcast Basic Test: The output should show that the forked threads are all signalled by the main thread when broadcast is called.
+- Wait Invalid Argument Test: The output should show three lines of SUCCESS indicating that the Wait syscall returned unsuccessfully when asked to wait on indices less than 0, greater than the number of entries in the system lock table or system condition table, and not owned by the current process.
+- Signal Invalid Argument Test: The output should show three lines of SUCCESS indicating that the Signal syscall returned unsuccessfully when asked to signal indices less than 0, greater than the number of entries in the system lock table or system condition table, and not owned by the current process.
+- Broadcast Invalid Argument Test: The output should show three lines of SUCCESS indicating that the Broadcast syscall returned unsuccessfully when asked to broadcast to indices less than 0, greater than the number of entries in the system lock table or system condition table, and not owned by the current process.
+- Wait/Signal/Broadcast Use After Destroyed Test: The output should show three lines of SUCCESS indicating that the Wait, Signal, and Broadcast system calls return unsuccessfully when asked to wait/signal/broadcast indices not owned by the current process (ie indices already destroyed).
 
-+ Explanation
-For each customer [0, 49] we can see that there is an output statement for them having received their passport and exiting the passport office. When the senator arrives, we can see that the clerks finish their current customer, then only serve the senator until the senator has received his passport, then continue serving regular customers.
+Print Tests Expected Output:
+hello
+hello1
+3
+1000
+
+- Thread Test: Tests functionality of Fork and locking. Uses a shared data variable to check if data can be accessed by threads in same process, and uses a lock to guarantee no data races occur. The result from the test should be that the shared data value should be 2.
+- Exec Test: Exec’s the Thread Test user program twice. The result should be printing two sets of the output. The two programs should have separate memory, so the data value should be 2 at the end of both.
+
+- System Test: Running the system test executes three concurrent passport offices with the same parameters (i.e., same number of Customers, Senators, and Clerks). Inspecting the output will show that each passport office simulation completes and runs independently of each other.
+
+VI. Discussion:
++ Experiment expectation: Multiple user programs run to completion.
++ Experiment result: Multiple user programs run to completion.
++ Explanation: It works.  Check program output as validation.
 
 VIII. Miscellaneous:
 - Whatever else you want the grader know about your development.  You can create your own subsections headings here.
+
