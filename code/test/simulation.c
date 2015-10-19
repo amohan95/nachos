@@ -995,11 +995,6 @@ void SetupPassportOffice() {
   }
 
 /*
-  clerks_[kApplication] = temp_app;
-  line_counts_[kApplication] = temp_line_app;
-  bribe_line_counts_[kApplication] = temp_bribe_app;
-*/
-/*
   PrintNum(NUM_APPLICATION_CLERKS);
   Print("\n", 1);
   PrintNum(NUM_PICTURE_CLERKS);
@@ -1015,32 +1010,18 @@ void SetupPassportOffice() {
     bribe_line_counts_[kApplication][i] = 0;
   }
 
-/*
-  clerks_[kPicture] = temp_picture;
-  line_counts_[kPicture] = temp_line_picture;
-  bribe_line_counts_[kPicture] = temp_bribe_picture;
-*/
   for (i = 0; i < NUM_PICTURE_CLERKS; ++i) {
     clerks_[kPicture][i] = CreateClerk(i, kPicture);
     line_counts_[kPicture][i] = 0;
     bribe_line_counts_[kPicture][i] = 0;
   }
-  
-/*
-  clerks_[kPassport] = temp_passport;
-  line_counts_[kPassport] = temp_line_passport;
-  bribe_line_counts_[kPassport] = temp_bribe_passport;
-*/
+
   for (i = 0; i < NUM_PASSPORT_CLERKS; ++i) {
     clerks_[kPassport][i] = CreateClerk(i, kPassport);
     line_counts_[kPassport][i] = 0;
     bribe_line_counts_[kPassport][i] = 0;
   }
-/*
-  clerks_[kCashier] = temp_cashier;
-  line_counts_[kCashier] = temp_line_cashier;
-  bribe_line_counts_[kCashier] = temp_bribe_cashier;
-*/
+
   for (i = 0; i < NUM_CASHIER_CLERKS; ++i) {
     clerks_[kCashier][i] = CreateClerk(i, kCashier);
     line_counts_[kCashier][i] = 0;
@@ -1050,10 +1031,7 @@ void SetupPassportOffice() {
 }
 
 void StartPassportOffice() {
-  int i, j, done;
-  int index = 0;
-  int num_customers = NUM_CUSTOMERS;
-  int num_senators = NUM_SENATORS;
+  int i, j;
 
   Print("I love Jesus?\n", 14);
 
@@ -1074,19 +1052,11 @@ void StartPassportOffice() {
 
   Fork(RunManager);
   Fork(RunManagerMoneyReport);
+}
 
-  while (num_customers + num_senators > 0) {
-    if (Rand() % (num_customers + num_senators) >= num_customers) {
-      AddNewSenator(CreateCustomer(kSenator, 0), index);
-      --num_senators;
-    } else {
-      AddNewCustomer(CreateCustomer(kCustomer, 0), index);
-      --num_customers;
-    }
-    ++index;
-  }
-
-  /* WaitOnFinish for the Passport Office */
+void WaitOnFinish() {
+  int i, j, done;
+    /* WaitOnFinish for the Passport Office */
   while (customers_size_ > 0) {
     for (i = 0; i < 400; ++i) { Yield(); }
     if (num_senators_ > 0) continue;
@@ -1176,6 +1146,4 @@ void StartPassportOffice() {
   for (i = 0; i < NUM_CLERK_TYPES; ++i) {
     DestroyLock(line_locks_[i]);
   }
-  
-  Exit(0);
 }
