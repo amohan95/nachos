@@ -23,6 +23,13 @@
 #include "post.h"
 #include "interrupt.h"
 
+void Server() {
+    printf("In server function\n");
+
+    // Then we're done!
+    interrupt->Halt();
+}
+
 // Test out message delivery, by doing the following:
 //	1. send a message to the machine with ID "farAddr", at mail box #0
 //	2. wait for the other machine's message to arrive (in our mailbox #0)
