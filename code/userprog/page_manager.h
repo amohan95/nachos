@@ -22,9 +22,9 @@ class PageManager {
   
   int num_available_pages() const { return NumPhysPages - num_used_pages_; }
 
+ private:
   // Any thread doing operations on the PageManager should hold this lock.
   Lock lock_;
- private:
   int num_used_pages_;
   BitMap page_map_;
 };

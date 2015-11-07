@@ -139,12 +139,6 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
 
   size = numPages * PageSize;
 
-  MutexLock l(&page_manager->lock_);
-  if (page_manager->num_available_pages() < numPages) {
-    printf("Nachos is out of memory. Terminating.\n");
-    interrupt->Halt();
-  }
-
   DEBUG('a', "Initializing address space, num pages %d, size %d\n", 
 				numPages, size);
 
@@ -182,16 +176,8 @@ AddrSpace::~AddrSpace()
 }
 
 int AddrSpace::AllocateStackPages() {
-  MutexLock l(&page_manager->lock_);
-
   int num_new_pages = divRoundUp(UserStackSize, PageSize);
   
-  if (page_manager->num_available_pages() < num_new_pages) {
-    printf("Out of physical pages. Failed to allocate more stack.\n");
-    interrupt->Halt();
-    return -1;
-  }
-
   TranslationEntry* new_page_table = 
       new TranslationEntry[numPages + num_new_pages];
 
@@ -225,18 +211,30 @@ int AddrSpace::AllocateStackPages() {
 }
 
 void AddrSpace::DeallocateStack() {
-  MutexLock l(&page_manager->lock_);
   int stack_bottom = currentThread->stack_vaddr_bottom_;
   int num_stack_pages = divRoundUp(UserStackSize, PageSize);
   for (int i = stack_bottom; i < stack_bottom + num_stack_pages; ++i) {
+    // Invalidate the TLB entries for any stack pages deallocated.
+    for (int j = 0; j < TLBSize; ++j) {
+      TranslationEntry* entry = &(machine->tlb[j]);
+      if (entry->valid && entry->virtualPage == i) {
+        entry->valid = false;
+      }
+    }
     pageTable[i].valid = false;
     page_manager->FreePage(pageTable[i].physicalPage);
   }
 }
 
 void AddrSpace::DeallocateAllPages() {
-  MutexLock l(&page_manager->lock_);
   for (int i = 0; i < numPages; ++i) {
+    // Invalidate the TLB entries for any stack pages deallocated.
+    for (int j = 0; j < TLBSize; ++j) {
+      TranslationEntry* entry = &(machine->tlb[j]);
+      if (entry->valid && entry->virtualPage == i) {
+        entry->valid = false;
+      }
+    }
     if (pageTable[i].valid) {
       page_manager->FreePage(pageTable[i].physicalPage);
     }
