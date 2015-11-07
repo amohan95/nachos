@@ -25,6 +25,11 @@
 #include "synch.h"
 #include "system.h"
 
+InterruptSetter::InterruptSetter() { old_level_ = interrupt->SetLevel(IntOff); }
+InterruptSetter::~InterruptSetter() {
+  interrupt->SetLevel(static_cast<IntStatus>(old_level_));
+}
+
 //----------------------------------------------------------------------
 // Semaphore::Semaphore
 // 	Initialize a semaphore, so that it can be used for synchronization.
@@ -96,16 +101,6 @@ Semaphore::V()
     value++;
     (void) interrupt->SetLevel(oldLevel);
 }
-
-// RAII class that disables interrupts when initialized and restores them when
-// the destructor is called.
-class InterruptSetter {
- public:
-  InterruptSetter() { old_level_ = interrupt->SetLevel(IntOff); }
-  ~InterruptSetter() { interrupt->SetLevel(old_level_); }
- private:
-  IntStatus old_level_;  
-};
 
 // Dummy functions -- so we can compile our later assignments 
 // Note -- without a correct implementation of Condition::Wait(), 

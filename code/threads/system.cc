@@ -19,6 +19,7 @@ Statistics *stats;      // performance metrics
 Timer *timer;       // the hardware timer device,
           // for invoking context switches
 
+
 Lock* processTableLock = new Lock("Kernel Process Table");
 Lock* lockTableLock = new Lock("Kernel Lock Table");
 KernelLock* lockTable[NUM_SYSTEM_LOCKS] = {NULL};
@@ -38,6 +39,7 @@ SynchDisk   *synchDisk;
 #ifdef USER_PROGRAM // requires either FILESYS or FILESYS_STUB
 Machine *machine; // user program memory and registers
 PageManager* page_manager;
+int currentTlb;
 #endif
 
 #ifdef NETWORK
@@ -159,6 +161,7 @@ Initialize(int argc, char **argv)
 #ifdef USER_PROGRAM
     machine = new Machine(debugUserProg); // this must come first
     page_manager = new PageManager();
+    currentTlb = 0;
 #endif
 
 #ifdef FILESYS

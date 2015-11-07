@@ -239,9 +239,7 @@ void KernelThread(int vaddr) {
            currentThread->getName());
     return;
   }
-  currentThread->stack_vaddr_bottom_ =
-      currentThread->space->num_pages() - divRoundUp(UserStackSize, PageSize);
-
+  
   currentThread->space->InitRegisters();
   currentThread->space->RestoreState();
 
@@ -574,6 +572,20 @@ void PrintNum_Syscall(int num) {
   printf("%d", num);
 }
 
+void HandlePageFault(int vpn) {
+  int page_num = vpn / PageSize;
+
+  // Set interrupts off for the entire page fault handling process, as per
+  // Crowley's instructions.
+  InterruptSetter is;
+  
+  // Search IPT
+  // Allocate physical memory, if memory is full select page to evict
+  // If the page is dirty, write to swap file
+
+  currentThread->space->PopulateTlbEntry(page_num);
+}
+
 void ExceptionHandler(ExceptionType which) {
   int type = machine->ReadRegister(2); // Which syscall?
   int rv=0; 	// the return value from a syscall
@@ -693,6 +705,8 @@ void ExceptionHandler(ExceptionType which) {
     machine->WriteRegister(PCReg,machine->ReadRegister(NextPCReg));
     machine->WriteRegister(NextPCReg,machine->ReadRegister(PCReg)+4);
     return;
+  } else if (which == PageFaultException) {
+    HandlePageFault(machine->ReadRegister(BadVAddrReg));
   } else {
     cout<<"Unexpected user mode exception - which:"<<which<<"  type:"<< type<<endl;
     interrupt->Halt();
