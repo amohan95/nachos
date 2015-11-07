@@ -15,12 +15,13 @@
 // All rights reserved.  See copyright.h for copyright notice and limitation 
 // of liability and disclaimer of warranty provisions.
 
-#include "copyright.h"
-#include "system.h"
+#include "../threads/copyright.h"
+#include "../threads/system.h"
+#include "../threads/synch.h"
+#include "../machine/machine.h"
 #include "addrspace.h"
-#include "noff.h"
+#include "../bin/noff.h"
 #include "table.h"
-#include "synch.h"
 
 extern "C" { int bzero(char *, int); };
 
@@ -242,6 +243,26 @@ void AddrSpace::DeallocateAllPages() {
   }
 }
 
+void AddrSpace::PopulateTlbEntry(int page_num) {
+  currentTlb = (++currentTlb) % TLBSize;
+  machine->tlb[currentTlb].virtualPage = pageTable[page_num].virtualPage;
+  machine->tlb[currentTlb].physicalPage = pageTable[page_num].physicalPage;  
+  machine->tlb[currentTlb].valid = pageTable[page_num].valid;
+  machine->tlb[currentTlb].use = pageTable[page_num].use;
+  machine->tlb[currentTlb].dirty = pageTable[page_num].dirty;
+  machine->tlb[currentTlb].readOnly = pageTable[page_num].readOnly;
+}
+
+void AddrSpace::InvalidateTlb() {
+  for (int i = 0; i < TLBSize; ++i) {
+    TranslationEntry* tlb_entry = &(machine->tlb[i]);
+    if (tlb_entry->valid && tlb_entry->dirty) {
+      pageTable[tlb_entry->virtualPage].dirty = true;
+    }
+    tlb_entry->valid = false;
+  }
+}
+
 //----------------------------------------------------------------------
 // AddrSpace::InitRegisters
 // 	Set the initial values for the user-level register set.
@@ -295,6 +316,6 @@ void AddrSpace::SaveState()
 
 void AddrSpace::RestoreState() 
 {
-    machine->pageTable = pageTable;
+    // machine->pageTable = pageTable;
     machine->pageTableSize = numPages;
 }

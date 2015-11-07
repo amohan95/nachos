@@ -63,6 +63,7 @@ extern KernelCondition* conditionTable[NUM_SYSTEM_CONDITIONS];
 #include "machine.h"
 extern Machine* machine;  // user program memory and registers
 extern PageManager* page_manager;
+extern int currentTlb;
 #endif
 
 #ifdef FILESYS_NEEDED 		// FILESYS or FILESYS_STUB 

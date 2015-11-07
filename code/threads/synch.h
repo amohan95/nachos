@@ -23,6 +23,17 @@
 #include "list.h"
 
 #include <deque>
+
+// RAII class that disables interrupts when initialized and restores them when
+// the destructor is called.
+class InterruptSetter {
+ public:
+  InterruptSetter();
+  ~InterruptSetter();
+ private:
+  int old_level_;
+};
+
 // The following class defines a "semaphore" whose value is a non-negative
 // integer.  The semaphore has only two operations P() and V():
 //

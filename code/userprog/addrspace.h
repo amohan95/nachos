@@ -44,6 +44,15 @@ class AddrSpace {
     // Deallocates all pages assigned to the current process.
     void DeallocateAllPages();
 
+    // Copies the values for a virtual page into the TLB and increments the
+    // currentTlb counter.
+    void PopulateTlbEntry(int page_num);
+
+    // Used when a context switch occurs and the address spaces change.
+    // Invalidates all the entries in the TLB, and if there is a dirty page
+    // it propagates this bit to its own page table.
+    void InvalidateTlb();
+
     void SaveState();			// Save/restore address space-specific
     void RestoreState();		// info on a context switch
     Table fileTable;			// Table of openfiles
