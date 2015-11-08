@@ -204,8 +204,6 @@ void AddrSpace::LoadPage(int vpn, int ppn) {
 	pageTable[vpn].use = FALSE;
 	pageTable[vpn].dirty = FALSE;
 	pageTable[vpn].readOnly = FALSE;
-	pageTable[vpn].byteOffset = 0;
-	pageTable[vpn].diskLocation = NEITHER;
 
 	iptLock->Acquire();
 	ipt[ppn].virtualPage = vpn;
@@ -216,7 +214,21 @@ void AddrSpace::LoadPage(int vpn, int ppn) {
 	ipt[ppn].readOnly = FALSE;
 	ipt[ppn].owner = this;
 	iptLock->Release();
+}
 
+void AddrSpace::EvictPage(int ppn) {
+	iptLock->Acquire();
+	int vpn = ipt[ppn].virtualPage;
+	ipt[ppn].valid = FALSE;
+	iptLock->Release();
+	pageTable[vpn].valid = FALSE;
+	if (pageTable[vpn].dirty) {
+		if (pageTable[vpn].byteOffset == -1) {
+			pageTable[vpn].byteOffset = swapFile->Write(ppn);
+		} else {
+			swapFile->Update(ppn, pageTable[vpn].byteOffset);
+		}
+	}
 }
 
 int AddrSpace::AllocateStackPages() {
@@ -282,7 +294,9 @@ void AddrSpace::DeallocateStack() {
     pageTable[i].valid = false;
     page_manager->FreePage(pageTable[i].physicalPage);
 		iptLock->Acquire();
-		ipt[pageTable[i].physicalPage].valid = FALSE;
+		if (ipt[pageTable[i].physicalPage].owner == this) {
+			ipt[pageTable[i].physicalPage].valid = FALSE;
+		}
 		iptLock->Release();
   }
 }
@@ -299,17 +313,23 @@ void AddrSpace::DeallocateAllPages() {
     if (pageTable[i].valid) {
       page_manager->FreePage(pageTable[i].physicalPage);
     }
+		iptLock->Acquire();
+		if (ipt[pageTable[i].physicalPage].owner == this) {
+			ipt[pageTable[i].physicalPage].valid = FALSE;
+		}
+		iptLock->Release();
+
   }
 }
 
-void AddrSpace::PopulateTlbEntry(int page_num) {
-  currentTlb = (++currentTlb) % TLBSize;
-  machine->tlb[currentTlb].virtualPage = pageTable[page_num].virtualPage;
-  machine->tlb[currentTlb].physicalPage = pageTable[page_num].physicalPage;  
-  machine->tlb[currentTlb].valid = pageTable[page_num].valid;
-  machine->tlb[currentTlb].use = pageTable[page_num].use;
-  machine->tlb[currentTlb].dirty = pageTable[page_num].dirty;
-  machine->tlb[currentTlb].readOnly = pageTable[page_num].readOnly;
+void AddrSpace::PopulateTlbEntry(int vpn) {
+  currentTlb = (currentTlb++) % TLBSize;
+  machine->tlb[currentTlb].virtualPage = pageTable[vpn].virtualPage;
+  machine->tlb[currentTlb].physicalPage = pageTable[vpn].physicalPage;
+  machine->tlb[currentTlb].valid = pageTable[vpn].valid;
+  machine->tlb[currentTlb].use = pageTable[vpn].use;
+  machine->tlb[currentTlb].dirty = pageTable[vpn].dirty;
+  machine->tlb[currentTlb].readOnly = pageTable[vpn].readOnly;
 }
 
 void AddrSpace::InvalidateTlb() {
@@ -317,6 +337,12 @@ void AddrSpace::InvalidateTlb() {
     TranslationEntry* tlb_entry = &(machine->tlb[i]);
     if (tlb_entry->valid && tlb_entry->dirty) {
       pageTable[tlb_entry->virtualPage].dirty = true;
+			iptLock->Acquire();
+			if (ipt[tlb_entry->physicalPage].owner == this &&
+					ipt[tlb_entry->physicalPage].virtualPage == tlb_entry->virtualPage) {
+				ipt[tlb_entry->physicalPage].dirty = TRUE;
+			}
+			iptLock->Release();
     }
     tlb_entry->valid = false;
   }

@@ -61,6 +61,7 @@ class AddrSpace {
     int num_pages() { return numPages; }
 
 		void LoadPage(int vpn, int ppn);
+		void EvictPage(int ppn);
  private:
     SwappableTranslationEntry* pageTable;
 		// Assume linear page table translation

@@ -572,48 +572,58 @@ void PrintNum_Syscall(int num) {
 }
 
 int HandleMemoryFull() {
+  DEBUG('v', "No physical pages free, choosing a page to evict.\n");
   int ppn = -1;
   switch (evictionPolicy) {
     case FIFO:
-      for (int i = 0; i < NumPhysPages; ++i) {
-        
-      }
+      // kind of FIFO
+      ppn = page_manager->NextAllocatedPage();
       break;
     case RAND:
+      ppn = rand() % NumPhysPages;
       break;
     default:
       printf("Unknown eviction policy %d.", evictionPolicy);
       break;
   }
+  DEBUG('v', "Evicting page %d.\n", ppn);
+  ipt[ppn].owner->EvictPage(ppn);
   return ppn;
 }
 
 int HandleIPTMiss(int vpn) {
+  DEBUG('v', "IPT miss for virtual page %d.\n", vpn);
   int ppn = page_manager->ObtainFreePage();
-
+  DEBUG('v', "Tried to obtain physical page and got %d.\n", ppn);
   if (ppn == -1) {
     ppn = HandleMemoryFull();
   }
 
   currentThread->space->LoadPage(vpn, ppn);
-
   return ppn;
 }
 
-void HandlePageFault(int vpn) {
-  int page_num = vpn / PageSize;
+void HandlePageFault(int vaddr) {
+  DEBUG('v', "Page fault for virtual address 0x%x.\n", vaddr);
+  int vpn = vaddr / PageSize;
 
   // Set interrupts off for the entire page fault handling process, as per
   // Crowley's instructions.
   InterruptSetter is;
 
   int ppn = -1;
-  // Search IPT
+  for (int i = 0; i < NumPhysPages; ++i){
+    if (ipt[i].owner == currentThread->space && ipt[i].virtualPage == vpn) {
+      ppn = i;
+      break;
+    }
+  }
+  DEBUG('v', "Searched IPT for vpn %d belonging to process 0x%x, found %d\n", vpn, currentThread->space, ppn);
   if (ppn = -1) {
-    ppn = HandleIPTMiss(page_num);
+    ppn = HandleIPTMiss(vpn);
   }
 
-  currentThread->space->PopulateTlbEntry(page_num);
+  currentThread->space->PopulateTlbEntry(vpn);
 }
 
 void ExceptionHandler(ExceptionType which) {

@@ -20,6 +20,8 @@ class PageManager {
   // Frees the page by the index.
   void FreePage(int page_num);
 
+	int NextAllocatedPage();
+
   int num_available_pages() const { return NumPhysPages - num_used_pages_; }
 
  private:
@@ -27,6 +29,7 @@ class PageManager {
   Lock lock_;
   int num_used_pages_;
   BitMap page_map_;
+	int next_page_;
 };
 
 #endif
