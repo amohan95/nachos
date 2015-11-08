@@ -7,6 +7,7 @@
 
 #include "copyright.h"
 #include "system.h"
+#include "../userprog/inverted_translation_entry.h"
 
 // This defines *all* of the global data structures used by Nachos.
 // These are all initialized and de-allocated by this file.
@@ -27,6 +28,12 @@ Lock* conditionTableLock = new Lock("Kernel Condition Table");
 KernelCondition* conditionTable[NUM_SYSTEM_CONDITIONS] = {NULL};
 std::map<AddrSpace*, uint32_t> processThreadTable =
     std::map<AddrSpace*, uint32_t>();
+
+Lock* iptLock = new Lock("Kernel IPT Lock");
+InvertedTranslationEntry ipt[NumPhysPages];
+EvictionPolicy evictionPolicy = FIFO;
+Lock* swapLock = new Lock("Kernel Swap Lock");
+Swap* swapFile = new Swap();
 
 #ifdef FILESYS_NEEDED
 FileSystem  *fileSystem;
@@ -100,7 +107,7 @@ Initialize(int argc, char **argv)
 #endif
 #ifdef NETWORK
     double rely = 1;    // network reliability
-    int netname = 0;    // UNIX socket name
+		int netname = 0;
 #endif
     
     for (argc--, argv++; argc > 0; argc -= argCount, argv += argCount) {
@@ -135,6 +142,7 @@ Initialize(int argc, char **argv)
   } else if (!strcmp(*argv, "-m")) {
       ASSERT(argc > 1);
       netname = atoi(*(argv + 1));
+			machineId = netname;
       argCount = 2;
   }
 #endif

@@ -572,6 +572,20 @@ void PrintNum_Syscall(int num) {
 }
 
 int HandleMemoryFull() {
+  int ppn = -1;
+  switch (evictionPolicy) {
+    case FIFO:
+      for (int i = 0; i < NumPhysPages; ++i) {
+        
+      }
+      break;
+    case RAND:
+      break;
+    default:
+      printf("Unknown eviction policy %d.", evictionPolicy);
+      break;
+  }
+  return ppn;
 }
 
 int HandleIPTMiss(int vpn) {
