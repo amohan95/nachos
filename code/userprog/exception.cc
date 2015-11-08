@@ -280,17 +280,16 @@ void Exec_Syscall(int vaddr, int len) {
   }
 
   OpenFile* executable = fileSystem->Open(name);
-
   if (executable == NULL) {
     printf("Unable to open file %s\n", name);
     return;
   }
+  delete executable;
 
   Thread* thread = new Thread("New Process Thread");
-  thread->space = new AddrSpace(executable);
+  thread->space = new AddrSpace(name);
   thread->stack_vaddr_bottom_ =
       thread->space->num_pages() - divRoundUp(UserStackSize, PageSize);
-  delete executable;
 
   processTableLock->Acquire();
   processThreadTable[thread->space] += 1;
@@ -572,16 +571,33 @@ void PrintNum_Syscall(int num) {
   printf("%d", num);
 }
 
+int HandleMemoryFull() {
+}
+
+int HandleIPTMiss(int vpn) {
+  int ppn = page_manager->ObtainFreePage();
+
+  if (ppn == -1) {
+    ppn = HandleMemoryFull();
+  }
+
+  currentThread->space->LoadPage(vpn, ppn);
+
+  return ppn;
+}
+
 void HandlePageFault(int vpn) {
   int page_num = vpn / PageSize;
 
   // Set interrupts off for the entire page fault handling process, as per
   // Crowley's instructions.
   InterruptSetter is;
-  
+
+  int ppn = -1;
   // Search IPT
-  // Allocate physical memory, if memory is full select page to evict
-  // If the page is dirty, write to swap file
+  if (ppn = -1) {
+    ppn = HandleIPTMiss(page_num);
+  }
 
   currentThread->space->PopulateTlbEntry(page_num);
 }

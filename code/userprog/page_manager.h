@@ -12,14 +12,14 @@ class PageManager {
  public:
   PageManager();
   ~PageManager();
-  
+
   // Gets the next free available physical page. Returns -1 if there is no page
   // available.
   int ObtainFreePage();
 
   // Frees the page by the index.
   void FreePage(int page_num);
-  
+
   int num_available_pages() const { return NumPhysPages - num_used_pages_; }
 
  private:

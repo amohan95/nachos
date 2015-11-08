@@ -146,7 +146,12 @@ main(int argc, char **argv)
 						// start up another nachos
             MailTest(atoi(*(argv + 1)));
             argCount = 2;
-        }
+        } else if (!strcmp(*argv, "-P")) {
+					if (!strcmp(*(argv + 1), "RAND")) {
+						evictionPolicy = RAND;
+					}
+					argCount = 2;
+				}
 #endif // NETWORK
     }
     currentThread->Finish();	// NOTE: if the procedure "main" 

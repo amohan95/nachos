@@ -118,7 +118,7 @@ SwapHeader (NoffHeader *noffH)
 //      constructed set to false.
 //----------------------------------------------------------------------
 
-AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
+AddrSpace::AddrSpace(char* execFile) : fileTable(MaxOpenFiles) {
   NoffHeader noffH;
   int size;
 
@@ -126,6 +126,7 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
   fileTable.Put(0);
   fileTable.Put(0);
 
+	executable = fileSystem->Open(execFile);
   executable->ReadAt((char *)&noffH, sizeof(noffH), 0);
   if ((noffH.noffMagic != NOFFMAGIC) && 
 	(WordToHost(noffH.noffMagic) == NOFFMAGIC))
@@ -143,7 +144,7 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
 				numPages, size);
 
   // first, set up the translation 
-  pageTable = new TranslationEntry[numPages];
+  pageTable = new SwappableTranslationEntry[numPages];
   for (int i = 0; i < numPages; i++) {
   	pageTable[i].virtualPage = i;
   	pageTable[i].physicalPage = page_manager->ObtainFreePage();
@@ -153,12 +154,15 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
   	pageTable[i].readOnly = FALSE;  // if the code segment was entirely on 
 				// a separate page, we could set its 
 				// pages to be read-only
-    
-    if (i < data_code_pages) {
+
+		// Not preloading pages
+    /*if (i < data_code_pages) {
       executable->ReadAt(
         &(machine->mainMemory[pageTable[i].physicalPage * PageSize]),
         PageSize, PageSize * i + 40);
-    }
+    }*/
+		pageTable[i].byteOffset = PageSize * i + 40;
+		pageTable[i].diskLocation = EXECUTABLE;
   }
 }
 
@@ -170,16 +174,35 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
 //  and file tables
 //----------------------------------------------------------------------
 
-AddrSpace::~AddrSpace()
-{
-    delete pageTable;
+AddrSpace::~AddrSpace() {
+	delete [] pageTable;
+	delete executable;
+}
+
+void AddrSpace::LoadPage(int vpn, int ppn) {
+	if (pageTable[vpn].diskLocation == NEITHER) {
+		printf("Shouldn't load page on vpn %d when disk location is NEITHER\n",
+				vpn);
+		return;
+	}
+
+	if (pageTable[vpn].diskLocation == EXECUTABLE) {
+		executable->ReadAt(machine->mainMemory + ppn * PageSize, PageSize,
+			pageTable[vpn].byteOffset);
+	} else {
+		swap->Read(ppn, pageTable[vpn].byteOffset);
+	}
+	pageTable[vpn].valid = TRUE;
+	pageTable[vpn].physicalPage = ppn;
+	pageTable[vpn].byteOffset = 0;
+	pageTable[vpn].diskLocation = NEITHER;
 }
 
 int AddrSpace::AllocateStackPages() {
   int num_new_pages = divRoundUp(UserStackSize, PageSize);
-  
-  TranslationEntry* new_page_table = 
-      new TranslationEntry[numPages + num_new_pages];
+
+  SwappableTranslationEntry* new_page_table =
+		new SwappableTranslationEntry[numPages + num_new_pages];
 
   for (int i = 0; i < numPages; ++i) {
     new_page_table[i].virtualPage = pageTable[i].virtualPage;
@@ -188,9 +211,12 @@ int AddrSpace::AllocateStackPages() {
     new_page_table[i].use = pageTable[i].use;
     new_page_table[i].dirty = pageTable[i].dirty;
     new_page_table[i].readOnly = pageTable[i].readOnly;
+		new_page_table[i].byteOffset = pageTable[i].byteOffset;
+		new_page_table[i].diskLocation = pageTable[i].diskLocation;
   }
+	delete [] pageTable;
 
-  currentThread->stack_vaddr_bottom_ = numPages;
+	currentThread->stack_vaddr_bottom_ = numPages;
 
   for (int i = numPages; i < num_new_pages + numPages; ++i) {
     new_page_table[i].virtualPage = i;
@@ -199,9 +225,9 @@ int AddrSpace::AllocateStackPages() {
     new_page_table[i].use = FALSE;
     new_page_table[i].dirty = FALSE;
     new_page_table[i].readOnly = FALSE;
+		new_page_table[i].byteOffset = 0;
+		new_page_table[i].diskLocation = NEITHER;
   }
-
-  delete [] pageTable;
 
   pageTable = new_page_table;
 
