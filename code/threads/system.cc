@@ -7,6 +7,7 @@
 
 #include "copyright.h"
 #include "system.h"
+#include "string.h"
 
 // This defines *all* of the global data structures used by Nachos.
 // These are all initialized and de-allocated by this file.
@@ -42,6 +43,9 @@ PageManager* page_manager;
 
 #ifdef NETWORK
 PostOffice *postOffice;
+#define CREATE_LOCK 1;
+#define DESTROY_LOCK 2;
+#define ACQUIRE_LOCK 3;
 #endif
 
 

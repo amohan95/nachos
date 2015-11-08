@@ -22,9 +22,131 @@
 #include "network.h"
 #include "post.h"
 #include "interrupt.h"
+#include "string.h"
+#include <sstream>
+#include "deque.h"
+#include "map.h"
+#include "vector.h"
 
+struct Message {
+    PacketHeader packetHdr;
+    MailHeader mailHdr;
+    char * data;
+    Message(PacketHeader p, MailHeader m, char * d) {
+        packetHdr = p;
+        mailHdr = m;
+        data = d;
+    }
+};
+
+struct ServerLock {
+    bool busy;
+    int machineID;
+    int lockID;
+    std::deque<Message> waitQ;
+    ServerLock(int id, int lock_num) {
+        machineID = id;
+        lockID = lock_num;
+        busy = false;
+    }
+    void addToWaitQ(Message m) {
+        waitQ.push_back(m);
+    }
+};
+
+struct ServerCV {
+    int lock;
+    std::deque<Message> waitQ;
+    ServerCV(int lockID) {
+        lock = lockID;
+    }
+};
+
+
+// Server for Project 3 Part 3
 void Server() {
     printf("In server function\n");
+    int currentLock = 0;
+    int currentCV = 0;
+    std::map<std::string, ServerLock> locks;
+    std::vector<ServerCV> cvs;
+
+    for (;;) {
+        // Receive a message
+        PacketHeader outPktHdr, inPktHdr;
+        MailHeader outMailHdr, inMailHdr;
+        outPktHdr.to = inPktHdr.from;
+        outMailHdr.to = inMailHdr.from;
+        char buffer[MaxMailSize];
+        postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
+        printf("Received packet");
+
+        // Parse the message
+        int s;
+        stringstream ss(buffer);
+        ss >> s;
+
+        // Process the message and Send a reply… maybe
+        switch (s) {
+            // Returns the lock ID for the given
+            case 1:
+                printf("Create lock on server starting");
+                std::string lock_name = ss.str();
+                int lockID;
+                if (locks.find(lock_name) != locks.end()) {
+                    lockID = locks.find(lock_name)->second.lockID;
+                } else {
+                    lockID = currentLock;
+                    ServerLock lock(inPktHdr.from, currentLock++);
+                    locks.insert(std::pair<std::string, ServerLock>(lock_name, lock));
+                }
+
+                ss.clear();
+                ss << (lockID);
+                outMailHdr.length = ss.str().length() + 1;
+                char *cstr = new char[ss.str().length() + 1];
+                strcpy(cstr, ss.str().c_str());
+                printf("Create lock on server sending: %s\n", cstr);
+                postOffice->Send(outPktHdr, outMailHdr, cstr);
+                break;
+
+            // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
+            // case 2:
+            //     int lockID;
+            //     ss >> lockID;
+            //     bool isValid = false;
+            //     outMailHdr.length = 2;
+            //     for (std::map<std::string, ServerLock>::iterator it = locks.begin();
+            //             it != locks.end(); ++it) {
+            //         if (it->second.lockID == lockID) {
+            //             ServerLock temp_lock = it->second;
+            //             if (temp_lock->busy) {
+            //                 Message m(outPktHdr, outMailHdr, data);
+            //                 temp_lock->addToWaitQ(m);
+            //             } else {
+            //                 temp_lock->busy = true;
+            //                 postOffice->Send(outPktHdr, outMailHdr, "1");
+            //             }
+            //             isValid = true;
+            //         }
+            //     }
+            //     if (!isValid) {
+            //         postOffice->Send(outPktHdr, outMailHdr, "0");
+            //     }
+            //     break;
+
+            // case 3:
+            // case CREATE_CV:
+            //     ServerCV cv(mailHdr.from);
+            //     cvs.insert(std::pair<int, ServerCV>(currentCV++, cv));
+
+            //     ss.clear();
+            //     ss << (currentCV -1);
+            //     outMailHdr.length = ss.str().length() + 1;
+            //     postOffice->Send(outPktHdr, outMailHdr, ss.str().c_str());
+            //     break;
+        }
+    }
 
     // Then we're done!
     interrupt->Halt();

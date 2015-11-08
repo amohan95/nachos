@@ -5,7 +5,7 @@
 #include "syscall.h"
 
 int main() {
-  OpenFileId fd;
+  /*OpenFileId fd;
   int bytesread;
   char buf[20];
 
@@ -19,5 +19,7 @@ int main() {
     fd = Open("testfile", 8);
     bytesread = Read( buf, 100, fd );
     Write( buf, bytesread, ConsoleOutput );
-    Close(fd);
+    Close(fd);*/
+  int i = CreateLock("Lock", 4);
+  PrintNum(i);
 }

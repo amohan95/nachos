@@ -27,6 +27,7 @@
 #include "../threads/synch.h"
 #include <stdio.h>
 #include <iostream>
+#include <sstream>
 
 using namespace std;
 
@@ -330,25 +331,51 @@ void Yield_Syscall() {
 }
 
 int CreateLock_Syscall(int name, int len) {
-  lockTableLock->Acquire();
-  for (int i = 0; i < NUM_SYSTEM_LOCKS; ++i) {
-    if (lockTable[i] == NULL) {
-      lockTable[i] = new KernelLock();
-      // Allocate memory to store name of lock in kernel memory
-      lockTable[i]->name = new char[len + 1];
-      copyin(name, len, lockTable[i]->name);
-      // printf("0x%x %d %s\n", currentThread->space, i, lockTable[i]->name);
-      lockTable[i]->lock = new Lock(lockTable[i]->name);
-      lockTable[i]->addrSpace = currentThread->space;
-      lockTable[i]->toBeDeleted = false;
-      lockTable[i]->threadsUsing = 0;
-      lockTableLock->Release();
-      return i;
+  #ifdef NETWORK
+    printf("CREATE Lock Syscall Starting\n");
+    char * buffer = new char[len + 1];
+    copyin(name, len, buffer);
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char result[MaxMailSize];
+    stringstream ss("1");
+    ss << " " << buffer;
+    printf("length of lock name: %d\n", ss.str().length() + 1);
+    char *cstr = new char[ss.str().length() + 1];
+    strcpy(cstr, ss.str().c_str());
+    outPktHdr.to = 0;
+    outMailHdr.to = 0;
+    outMailHdr.from = 1;
+    outMailHdr.length = ss.str().length() + 1;
+    postOffice->Send(outPktHdr, outMailHdr, cstr);
+    postOffice->Receive(1, &inPktHdr, &inMailHdr, result);
+    ss.clear();
+    ss << result;
+    int lockID;
+    ss >> lockID;
+    printf("CREATE Lock Syscall Receive lockID: %d\n", lockID);
+    return lockID;
+  #else
+    lockTableLock->Acquire();
+    for (int i = 0; i < NUM_SYSTEM_LOCKS; ++i) {
+      if (lockTable[i] == NULL) {
+        lockTable[i] = new KernelLock();
+        // Allocate memory to store name of lock in kernel memory
+        lockTable[i]->name = new char[len + 1];
+        copyin(name, len, lockTable[i]->name);
+        // printf("0x%x %d %s\n", currentThread->space, i, lockTable[i]->name);
+        lockTable[i]->lock = new Lock(lockTable[i]->name);
+        lockTable[i]->addrSpace = currentThread->space;
+        lockTable[i]->toBeDeleted = false;
+        lockTable[i]->threadsUsing = 0;
+        lockTableLock->Release();
+        return i;
+      }
     }
-  }
-  // Didn't find any available entries in system lock table
-  lockTableLock->Release();
-  return UNSUCCESSFUL_SYSCALL;
+    // Didn't find any available entries in system lock table
+    lockTableLock->Release();
+    return UNSUCCESSFUL_SYSCALL;
+  #endif
 }
 
 int DestroyLock_Syscall(int lock) {
