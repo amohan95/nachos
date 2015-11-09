@@ -598,7 +598,7 @@ int HandleIPTMiss(int vpn) {
   if (ppn == -1) {
     ppn = HandleMemoryFull();
   }
-
+  DEBUG('v', "Loading physical page %d as virtual page %d.\n", ppn, vpn);
   currentThread->space->LoadPage(vpn, ppn);
   return ppn;
 }
@@ -619,7 +619,7 @@ void HandlePageFault(int vaddr) {
     }
   }
   DEBUG('v', "Searched IPT for vpn %d belonging to process 0x%x, found %d\n", vpn, currentThread->space, ppn);
-  if (ppn = -1) {
+  if (ppn == -1) {
     ppn = HandleIPTMiss(vpn);
   }
 

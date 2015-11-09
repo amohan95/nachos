@@ -116,7 +116,7 @@ SwapHeader (NoffHeader *noffH)
 //      and being unable to read key parts of the executable.
 //      Incompletely consretucted address spaces have the member
 //      constructed set to false.
-//----------------------------------------------------------------------
+//----------------------------------------------------------------------N
 
 AddrSpace::AddrSpace(char* execFile) : fileTable(MaxOpenFiles) {
   NoffHeader noffH;
@@ -147,27 +147,16 @@ AddrSpace::AddrSpace(char* execFile) : fileTable(MaxOpenFiles) {
   pageTable = new SwappableTranslationEntry[numPages];
   for (int i = 0; i < numPages; i++) {
 		pageTable[i].virtualPage = i;
-		pageTable[i].physicalPage = page_manager->ObtainFreePage();
+		pageTable[i].physicalPage = -1;
 		pageTable[i].valid = FALSE;
 		pageTable[i].use = FALSE;
 		pageTable[i].dirty = FALSE;
 		pageTable[i].readOnly = FALSE;  // if the code segment was entirely on 
 				// a separate page, we could set its 
 				// pages to be read-only
-
 		pageTable[i].byteOffset = PageSize * i + 40;
 		pageTable[i].diskLocation = EXECUTABLE;
-
-		iptLock->Acquire();
-		ipt[pageTable[i].physicalPage].virtualPage = i;
-		ipt[pageTable[i].physicalPage].physicalPage = pageTable[i].physicalPage;
-		ipt[pageTable[i].physicalPage].valid = FALSE;
-		ipt[pageTable[i].physicalPage].use = FALSE;
-		ipt[pageTable[i].physicalPage].dirty = FALSE;
-		ipt[pageTable[i].physicalPage].readOnly = FALSE;
-		ipt[pageTable[i].physicalPage].owner = this;
-		iptLock->Release();
-  }
+	}
 }
 
 
@@ -185,16 +174,20 @@ AddrSpace::~AddrSpace() {
 
 void AddrSpace::LoadPage(int vpn, int ppn) {
 	if (pageTable[vpn].diskLocation == NEITHER) {
-		printf("Shouldn't load page on vpn %d when disk location is NEITHER\n",
+		printf("Shouldn't load page on vpn %d when disk location is NEITHER.\n",
 				vpn);
 		return;
 	}
 
 	if (pageTable[vpn].diskLocation == EXECUTABLE) {
+		DEBUG('v', "Reading page from from executable 0x%x to physical page %d.\n",
+				pageTable[vpn].byteOffset, ppn);
 		executable->ReadAt(machine->mainMemory + ppn * PageSize, PageSize,
 			pageTable[vpn].byteOffset);
 	} else {
 		swapLock->Acquire();
+		DEBUG('v', "Reading page from swap 0x%x to physical page %d.\n",
+				pageTable[vpn].byteOffset, ppn);
 		swapFile->Read(ppn, pageTable[vpn].byteOffset);
 		swapLock->Release();
 	}
@@ -222,12 +215,26 @@ void AddrSpace::EvictPage(int ppn) {
 	ipt[ppn].valid = FALSE;
 	iptLock->Release();
 	pageTable[vpn].valid = FALSE;
+	for (int i = 0; i < TLBSize; ++i) {
+		if (machine->tlb[i].physicalPage == ppn) {
+			DEBUG('v', "Invalidating TLB entry %d.\n", i);
+			machine->tlb[i].valid = FALSE;
+			pageTable[vpn].dirty = machine->tlb[i].dirty;
+			break;
+		}
+	}
 	if (pageTable[vpn].dirty) {
 		if (pageTable[vpn].byteOffset == -1) {
+			DEBUG('v', "Writing physical page %d to swap file.\n", ppn);
 			pageTable[vpn].byteOffset = swapFile->Write(ppn);
+			DEBUG('v', "Virtual page %d for process 0x%x at 0x%x in swap file.\n",
+					vpn, this, pageTable[vpn].byteOffset);
 		} else {
+			DEBUG('v', "Updating virtual page %d as physical page %d in swap file.\n",
+					vpn, ppn);
 			swapFile->Update(ppn, pageTable[vpn].byteOffset);
 		}
+		pageTable[vpn].diskLocation = SWAP;
 	}
 }
 
@@ -253,24 +260,13 @@ int AddrSpace::AllocateStackPages() {
 
   for (int i = numPages; i < num_new_pages + numPages; ++i) {
     new_page_table[i].virtualPage = i;
-    new_page_table[i].physicalPage = page_manager->ObtainFreePage();
-    new_page_table[i].valid = TRUE;
+    new_page_table[i].physicalPage = -1;
+    new_page_table[i].valid = FALSE;
     new_page_table[i].use = FALSE;
     new_page_table[i].dirty = FALSE;
     new_page_table[i].readOnly = FALSE;
 		new_page_table[i].byteOffset = 0;
 		new_page_table[i].diskLocation = NEITHER;
-
-		iptLock->Acquire();
-		ipt[new_page_table[i].physicalPage].virtualPage = i;
-		ipt[new_page_table[i].physicalPage].physicalPage = new_page_table[i].physicalPage;
-		ipt[new_page_table[i].physicalPage].valid = TRUE;
-		ipt[new_page_table[i].physicalPage].use = FALSE;
-		ipt[new_page_table[i].physicalPage].dirty = FALSE;
-		ipt[new_page_table[i].physicalPage].readOnly = FALSE;
-		ipt[new_page_table[i].physicalPage].owner = this;
-		iptLock->Release();
-
   }
 
   pageTable = new_page_table;
@@ -323,13 +319,13 @@ void AddrSpace::DeallocateAllPages() {
 }
 
 void AddrSpace::PopulateTlbEntry(int vpn) {
-  currentTlb = (currentTlb++) % TLBSize;
   machine->tlb[currentTlb].virtualPage = pageTable[vpn].virtualPage;
   machine->tlb[currentTlb].physicalPage = pageTable[vpn].physicalPage;
   machine->tlb[currentTlb].valid = pageTable[vpn].valid;
   machine->tlb[currentTlb].use = pageTable[vpn].use;
   machine->tlb[currentTlb].dirty = pageTable[vpn].dirty;
   machine->tlb[currentTlb].readOnly = pageTable[vpn].readOnly;
+	currentTlb = (currentTlb + 1) % TLBSize;
 }
 
 void AddrSpace::InvalidateTlb() {
