@@ -20,6 +20,17 @@ int main() {
     bytesread = Read( buf, 100, fd );
     Write( buf, bytesread, ConsoleOutput );
     Close(fd);*/
+  int status;
   int i = CreateLock("Lock", 4);
   PrintNum(i);
+  Print("\n", 1);
+  status = Acquire(i);
+  Print("Acquire: ", 9);
+  PrintNum(status);
+  Print("\n", 1);
+  status = Release(i);
+  PrintNum(status);
+  Print("\n", 1);
+  DestroyLock(i);
+  Exit(0);
 }

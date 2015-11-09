@@ -22,6 +22,7 @@
 #include "network.h"
 #include "post.h"
 #include "interrupt.h"
+#include "../network/network_utility.h"
 #include "string.h"
 #include "deque.h"
 #include "map.h"
@@ -45,11 +46,13 @@ struct ServerLock {
     bool busy;
     int machineID;
     int lockID;
+    bool toBeDeleted;
     std::deque<Message> waitQ;
-    ServerLock(int id, int lock_num) {
-        machineID = id;
+    ServerLock(int lock_num) {
+        machineID = -1;
         lockID = lock_num;
         busy = false;
+        toBeDeleted = false;
     }
     void addToWaitQ(Message m) {
         waitQ.push_back(m);
@@ -78,11 +81,11 @@ void Server() {
         PacketHeader outPktHdr, inPktHdr;
         MailHeader outMailHdr, inMailHdr;
         char buffer[MaxMailSize];
-        postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
+        postOffice->Receive(SERVER_MAILBOX, &inPktHdr, &inMailHdr, buffer);
 
         outPktHdr.to = inPktHdr.from;
         outMailHdr.to = inMailHdr.from;
-        outMailHdr.from = 0;
+        outMailHdr.from = SERVER_MAILBOX;
 
         printf("Received packet\n");
 
@@ -95,7 +98,7 @@ void Server() {
         // Process the message and Send a reply… maybe
         switch (s) {
             // Returns the lock ID for the given
-            case 1:
+            case CREATE_LOCK: {
                 printf("Create lock on server starting\n");
                 std::string lock_name = ss.str();
                 int lockID;
@@ -103,7 +106,7 @@ void Server() {
                     lockID = locks.find(lock_name)->second.lockID;
                 } else {
                     lockID = currentLock;
-                    ServerLock lock(inPktHdr.from, currentLock++);
+                    ServerLock lock(currentLock++);
                     locks.insert(std::pair<std::string, ServerLock>(lock_name, lock));
                 }
                 ss.str("");
@@ -115,31 +118,109 @@ void Server() {
                 printf("Create lock on server sending: %s\n", cstr);
                 postOffice->Send(outPktHdr, outMailHdr, cstr);
                 break;
-
+            }
             // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
-            // case 2:
-            //     int lockID;
-            //     ss >> lockID;
-            //     bool isValid = false;
-            //     outMailHdr.length = 2;
-            //     for (std::map<std::string, ServerLock>::iterator it = locks.begin();
-            //             it != locks.end(); ++it) {
-            //         if (it->second.lockID == lockID) {
-            //             ServerLock temp_lock = it->second;
-            //             if (temp_lock->busy) {
-            //                 Message m(outPktHdr, outMailHdr, data);
-            //                 temp_lock->addToWaitQ(m);
-            //             } else {
-            //                 temp_lock->busy = true;
-            //                 postOffice->Send(outPktHdr, outMailHdr, "1");
-            //             }
-            //             isValid = true;
-            //         }
-            //     }
-            //     if (!isValid) {
-            //         postOffice->Send(outPktHdr, outMailHdr, "0");
-            //     }
-            //     break;
+            case ACQUIRE_LOCK: {
+                printf("Acquiring lock on server starting\n");
+                int lockID;
+                ss >> lockID;
+                bool isValid = false;
+                outMailHdr.length = 2;
+                for (std::map<std::string, ServerLock>::iterator it = locks.begin();
+                        it != locks.end(); ++it) {
+                    if (it->second.lockID == lockID) {
+                        ServerLock *temp_lock = &(it->second);
+                        isValid = true;
+                        if (temp_lock->busy) {
+                            printf("Found lock and busy\n");
+                            Message m(outPktHdr, outMailHdr, "1");
+                            temp_lock->addToWaitQ(m);
+                        } else {
+                            printf("Found lock and not busy\n");
+                            temp_lock->busy = true;
+                            temp_lock->machineID = inPktHdr.from;
+                            postOffice->Send(outPktHdr, outMailHdr, "1");
+                        }
+                        break;
+                    }
+                }
+                if (!isValid) {
+                    printf("Couldn't find lock\n");
+                    postOffice->Send(outPktHdr, outMailHdr, "0");
+                }
+                break;
+            }
+            // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
+            case RELEASE_LOCK: {
+                printf("Releasing lock on server starting\n");
+                int lockID;
+                ss >> lockID;
+                bool isValid = false;
+                outMailHdr.length = 2;
+                for (std::map<std::string, ServerLock>::iterator it = locks.begin();
+                        it != locks.end(); ++it) {
+                    if (it->second.lockID == lockID) {
+                        ServerLock* temp_lock = &(it->second);
+                        if (temp_lock->machineID != inPktHdr.from) {
+                            printf("Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
+                            break;
+                        }
+                        isValid = true;
+                        if (!temp_lock->waitQ.empty()) {
+                            printf("Releasing from waitQ\n");
+                            Message m = temp_lock->waitQ.front();
+                            temp_lock->waitQ.pop_front();
+                            temp_lock->machineID = m.packetHdr.to;
+                            postOffice->Send(outPktHdr, outMailHdr, "1");
+                            postOffice->Send(m.packetHdr, m.mailHdr, m.data);
+                        } else {
+                            printf("Releasing no waitQ\n");
+                            temp_lock->busy = false;
+                            temp_lock->machineID = -1;
+                            if (temp_lock->toBeDeleted) {
+                                locks.erase(it);
+                            }
+                            postOffice->Send(outPktHdr, outMailHdr, "1");
+                        }
+                        break;
+                    }
+                }
+                if (!isValid) {
+                    printf("Couldn't find lock\n");
+                    postOffice->Send(outPktHdr, outMailHdr, "0");
+                }
+                break;
+            }
+            // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
+            case DESTROY_LOCK: {
+                printf("Destroying lock on server starting\n");
+                int lockID;
+                ss >> lockID;
+                bool isValid = false;
+                outMailHdr.length = 2;
+                for (std::map<std::string, ServerLock>::iterator it = locks.begin();
+                        it != locks.end(); ++it) {
+                    if (it->second.lockID == lockID) {
+                        ServerLock* temp_lock = &(it->second);
+                        isValid = true;
+                        if (temp_lock->busy) {
+                            printf("In use so, marking for deletion\n");
+                            temp_lock->toBeDeleted = true;
+                            postOffice->Send(outPktHdr, outMailHdr, "1");
+                        } else {
+                            printf("Successfully deleted\n");
+                            locks.erase(it);
+                            postOffice->Send(outPktHdr, outMailHdr, "1");
+                        }
+                        break;
+                    }
+                }
+                if (!isValid) {
+                    printf("Couldn't find lock\n");
+                    postOffice->Send(outPktHdr, outMailHdr, "0");
+                }
+                break;
+            }
 
             // case 3:
             // case CREATE_CV:

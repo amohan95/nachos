@@ -25,6 +25,7 @@
 #include "../threads/system.h"
 #include "syscall.h"
 #include "../threads/synch.h"
+#include "../network/network_utility.h"
 #include <stdio.h>
 #include <iostream>
 #include <sstream>
@@ -103,6 +104,22 @@ void Create_Syscall(unsigned int vaddr, int len) {
   delete[] buf;
   return;
 }
+
+#ifdef NETWORK
+void out_header_init(PacketHeader & pktHdr, MailHeader & mailHdr, int size) {
+  pktHdr.to = SERVER_MAILBOX;
+  mailHdr.to = SERVER_MAILBOX;
+  mailHdr.from = CLIENT_MAILBOX;
+  mailHdr.length = size + 1;
+}
+
+char* string_2_c_str(string s) {
+  char *cstr = new char[s.length() + 1];
+  strcpy(cstr, s.c_str());
+  return cstr;
+}
+#endif
+
 
 int Open_Syscall(unsigned int vaddr, int len) {
   // Open the file with the name in the user buffer pointed to by
@@ -338,16 +355,13 @@ int CreateLock_Syscall(int name, int len) {
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
     char result[MaxMailSize];
+
     stringstream ss;
-    ss << "1 " << buffer;
-    char *cstr = new char[ss.str().length() + 1];
-    strcpy(cstr, ss.str().c_str());
-    outPktHdr.to = 0;
-    outMailHdr.to = 0;
-    outMailHdr.from = 1;
-    outMailHdr.length = ss.str().length() + 1;
-    postOffice->Send(outPktHdr, outMailHdr, cstr);
-    postOffice->Receive(1, &inPktHdr, &inMailHdr, result);
+    ss << CREATE_LOCK << " " << buffer;
+    out_header_init(outPktHdr, outMailHdr, ss.str().length());
+    postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
     ss.str("");
     ss.clear();
     ss << result;
@@ -379,30 +393,54 @@ int CreateLock_Syscall(int name, int len) {
 }
 
 int DestroyLock_Syscall(int lock) {
-  lockTableLock->Acquire();
-  // Lock must:
-  //   - be a valid index in the system lock table
-  //   - be allocated
-  //   - not marked for deletion already
-  //   - owned by the current process
-  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
-      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
-      || lockTable[lock]->addrSpace != currentThread->space) {
+  #ifdef NETWORK
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char result[MaxMailSize];
+
+    stringstream ss;
+    ss << DESTROY_LOCK << " " << lock;
+    out_header_init(outPktHdr, outMailHdr, ss.str().length());
+    postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    ss.str("");
+    ss.clear();
+    ss << result;
+    int result_val;
+    ss >> result_val;
+    if (result_val == 0) {
+      return UNSUCCESSFUL_SYSCALL;
+    } else {
+      printf("Successfully destroyed lock in syscall\n");
+      return result_val;
+    }
+  #else
+    lockTableLock->Acquire();
+    // Lock must:
+    //   - be a valid index in the system lock table
+    //   - be allocated
+    //   - not marked for deletion already
+    //   - owned by the current process
+    if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+        || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+        || lockTable[lock]->addrSpace != currentThread->space) {
+      lockTableLock->Release();
+      return UNSUCCESSFUL_SYSCALL;
+    }
+    if (lockTable[lock]->threadsUsing == 0) {
+      // Deallocate since no more threads are using lock
+      delete lockTable[lock]->lock;
+      delete [] lockTable[lock]->name;
+      delete lockTable[lock];
+      lockTable[lock] = NULL;
+    } else {
+      // Mark for deletion when no longer in use
+      lockTable[lock]->toBeDeleted = true;
+    }
     lockTableLock->Release();
-    return UNSUCCESSFUL_SYSCALL;
-  }
-  if (lockTable[lock]->threadsUsing == 0) {
-    // Deallocate since no more threads are using lock
-    delete lockTable[lock]->lock;
-    delete [] lockTable[lock]->name;
-    delete lockTable[lock];
-    lockTable[lock] = NULL;
-  } else {
-    // Mark for deletion when no longer in use
-    lockTable[lock]->toBeDeleted = true;
-  }
-  lockTableLock->Release();
-  return 0;
+    return 0;
+  #endif
 }
 
 int CreateCondition_Syscall(int name, int len) {
@@ -445,38 +483,87 @@ int DestroyCondition_Syscall(int cv) {
 }
 
 int Acquire_Syscall(int lock) {
-  lockTableLock->Acquire();
-  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
-      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
-      || lockTable[lock]->addrSpace != currentThread->space) {
+  #ifdef NETWORK
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char result[MaxMailSize];
+
+    stringstream ss;
+    ss << ACQUIRE_LOCK << " " << lock;
+    out_header_init(outPktHdr, outMailHdr, ss.str().length());
+    postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    ss.str("");
+    ss.clear();
+    ss << result;
+    int result_val;
+    ss >> result_val;
+    if (result_val == 0) {
+      return UNSUCCESSFUL_SYSCALL;
+    } else {
+      printf("Successfully acquired lock in syscall\n");
+      return result_val;
+    }
+
+  #else
+    lockTableLock->Acquire();
+    if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+        || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+        || lockTable[lock]->addrSpace != currentThread->space) {
+      lockTableLock->Release();
+      return UNSUCCESSFUL_SYSCALL;
+    }
+    int threadsUsing = ++lockTable[lock]->threadsUsing;
     lockTableLock->Release();
-    return UNSUCCESSFUL_SYSCALL;
-  }
-  int threadsUsing = ++lockTable[lock]->threadsUsing;
-  lockTableLock->Release();
-  lockTable[lock]->lock->Acquire();
-  return threadsUsing;
+    lockTable[lock]->lock->Acquire();
+    return threadsUsing;
+  #endif
 }
 
 int Release_Syscall(int lock) {
-  lockTableLock->Acquire();
-  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
-      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
-      || lockTable[lock]->addrSpace != currentThread->space) {
+  #ifdef NETWORK
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char result[MaxMailSize];
+
+    stringstream ss;
+    ss << RELEASE_LOCK << " " << lock;
+    out_header_init(outPktHdr, outMailHdr, ss.str().length());
+    postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    ss.str("");
+    ss.clear();
+    ss << result;
+    int result_val;
+    ss >> result_val;
+    if (result_val == 0) {
+      return UNSUCCESSFUL_SYSCALL;
+    } else {
+      printf("Successfully released lock in syscall\n");
+      return result_val;
+    }
+  #else
+    lockTableLock->Acquire();
+    if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+        || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+        || lockTable[lock]->addrSpace != currentThread->space) {
+      lockTableLock->Release();
+      return UNSUCCESSFUL_SYSCALL;
+    }
+    lockTable[lock]->lock->Release();
+    int threadsUsing = --lockTable[lock]->threadsUsing;
+    if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
+      // Deallocate if marked for deletion and no more threads using it
+      delete lockTable[lock]->lock;
+      delete [] lockTable[lock]->name;
+      delete lockTable[lock];
+      lockTable[lock] = NULL;
+    }
     lockTableLock->Release();
-    return UNSUCCESSFUL_SYSCALL;
-  }
-  lockTable[lock]->lock->Release();
-  int threadsUsing = --lockTable[lock]->threadsUsing;
-  if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
-    // Deallocate if marked for deletion and no more threads using it
-    delete lockTable[lock]->lock;
-    delete [] lockTable[lock]->name;
-    delete lockTable[lock];
-    lockTable[lock] = NULL;
-  }
-  lockTableLock->Release();
-  return threadsUsing;
+    return threadsUsing;
+  #endif
 }
 
 int Wait_Syscall(int cv, int lock) {
