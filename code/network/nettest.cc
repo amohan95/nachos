@@ -23,10 +23,12 @@
 #include "post.h"
 #include "interrupt.h"
 #include "string.h"
-#include <sstream>
 #include "deque.h"
 #include "map.h"
 #include "vector.h"
+
+#include <sstream>
+#include <iostream>
 
 struct Message {
     PacketHeader packetHdr;
@@ -77,21 +79,24 @@ void Server() {
         MailHeader outMailHdr, inMailHdr;
         char buffer[MaxMailSize];
         postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
-        printf("Received packet");
+
         outPktHdr.to = inPktHdr.from;
         outMailHdr.to = inMailHdr.from;
         outMailHdr.from = 0;
 
+        printf("Received packet\n");
+
         // Parse the message
         int s;
         stringstream ss(buffer);
+        std::cout << buffer << std::endl;
         ss >> s;
 
         // Process the message and Send a reply… maybe
         switch (s) {
             // Returns the lock ID for the given
             case 1:
-                printf("Create lock on server starting");
+                printf("Create lock on server starting\n");
                 std::string lock_name = ss.str();
                 int lockID;
                 if (locks.find(lock_name) != locks.end()) {
@@ -101,7 +106,7 @@ void Server() {
                     ServerLock lock(inPktHdr.from, currentLock++);
                     locks.insert(std::pair<std::string, ServerLock>(lock_name, lock));
                 }
-
+                ss.str("");
                 ss.clear();
                 ss << (lockID);
                 outMailHdr.length = ss.str().length() + 1;

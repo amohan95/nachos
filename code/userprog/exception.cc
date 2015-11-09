@@ -338,9 +338,8 @@ int CreateLock_Syscall(int name, int len) {
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
     char result[MaxMailSize];
-    stringstream ss("1");
-    ss << " " << buffer;
-    printf("length of lock name: %d\n", ss.str().length() + 1);
+    stringstream ss;
+    ss << "1 " << buffer;
     char *cstr = new char[ss.str().length() + 1];
     strcpy(cstr, ss.str().c_str());
     outPktHdr.to = 0;
@@ -349,6 +348,7 @@ int CreateLock_Syscall(int name, int len) {
     outMailHdr.length = ss.str().length() + 1;
     postOffice->Send(outPktHdr, outMailHdr, cstr);
     postOffice->Receive(1, &inPktHdr, &inMailHdr, result);
+    ss.str("");
     ss.clear();
     ss << result;
     int lockID;
