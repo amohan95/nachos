@@ -75,11 +75,12 @@ void Server() {
         // Receive a message
         PacketHeader outPktHdr, inPktHdr;
         MailHeader outMailHdr, inMailHdr;
-        outPktHdr.to = inPktHdr.from;
-        outMailHdr.to = inMailHdr.from;
         char buffer[MaxMailSize];
         postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
         printf("Received packet");
+        outPktHdr.to = inPktHdr.from;
+        outMailHdr.to = inMailHdr.from;
+        outMailHdr.from = 0;
 
         // Parse the message
         int s;
