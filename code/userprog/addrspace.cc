@@ -173,18 +173,12 @@ AddrSpace::~AddrSpace() {
 }
 
 void AddrSpace::LoadPage(int vpn, int ppn) {
-	if (pageTable[vpn].diskLocation == NEITHER) {
-		printf("Shouldn't load page on vpn %d when disk location is NEITHER.\n",
-				vpn);
-		return;
-	}
-
 	if (pageTable[vpn].diskLocation == EXECUTABLE) {
 		DEBUG('v', "Reading page from from executable 0x%x to physical page %d.\n",
 				pageTable[vpn].byteOffset, ppn);
 		executable->ReadAt(machine->mainMemory + ppn * PageSize, PageSize,
 			pageTable[vpn].byteOffset);
-	} else {
+	} else if (pageTable[vpn].diskLocation == SWAP) {
 		swapLock->Acquire();
 		DEBUG('v', "Reading page from swap 0x%x to physical page %d.\n",
 				pageTable[vpn].byteOffset, ppn);
@@ -290,8 +284,10 @@ void AddrSpace::DeallocateStack() {
         entry->valid = false;
       }
     }
+    if (pageTable[i].valid) {
+      page_manager->FreePage(pageTable[i].physicalPage);
+    }
     pageTable[i].valid = false;
-    page_manager->FreePage(pageTable[i].physicalPage);
 		iptLock->Acquire();
 		if (ipt[pageTable[i].physicalPage].owner == this) {
 			ipt[pageTable[i].physicalPage].valid = FALSE;
@@ -317,7 +313,6 @@ void AddrSpace::DeallocateAllPages() {
 			ipt[pageTable[i].physicalPage].valid = FALSE;
 		}
 		iptLock->Release();
-
   }
 }
 
