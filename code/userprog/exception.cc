@@ -613,7 +613,8 @@ void HandlePageFault(int vaddr) {
 
   int ppn = -1;
   for (int i = 0; i < NumPhysPages; ++i){
-    if (ipt[i].owner == currentThread->space && ipt[i].virtualPage == vpn) {
+    if (ipt[i].owner == currentThread->space && ipt[i].valid &&
+        ipt[i].virtualPage == vpn) {
       ppn = i;
       break;
     }

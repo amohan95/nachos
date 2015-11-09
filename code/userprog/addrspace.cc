@@ -215,6 +215,7 @@ void AddrSpace::EvictPage(int ppn) {
 	ipt[ppn].valid = FALSE;
 	iptLock->Release();
 	pageTable[vpn].valid = FALSE;
+	pageTable[vpn].dirty = ipt[ppn].dirty;
 	for (int i = 0; i < TLBSize; ++i) {
 		if (machine->tlb[i].physicalPage == ppn) {
 			DEBUG('v', "Invalidating TLB entry %d.\n", i);
@@ -224,7 +225,8 @@ void AddrSpace::EvictPage(int ppn) {
 		}
 	}
 	if (pageTable[vpn].dirty) {
-		if (pageTable[vpn].byteOffset == -1) {
+		if (pageTable[vpn].diskLocation == EXECUTABLE ||
+				pageTable[vpn].byteOffset == -1) {
 			DEBUG('v', "Writing physical page %d to swap file.\n", ppn);
 			pageTable[vpn].byteOffset = swapFile->Write(ppn);
 			DEBUG('v', "Virtual page %d for process 0x%x at 0x%x in swap file.\n",
@@ -235,6 +237,7 @@ void AddrSpace::EvictPage(int ppn) {
 			swapFile->Update(ppn, pageTable[vpn].byteOffset);
 		}
 		pageTable[vpn].diskLocation = SWAP;
+		pageTable[vpn].physicalPage = -1;
 	}
 }
 
@@ -265,7 +268,7 @@ int AddrSpace::AllocateStackPages() {
     new_page_table[i].use = FALSE;
     new_page_table[i].dirty = FALSE;
     new_page_table[i].readOnly = FALSE;
-		new_page_table[i].byteOffset = 0;
+		new_page_table[i].byteOffset = -1;
 		new_page_table[i].diskLocation = NEITHER;
   }
 
@@ -319,6 +322,15 @@ void AddrSpace::DeallocateAllPages() {
 }
 
 void AddrSpace::PopulateTlbEntry(int vpn) {
+	DEBUG('v', "Overwriting %s physical page %d in TLB with virtual page %d.\n",
+			(machine->tlb[currentTlb].dirty ? "dirty" : "clean"),
+			machine->tlb[currentTlb].physicalPage, vpn);
+	iptLock->Acquire();
+	ipt[machine->tlb[currentTlb].physicalPage].dirty =
+		machine->tlb[currentTlb].dirty;
+	iptLock->Release();
+	pageTable[machine->tlb[currentTlb].virtualPage].dirty =
+		machine->tlb[currentTlb].dirty;
   machine->tlb[currentTlb].virtualPage = pageTable[vpn].virtualPage;
   machine->tlb[currentTlb].physicalPage = pageTable[vpn].physicalPage;
   machine->tlb[currentTlb].valid = pageTable[vpn].valid;
