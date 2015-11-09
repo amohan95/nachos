@@ -21,16 +21,17 @@ int main() {
     Write( buf, bytesread, ConsoleOutput );
     Close(fd);*/
   int status;
+  int j;
   int i = CreateLock("Lock", 4);
   PrintNum(i);
   Print("\n", 1);
+  j = CreateCondition("CV", 2);
   status = Acquire(i);
   Print("Acquire: ", 9);
   PrintNum(status);
   Print("\n", 1);
-  status = Release(i);
-  PrintNum(status);
-  Print("\n", 1);
-  DestroyLock(i);
+  Signal(j, i);
+  Print("Returned from signal", 18);
+  Release(i);
   Exit(0);
 }

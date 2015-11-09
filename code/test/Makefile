@@ -101,5 +101,11 @@ system_test_exec: system_test_exec.o start.o
 	$(LD) $(LDFLAGS) start.o system_test_exec.o -o system_test_exec.coff
 	../bin/coff2noff system_test_exec.coff system_test_exec
 
+exec_test.o: print_tests.c
+	$(CC) $(CFLAGS) -c print_tests.c
+exec_test: print_tests.o start.o
+	$(LD) $(LDFLAGS) start.o print_tests.o -o print_tests.coff
+	../bin/coff2noff print_tests.coff print_tests
+
 clean:
 	rm -f *.o *.coff

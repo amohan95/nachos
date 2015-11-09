@@ -444,22 +444,45 @@ int DestroyLock_Syscall(int lock) {
 }
 
 int CreateCondition_Syscall(int name, int len) {
-  conditionTableLock->Acquire();
-  for (int i = 0; i < NUM_SYSTEM_CONDITIONS; ++i) {
-    if (conditionTable[i] == NULL) {
-      conditionTable[i] = new KernelCondition();
-      conditionTable[i]->name = new char[len];
-      copyin(name, len, conditionTable[i]->name);
-      conditionTable[i]->condition = new Condition(conditionTable[i]->name);
-      conditionTable[i]->addrSpace = currentThread->space;
-      conditionTable[i]->toBeDeleted = false;
-      conditionTable[i]->threadsUsing = 0;
-      conditionTableLock->Release();
-      return i;
+  #ifdef NETWORK
+    printf("CREATE CV Syscall Starting\n");
+    char * buffer = new char[len + 1];
+    copyin(name, len, buffer);
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char result[MaxMailSize];
+
+    stringstream ss;
+    ss << CREATE_CV << " " << buffer;
+    out_header_init(outPktHdr, outMailHdr, ss.str().length());
+    postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    ss.str("");
+    ss.clear();
+    ss << result;
+    int cvID;
+    ss >> cvID;
+    printf("CREATE CV Syscall Receive cvID: %d\n", cvID);
+    return cvID;
+  #else
+    conditionTableLock->Acquire();
+    for (int i = 0; i < NUM_SYSTEM_CONDITIONS; ++i) {
+      if (conditionTable[i] == NULL) {
+        conditionTable[i] = new KernelCondition();
+        conditionTable[i]->name = new char[len];
+        copyin(name, len, conditionTable[i]->name);
+        conditionTable[i]->condition = new Condition(conditionTable[i]->name);
+        conditionTable[i]->addrSpace = currentThread->space;
+        conditionTable[i]->toBeDeleted = false;
+        conditionTable[i]->threadsUsing = 0;
+        conditionTableLock->Release();
+        return i;
+      }
     }
-  }
-  conditionTableLock->Release();
-  return UNSUCCESSFUL_SYSCALL;
+    conditionTableLock->Release();
+    return UNSUCCESSFUL_SYSCALL;
+  #endif
 }
 
 int DestroyCondition_Syscall(int cv) {
@@ -567,99 +590,174 @@ int Release_Syscall(int lock) {
 }
 
 int Wait_Syscall(int cv, int lock) {
-  conditionTableLock->Acquire();
-  if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
-      || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
-      || conditionTable[cv]->addrSpace != currentThread->space) {
+  #ifdef NETWORK
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char result[MaxMailSize];
+
+    stringstream ss;
+    ss << WAIT_CV << " " << cv << " " << lock;
+    out_header_init(outPktHdr, outMailHdr, ss.str().length());
+    postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    ss.str("");
+    ss.clear();
+    ss << result;
+    int result_val;
+    ss >> result_val;
+    if (result_val == 0) {
+      return UNSUCCESSFUL_SYSCALL;
+    } else {
+      printf("Successfully waited on cv in syscall\n");
+      return result_val;
+    }
+
+  #else
+    conditionTableLock->Acquire();
+    if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
+        || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
+        || conditionTable[cv]->addrSpace != currentThread->space) {
+      conditionTableLock->Release();
+      return UNSUCCESSFUL_SYSCALL;
+    }
+    if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+        || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+        || lockTable[lock]->addrSpace != currentThread->space) {
+      conditionTableLock->Release();
+      return UNSUCCESSFUL_SYSCALL;
+    }
+    int threadsUsing = ++conditionTable[cv]->threadsUsing;
     conditionTableLock->Release();
-    return UNSUCCESSFUL_SYSCALL;
-  }
-  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
-      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
-      || lockTable[lock]->addrSpace != currentThread->space) {
-    conditionTableLock->Release();
-    return UNSUCCESSFUL_SYSCALL;
-  }
-  int threadsUsing = ++conditionTable[cv]->threadsUsing;
-  conditionTableLock->Release();
-  lockTableLock->Acquire();
-  // Need to increment number of threads using lock as well,
-  //   because we cannot allow lock to be deallocated while
-  //   condition is still using it
-  ++lockTable[lock]->threadsUsing;
-  lockTableLock->Release();
-  conditionTable[cv]->condition->Wait(lockTable[lock]->lock);
-  return threadsUsing;
+    lockTableLock->Acquire();
+    // Need to increment number of threads using lock as well,
+    //   because we cannot allow lock to be deallocated while
+    //   condition is still using it
+    ++lockTable[lock]->threadsUsing;
+    lockTableLock->Release();
+    conditionTable[cv]->condition->Wait(lockTable[lock]->lock);
+    return threadsUsing;
+  #endif
 }
 
 int Signal_Syscall(int cv, int lock) {
-  conditionTableLock->Acquire();
-  if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
-      || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
-      || conditionTable[cv]->addrSpace != currentThread->space) {
-    return UNSUCCESSFUL_SYSCALL;
-  }
-  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
-      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
-      || lockTable[lock]->addrSpace != currentThread->space) {
-    return UNSUCCESSFUL_SYSCALL;
-  }
-  int threadsUsing = --conditionTable[cv]->threadsUsing;
-  conditionTable[cv]->condition->Signal(lockTable[lock]->lock);
-  if (conditionTable[cv]->threadsUsing == 0 && conditionTable[cv]->toBeDeleted) {
-    delete conditionTable[cv]->condition;
-    delete [] conditionTable[cv]->name;
-    delete conditionTable[cv];
-    conditionTable[cv] = NULL;
-  }
-  conditionTableLock->Release();
-  lockTableLock->Acquire();
-  --lockTable[lock]->threadsUsing;
-  if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
-    delete lockTable[lock]->lock;
-    delete [] lockTable[lock]->name;
-    delete lockTable[lock];
-    lockTable[lock] = NULL;
-  }
-  lockTableLock->Release();
-  return threadsUsing;
+  #ifdef NETWORK
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char result[MaxMailSize];
+
+    stringstream ss;
+    ss << SIGNAL_CV << " " << cv << " " << lock;
+    out_header_init(outPktHdr, outMailHdr, ss.str().length());
+    postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    ss.str("");
+    ss.clear();
+    ss << result;
+    int result_val;
+    ss >> result_val;
+    if (result_val == 0) {
+      return UNSUCCESSFUL_SYSCALL;
+    } else {
+      printf("Successfully signalled on cv in syscall\n");
+      return result_val;
+    }
+
+  #else
+    conditionTableLock->Acquire();
+    if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
+        || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
+        || conditionTable[cv]->addrSpace != currentThread->space) {
+      return UNSUCCESSFUL_SYSCALL;
+    }
+    if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+        || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+        || lockTable[lock]->addrSpace != currentThread->space) {
+      return UNSUCCESSFUL_SYSCALL;
+    }
+    int threadsUsing = --conditionTable[cv]->threadsUsing;
+    conditionTable[cv]->condition->Signal(lockTable[lock]->lock);
+    if (conditionTable[cv]->threadsUsing == 0 && conditionTable[cv]->toBeDeleted) {
+      delete conditionTable[cv]->condition;
+      delete [] conditionTable[cv]->name;
+      delete conditionTable[cv];
+      conditionTable[cv] = NULL;
+    }
+    conditionTableLock->Release();
+    lockTableLock->Acquire();
+    --lockTable[lock]->threadsUsing;
+    if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
+      delete lockTable[lock]->lock;
+      delete [] lockTable[lock]->name;
+      delete lockTable[lock];
+      lockTable[lock] = NULL;
+    }
+    lockTableLock->Release();
+    return threadsUsing;
+  #endif
 }
 
 int Broadcast_Syscall(int cv, int lock) {
-  conditionTableLock->Acquire();
-  if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
-      || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
-      || conditionTable[cv]->addrSpace != currentThread->space) {
-    return UNSUCCESSFUL_SYSCALL;
-  }
-  if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
-      || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
-      || lockTable[lock]->addrSpace != currentThread->space) {
-    return UNSUCCESSFUL_SYSCALL;
-  }
-  int formerThreadsUsing = conditionTable[cv]->threadsUsing;
-  conditionTable[cv]->threadsUsing = 0;
-  conditionTable[cv]->condition->Broadcast(lockTable[lock]->lock);
-  if (conditionTable[cv]->toBeDeleted) {
-    delete conditionTable[cv]->condition;
-    delete [] conditionTable[cv]->name;
-    delete conditionTable[cv];
-    conditionTable[cv] = NULL;
-  }
-  conditionTableLock->Release();
-  lockTableLock->Acquire();
-  // Lock might be in use by other threads not related to this condition,
-  //   so we must be careful to only decrement by number of threads that were using
-  //   condition
-  lockTable[lock]->threadsUsing -= formerThreadsUsing;
-  if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
-    delete lockTable[lock]->lock;
-    delete [] lockTable[lock]->name;
-    delete lockTable[lock];
-    lockTable[lock] = NULL;
-  }
-  lockTableLock->Release();
-  return 0;
+  #ifdef NETWORK
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char result[MaxMailSize];
+
+    stringstream ss;
+    ss << BROADCAST_CV << " " << cv << " " << lock;
+    out_header_init(outPktHdr, outMailHdr, ss.str().length());
+    postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    ss.str("");
+    ss.clear();
+    ss << result;
+    int result_val;
+    ss >> result_val;
+    if (result_val == 0) {
+      return UNSUCCESSFUL_SYSCALL;
+    } else {
+      printf("Successfully broadcasted on cv in syscall\n");
+      return result_val;
+    }
+
+  #else
+    conditionTableLock->Acquire();
+    if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
+        || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
+        || conditionTable[cv]->addrSpace != currentThread->space) {
+      return UNSUCCESSFUL_SYSCALL;
+    }
+    if (lock < 0 || lock >= NUM_SYSTEM_LOCKS
+        || lockTable[lock] == NULL || lockTable[lock]->toBeDeleted
+        || lockTable[lock]->addrSpace != currentThread->space) {
+      return UNSUCCESSFUL_SYSCALL;
+    }
+    int formerThreadsUsing = conditionTable[cv]->threadsUsing;
+    conditionTable[cv]->threadsUsing = 0;
+    conditionTable[cv]->condition->Broadcast(lockTable[lock]->lock);
+    if (conditionTable[cv]->toBeDeleted) {
+      delete conditionTable[cv]->condition;
+      delete [] conditionTable[cv]->name;
+      delete conditionTable[cv];
+      conditionTable[cv] = NULL;
+    }
+    conditionTableLock->Release();
+    lockTableLock->Acquire();
+    // Lock might be in use by other threads not related to this condition,
+    //   so we must be careful to only decrement by number of threads that were using
+    //   condition
+    lockTable[lock]->threadsUsing -= formerThreadsUsing;
+    if (lockTable[lock]->threadsUsing == 0 && lockTable[lock]->toBeDeleted) {
+      delete lockTable[lock]->lock;
+      delete [] lockTable[lock]->name;
+      delete lockTable[lock];
+      lockTable[lock] = NULL;
+    }
+    lockTableLock->Release();
+    return 0;
+  #endif
 }
 
 int Rand_Syscall() {
