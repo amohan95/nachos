@@ -116,6 +116,7 @@ main(int argc, char **argv)
 	    interrupt->Halt();		// once we start the console, then 
 					// Nachos will loop forever waiting 
 					// for console input
+
 	}
 #endif // USER_PROGRAM
 #ifdef FILESYS
@@ -149,11 +150,6 @@ main(int argc, char **argv)
             argCount = 2;
         } else if (!strcmp(*argv, "-server")) {
           Server();
-        } else if (!strcmp(*argv, "-P")) {
-					if (!strcmp(*(argv + 1), "RAND")) {
-						evictionPolicy = RAND;
-					}
-					argCount = 2;
 				}
 #endif // NETWORK
     }
