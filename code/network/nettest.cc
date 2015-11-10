@@ -90,6 +90,7 @@ void Server() {
     DEBUG('Z', "In server function\n");
     int currentLock = 0;
     int currentCV = 0;
+    int currentMV = 0;
     std::map<int, ServerLock> locks;
     std::map<int, ServerCV> cvs;
     std::map<int, ServerMV> mvs;
@@ -444,11 +445,11 @@ void Server() {
                 ss >> index;
                 ss >> value;
                 outMailHdr.length = 2;
-                if (mvs.find(cvID) != mvs.end() && mvs.find(cvID)->second.value.size() > index) {
-                    (mvs.find(mvID)->second)->value[index] = value;
+                if (mvs.find(mvID) != mvs.end() && mvs.find(mvID)->second.value.size() > index) {
+                    (mvs.find(mvID)->second).value[index] = value;
                     postOffice->Send(outPktHdr, outMailHdr, "1");
                 } else {
-                    DEBUG('Z', "Couldn't find cv or index is out of range\n");
+                    DEBUG('Z', "Couldn't find mv or index is out of range\n");
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }
                 break;
@@ -459,16 +460,16 @@ void Server() {
                 int mvID, index;
                 ss >> mvID;
                 ss >> index;
-                if (mvs.find(cvID) != mvs.end() && mvs.find(cvID)->second.value.size() > index) {
+                if (mvs.find(mvID) != mvs.end() && mvs.find(mvID)->second.value.size() > index) {
                     ss.str("");
                     ss.clear();
-                    ss << "1 " << (mvs.find(mvID)->second)->value[index];
+                    ss << "1 " << (mvs.find(mvID)->second).value[index];
                     char *cstr = new char[ss.str().length() + 1];
                     strcpy(cstr, ss.str().c_str());
                      outMailHdr.length = ss.str().length() + 1;
                     postOffice->Send(outPktHdr, outMailHdr, cstr);
                 } else {
-                    DEBUG('Z', "Couldn't find cv or index is out of range\n");
+                    DEBUG('Z', "Couldn't find mv or index is out of range\n");
                     outMailHdr.length = 2;
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }

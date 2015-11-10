@@ -1009,11 +1009,11 @@ void ExceptionHandler(ExceptionType which) {
         break;
       case SC_GetMonitor:
         DEBUG('s', "Get monitor variable syscall.\n");
-        rv = GetMonitor_Syscall(machine->ReadRegister(4));
+        rv = GetMonitor_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
         break; 
       case SC_SetMonitor:
         DEBUG('s', "Set monitor variable syscall.\n");
-        v = SetMonitor_Syscall(machine->ReadRegister(4), machine->ReadRegister(5),
+        rv = SetMonitor_Syscall(machine->ReadRegister(4), machine->ReadRegister(5),
             machine->ReadRegister(6));
         break;
       case SC_DestroyMonitor:
