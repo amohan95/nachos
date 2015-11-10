@@ -51,6 +51,7 @@ int currentTlb;
 
 #ifdef NETWORK
 PostOffice *postOffice;
+int machineId = 0;
 #endif
 
 
