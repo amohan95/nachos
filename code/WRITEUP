@@ -1,227 +1,268 @@
-Title:  Writeup for Project 2, Fall 2015
-Date:  10/18/15
+Title:  Writeup for Project 3, Fall 2015
+Date:  11/09/15
 Group 16:     Name                        Email
               Rochelle (Shelly) Willard   rwillard@usc.edu
               Ananth Mohan                   ananthmo@usc.edu
               Matthew Burke                  matthelb@usc.edu
 
 I. Requirements:
-Part 1: Implement the following system calls for NACHOS user programs: Fork, Exec, Exit, Yield, CreateLock, DestroyLock, CreateCondition, DestroyCondition, Acquire, Release, Wait, Signal, Broadcast. All system calls must validate arguments properly so that the operating system doesn't crash when a user program uses the system calls incorrectly.
+Part 1: Use a cache for virtual address translation by enabling and populating the translation lookaside buffer (TLB) for nachos.
 
-Part 2: Implement multiprogramming including the allocation of physical memory, copying data to/from the kernel from/to the user’s virtual address space, and completing the Fork and Exec system calls.
+Part 2: Implement virtual memory by creating an inverted page table and using a swap file.
 
-Part 3: Implement the passport office simulation as a nachos user program using the system calls created in part 1 and 2.
+Part 3: Implement implement remote procedure calls for the lock, condition variables, and monitor variable system calls.
 
 II. Assumptions:
 Part 1:
-All user programs will not need more than NUM_SYSTEM_LOCKS = 100 locks and NUM_SYSTEM_CONDITIONS = 100 conditions. These constants can be modified to support user programs that may need more locks or conditions.
-The operating system should halt if all user programs have exited.
+The size of the TLB remains fixed at 4 entries. Additionally, the TLB uses a FIFO policy for replacement/eviction of pages (cycling through the entries sequentially). Finally, on every process switch (not necessarily a thread context switch), all the entries in the TLB are invalidated.
 
 Part 2:
-If the amount of pages requested for a user program exceeds the amount of pages left for the operating system to allocate, then Nachos will print an error and halt the machine. Additionally, 8192 pages of physical memory are made available by setting NumPhysPages to 8192 in machine.h.
+If the amount of pages requested for a user program exceeds the amount of pages available in the swap file, the program will fail to run. The number of pages available in the swap file is 10,000 (defined in userprog/swap.h)
 
-Part 3: All assumptions made were consistent with assumptions made in Project 1.
+Part 3: 
+Server machine ID is always 0 and user programs are only single threaded processes.
 
 III. Design:
 
 Part 1:
+- Use the already existing TLB to populate entries.
+- On a PageFaultException, find or obtain a physical page for the requested virtual address, and set the physical page number, virtual page number, and dirty bits of the next-to-replace entry in the TLB, thereby overwriting it.
+- On every context switch to a thread with a different address space, invalidate all the entries in the TLB so that pages are not incorrectly accessed when they are for a different process.
+- Dirty bits are propagated to the IPT and page table for the process whenever a valid entry is evicted from the TLB.
 
-System calls: Implemented in userprog/exception.cc. userprog/syscall.h, and test/start.s.
-- Exit: A count of the number threads for a process is maintained by the Exec and Exit system calls. Exit decrements the number of threads for the current process. If the current process is the last process running on the operating system and has no more threads running, the operating system is halted. Additionally, Exit deallocates the stack pages for any thread that finishes and will deallocate all the pages for an address space if it is the last thread in a process.
-- Yield: The current thread yields execution in the CPU.
-- CreateLock: A new lock is allocated by the operating system for use by the current process and stored in an operating system lock table. If no entries are available in the table, the system call returns unsuccessfully.
-- DestroyLock: Deallocates the specified lock if there are no threads currently using the lock. Otherwise, the lock is marked to be deleted when all threads are finished using it. This syscall fails if the current process is not the owner of the lock.
-- CreateCondition: A new condition is allocated by the operating system for use by the current process and stored in an operating system condition table. If no entries are available in the table, the system call returns unsuccessfully.
-- DestroyCondition: Deallocates the specified condition if there are no threads currently using the condition. Otherwise, the condition is marked to be deleted when all threads are finished using it. This syscall fails if the current process is not the owner of the condition.
-- Acquire: Acquires the specified lock and increments the number of threads using the lock. This syscall fails if the current process is not the owner of the lock.
-- Release: Releases the specified lock and decrements the number of threads using the lock. If the lock is to be deleted and no more threads are using it, the lock is deallocated. This syscall fails if the current process is not the owner of the lock.
-- Wait: Waits on the specified condition and increments the number of threads using the condition and lock. This syscall fails if the current process is not the owner of the condition and lock.
-- Signal: Signals the specified condition and decrements the number of threads using the condition and lock. This syscall fails if the current process is not the owner of the condition and the lock. If the lock or condition are to be deleted and no more threads are using the lock or condition, they are deallocated. This syscall fails if the current process is not the owner of the condition and lock.
-- Broadcast: Broadcasts to the specified condition, clears the number of threads using the condition and decreases the number of threads using the lock by the number of threads that were using the condition. If the lock or condition are to be deleted and no more threads are using the lock or condition, they are deallocated. This syscall fails if the current process is not the owner of the condition and lock.
-
-Part 2: 
-
-Create a processThreadTable that maps address spaces to the number of threads in that process.  In addition there will be a lock that controls access to the processThreadTable.
-
-Create a PageManager class to organize memory page assignment to processes.  This class will use a bitmap to determine whether or not a page is free and a lock to ensure modification by only one process at a time.  In addition it will support the following functions:
-- ObtainFreePage:  Find a free page and return the physical page number and increments the number of used pages.  Otherwise return -1.
-- FreePage: Frees the physical page number that is passed in and decrements the number of used pages.
-- num_available_pages: Returns the number of free physical pages.
-
-Modify AddrSpace to properly allocate pages for a given process.
-- Modify the constructor of AddrSpace to read the executable into memory and allocate the appropriate number of stack pages properly.  Change the assignment of the physical page number in pageTable to make a call to the PageManager to get a free page.
-- AllocateStackPages: Add more stack pages to the current process (used for forking a new thread within a process) and adjust pageTable and numPages appropriately.
-- DeallocateStack: Deallocates the stack pages for a given thread within a process.
-- DeallocateAllPages: Deallocates all pages used for a given process.
-
-Exec Syscall: Create a new thread and address space for the process.  Set the stack address for the thread appropriately and increment the processThreadTable entry by 1.  Then call fork on the currentThread, initialize the registers, reset the pageTable, and run the userprogram.
-
-Fork Syscall: Create a new thread and set the address space to the correct address space for the process.  Increment the entry in the processThreadTable by 1. Then call fork on the currentThread, initialize the registers, reset the pageTable, and run the userprogram.
+Part 2:
+Inverted page table
+- Implemented as an array of InvertableTranslationEntry. The index in the array represents the physical page and the value represents a virtual page/address space pairing.
+- Used to keep track of which physical memory pages are mapped to which virtual pages for a particular process. This information is used to determine whether or not a new page needs to be obtained or if an old page needs to be evicted.
+- Populated when a free physical page is allocated to a virtual page for a process or when a physical page is evicted and swapped (or loaded from executable) with a virtual page for a process
+Swap file
+- Allows physical memory pages to be stored on the disk when they are not currently needed by the OS. 
+- Populated when a physical page needs to be evicted from main memory to make room for another page. 
+- Freed when a process exits and virtual pages for the process are stored in swap file.
+- Eviction of physical pages to swap file can happen in FIFO order or by randomly choosing a page to swap. This is specified with the -P arguments on the command line (values are FIFO or RAND; no value or an invalid value will default to FIFO).
 
 Part 3:
- 
-Reimplement passport office using system calls and C.
-System calls.  Replace all locks and condition variables with ints to hold the number corresponding to the condition and lock.  Replace all instantiations with calls to CreateLock and CreateCondition.  Create Destroy functions for each entity (i.e. clerk, customer, etc) that call DestroyLock or DestroyCondition appropriately for each lock/condition in the entity.  Replace calls to release, acquire, broadcast, signal, and wait with the appropriate system call.
-Change classes to structs while maintaining the functionality of their member functions and make appropriate changes to translate from C++ to C.  Remove inheritance in clerks and customer/senator. Remove class structure of the passport_office.
-Implement print and print number system calls in order support print statements.
-Rewrite memcpy to remove error of can’t find memcpy.
+Server
+- Implement a server to receive messages from the client using the post office class send/receive to communicate to the clients.
+- Designed to perform one request at a time.  Reads the first part of message to figure operation to be performed and performs that operation.
+- Stores locks, condition variables, and monitor variables as separate maps indexed by their id.
+- Stores counts for next index to be used.
+Client
+- Implement locks, condition variables, and monitor variables as clients that communicate with the server.
+- Verifies arguments passed, sends request to server and waits for response.
 
 IV. Implementation:
 + Files Modified
 userprog/exception.cc
-userprog/syscall.h
+userprog/addrspace.cc
+userprog/addrspace.h
+machine/machine.h
+network/nettest.cc
 test/start.s
 threads/system.cc
 threads/system.h
+userprog/syscall.h
 + Files added
-test/simulation.c
-test/system_test.c
-test/system_test_exec.c
+network/network_utility.h
+test/matmult_virtual_mem_test.c
+test/sort_virtual_mem_test.c
+userprog/inverted_translation_entry.h
+userprog/swappable_translation_entry.h
+userprog/swap.cc
+userprog/swap.h
 
 + Data Structures added, and the file they were added to.
-struct KernelLock {             -- in file threads/system.h
-  Lock* lock;
-  AddrSpace* addrSpace;
-  bool toBeDeleted;
-  uint32_t threadsUsing;
-  char* name;
+class InvertableTranslationEntry : public TranslationEntry {-- in file userprog/invertable_translation_entry.h
+  public:
+    AddrSpace* owner;
 };
 
-struct KernelCondition {       -- in file threads/system.h
-  Condition* condition;
-  AddrSpace* addrSpace;
-  bool toBeDeleted;
-  uint32_t threadsUsing;
-  char* name;
+enum DiskLocation { -- in file userprog/swappable_translation_entry.h
+  NEITHER = 0,
+  EXECUTABLE,
+  SWAP,
+  NUM_DISK_LOCATIONS
+};
+
+class SwappableTranslationEntry : public TranslationEntry {-- in file userprog/swappable_translation_entry.h
+  public:
+    int byteOffset;
+    DiskLocation diskLocation;
+};
+
+// network/netttest.cc
+struct Message {
+    PacketHeader packetHdr;
+    MailHeader mailHdr;
+    char * data;
+};
+
+struct ServerLock {
+    bool busy;
+    int machineID;
+    std::string name;
+    bool toBeDeleted;
+    std::deque<Message> waitQ;
+};
+
+struct ServerCV {
+    int lockID;
+    std::string name;
+    bool toBeDeleted;
+    std::deque<Message> waitQ;
+};
+
+struct ServerMV {
+    std::vector<int> value;
+    std::string name;
 };
 
 + Data Structures modified, and the file they were added to.
 
 + Functions added and in which file.
-userprog/syscall.h, test/start.s, and userprog/exception.cc
-// Allocates a new system lock with the specified name
-//   Returns the index in the lock table of the new lock
-int CreateLock(char* name, int len);
+userprog/exception.cc
+// Looks for the location of the virtual address in physical memory and places it in the TLB
+//   by searching the IPT. Calls HandleIPTMiss if cannot locate virtual page in IPT
+void HandlePageFault(int vaddr);
 
-// Deallocates the system lock at the specified index in the lock table
-//   Returns 0 on success
-int DestroyLock(int lock);
+// Assigns the specified virtual page to a physical page. If the physical page is already in use
+//   the physical page is evicted from memory
+int HandleIPTMiss(int vpn);
 
-// Allocates a new system condition with the specified name
-//   Returns the index in the condition table of the new condition
-int CreateCondition(char* name, int len);
+// Evicts a page from physical memory and returns the index of the evicted page
+int HandleMemoryFull();
 
-// Deallocates the sytem condition at the specified index in the condition table
-//   Returns 0 on success
-int DestroyCondition(int cv);
+userprog/swap.h, userprog/swap.cc
+// Writes the specified physical page to a page in the swap file and returns the index of
+//   the swap page
+int Swap::Write(int ppn);
 
-// Acquires the system lock at the specified index in the lock table
-//   Returns the number of threads currently using the lock, after acquire
-int Acquire(int lock);
+// Writes the specified physical page to the specified byte offset in the swap file
+void Swap::Update(int ppn, int offset);
 
-// Releases the system lock at the specified index in the lock table
-//   Returns the number of threads currently using the lock, after release
-int Release(int lock);
+// Reads a page from the specified byte offset in the swap file to the specified
+//   physical page in memory
+void Swap::Read(int ppn, int offset);
 
-// Waits on the system condition at the specified index in the condition table
-//   with the system lock at the specified index in the lock table
-//   Returns the number of threads currently using the condition, after wait
-int Wait(int cv, int lock);
+// Frees the specified byte offset in the swap file for use by another process
+void Swap::Free(int offset);
 
-// Signals the system condition at the specified index in the condition table
-//   with the system lock at the specified index in the lock table
-//   Returns the number of threads currently using the condition, after signal
-int Signal(int cv, int lock);
+userprog/addrspace.h, userprog/addrspace.cc
+// Loads the specified virtual page for the current process into the specified physical page
+//   Updates the IPT and PT with the new information
+void AddrSpace::LoadPage(int vpn, int ppn);
 
-// Broadcasts to the system condition at the specified index in the condition table
-//   with the system lock at the specified index in the lock table
-//   Returns the number of threads currently using the condition, after broadcast
-int Broadcast(int cv, int lock);
+// Removes the specified physical page from memory. Saves page to swap file if page is dirty.
+//   MUST be called by the AddrSpace which currently owns the specified physical page
+//   Updates the IPT and PT with the new information
+//   Invalidates the physical page in the TLB if the physical page is in the TLB
+void AddrSpace::EvictPage(int ppn);
 
-// Print the string of length len. 
-void Print(char* string, int len);
+userprog/exception.cc
+// Syscall to create a monitor variable with the given name of length len and array size arr_size.
+int CreateMonitor(char* name, int len, int arr_size);
 
-// Print the number with value num.
-void PrintNum(int num);
+// Syscall to set the monitor variable mv to value at the given index.
+int SetMonitor(int mv, int index, int value);
 
-userprog/addrspace.h
-// Adds new stack pages to a thread for Forking. This copies over the memory
-// from the old page table and adds eight more pages of stack. Returns -1
-// if there are not enough pages available to allocate stack. Otherwise,
-// it returns the starting position of the new stack for the thread.
-int AllocateStackPages();
+// Syscall to get the monitor variable mv’s value at the given index.
+int GetMonitor(int mv, int index);
 
-// Deallocates the stack assigned to the current thread.
-void DeallocateStack();
+// Syscall to destroy the monitor variable with the given id mv.
+int DestroyMonitor(int mv);
 
-// Deallocates all pages assigned to the current process.
-void DeallocateAllPages();
+network/nettest.cc
+// Runs the server code needed for the remote procedure calls.
+void Server() ;
 
 + Functions modified and in which file.
-userprog/exception.cc && userprog/syscall.h
-// This user program is done (status = 0 means exited normally).
-void Exit(int status);
+userprog/exception.cc
+// Added case for PageFaultException, CreateMonitor, SetMonitor, GetMonitor, and DestroyMonitor to switch statement
+void ExceptionHandler(ExceptionType which);
 
-// Yield the CPU to another runnable thread, whether in this address space or not.
-void Yield();
+// Changed to be remote procedure call.
+int CreateLock(char* name, int len);
 
-// Execute the process at the given filename.
-void Exec_Syscall(int vaddr, int len);
+// Changed to be remote procedure call.
+int DestroyLock(int lock);
 
-// Fork a thread in the given process.
-void Fork_Syscall(int vaddr);
+// Changed to be remote procedure call.
+int CreateCondition(char* name, int len);
 
-userprog/addrspace.h
-// Modified constructor to properly allocate pages for a given process.
-AddrSpace(OpenFile *executable);
+// Changed to be remote procedure call.
+int DestroyCondition(int cv);
 
-***For details on Passport Office Simulation Functions and Classes see Project 1 writeup.  All functionality defined in that writeup was reimplemented in C for this assignment in test/simulation.c***
+// Changed to be remote procedure call.
+int Acquire(int lock);
+
+// Changed to be remote procedure call.
+int Release(int lock);
+
+// Changed to be remote procedure call.
+int Wait(int cv, int lock);
+
+// Changed to be remote procedure call.
+int Signal(int cv, int lock);
+
+// Changed to be remote procedure call.
+int Broadcast(int cv, int lo
+
+userprog/addrspace.h, userprog/addrspace.cc
+// Modified constructor to allow pages to be allocated on demand instead of at initialization
+//   Also keeps a handle to the executable file until termination
+AddrSpace::AddrSpace(char *executableFile);
+
+// Modified destructor to close handle to executable file on termination
+AddrSpace::~AddrSpace();
+
+// Modified allocation of stack pages to allow pages to be allocated on demand
+void AddrSpace::AllocateStackPages();
+
+// Modified deallocation of pages to only free page if it is currently allocated for the process
+void AddrSpace::DeallocateAllPages();
+
+// Modified deallocation of pages to only free page if it is currently allocated for the process
+void AddrSpace::DeallocateStack();
 
 V. Testing:  (For each test case, you must show)
-+ How to test
-- cd userprog
++ How to test Part 1/2
+- cd vm
 - gmake
 - cd ../test
 - gmake
-- ../userprog/nachos -x lock_tests
-- ../userprog/nachos -x condition_tests
-- ../userprog/nachos -x print_tests
-- ../userprog/nachos -x thread_tests
-- ../userprog/nachos -x exec_test
-- ../userprog/nachos -x system_test_exec
+- ../vm/nachos -x matmult_virtual_mem_test
+- ../vm/nachos -x sort_virtual_mem_test
 + Test Output
-- CreateLock Basic Test: The output should show a single line of SUCCESS indicating that the CreateLock syscall successfully returned a valid index in the system lock table.
-- CreateLock Too Many Test: The output should show a single line of SUCCESS indicating that the CreateLock syscall returned unsuccessfully when trying to create a lock without any space in the system lock table.
-- DestroyLock Basic Test: The output should show a single line of SUCCESS indicating that the DestroyLock syscall succesfully returned 0 after deallocating the lock.
-- DestroyLock Invalid Argument Test: The output should show three lines of SUCCESS indicating that the DestroyLock syscall returned unsuccessfully when asked to deallocate indices less than 0, greater than the number of entries in the system lock table, and not owned by the current process.
-- Acquire/Release Basic Test: The output should show five lines of SUCCESS indicating that the Acquire/Release syscalls returned successfully when passed a lock owned by the current thread and that the Acquire/Release syscalls work as intended so that sections of code can be made mutually exclusive across multiple threads.
-- Acquire Invalid Argument Test: The output should show three lines of SUCCESS indicating that the Acquire syscall returned unsuccessfully when asked to acquire indices less than 0, greater than the number of entries in the system lock table, and not owned by the current process.
-- Release Invalid Argument Test: The output should show three lines of SUCCESS indicating that the Release syscall returned unsuccessfully when asked to release indices less than 0, greater than the number of entries in the system lock table, and not owned by the current process.
-- CreateCondition Basic Test: The output should show a single line of SUCCESS indicating that the CreateCondition syscall successfully returned a valid index in the system condition table.
-- CreateCondition Too Many Test: The output should show a single line of SUCCESS indicating that the CreateCondition syscall returned unsuccessfully when trying to create a condition without any space in the system condition table.
-- DestroyCondition Basic Test: The output should show a single line of SUCCESS indicating that the DestroyCondition syscall succesfully returned 0 after deallocating the condition.
-- DestroyCondition Invalid Argument Test: The output should show three lines of SUCCESS indicating that the DestroyCondition syscall returned unsuccessfully when asked to deallocate indices less than 0, greater than the number of entries in the system condition table, and not owned by the current process.
-- Wait/Signal Basic Test: The output should show that the main thread waits for the forked thread to signal it before exiting.
-- Wait/Broadcast Basic Test: The output should show that the forked threads are all signalled by the main thread when broadcast is called.
-- Wait Invalid Argument Test: The output should show three lines of SUCCESS indicating that the Wait syscall returned unsuccessfully when asked to wait on indices less than 0, greater than the number of entries in the system lock table or system condition table, and not owned by the current process.
-- Signal Invalid Argument Test: The output should show three lines of SUCCESS indicating that the Signal syscall returned unsuccessfully when asked to signal indices less than 0, greater than the number of entries in the system lock table or system condition table, and not owned by the current process.
-- Broadcast Invalid Argument Test: The output should show three lines of SUCCESS indicating that the Broadcast syscall returned unsuccessfully when asked to broadcast to indices less than 0, greater than the number of entries in the system lock table or system condition table, and not owned by the current process.
-- Wait/Signal/Broadcast Use After Destroyed Test: The output should show three lines of SUCCESS indicating that the Wait, Signal, and Broadcast system calls return unsuccessfully when asked to wait/signal/broadcast indices not owned by the current process (ie indices already destroyed).
+- matmult_virtual_mem_test: Expected output is the value of the static matrix multiplication for 2 separate processes. This should look like “72207220”.
+- sort_virtual_mem_test: Expected output is the value of the static sort for 2 separate processes. This should look like “10231023”.  *Note this test can take ~3 minutes to run*
 
-Print Tests Expected Output:
-hello
-hello1
-3
-1000
++ How to test Part 3: Lock and Condition
+- cd userprog
+- gmake depend
+- gmake
+- cd ../test
+- gmake
+- cd ../network
+- gmake depend
+- gmake
+- nachos -server -m 0 
+- nachos -m 1 -x ../test/conditiontest1
+- nachos -m 2 -x ../test/conditiontest2
++ Test Output
+- Either use separate terminal windows or place ‘&’ at the end of a command to run the process in the background.
+- Condition tests 1 & 2 test operations of lock and condition to make sure that resources are shared across user programs.  Condition test 1 calls wait on a cv.  Condition test 2 signals on that same cv. (Must be run in the order stated above.  Condition test 1 will not complete until condition test 2 is run.  You can run with the “-d R” to see additional debug output as desired.  Both programs should run to completion.
 
-- Thread Test: Tests functionality of Fork and locking. Uses a shared data variable to check if data can be accessed by threads in same process, and uses a lock to guarantee no data races occur. The result from the test should be that the shared data value should be 2.
-- Exec Test: Exec’s the Thread Test user program twice. The result should be printing two sets of the output. The two programs should have separate memory, so the data value should be 2 at the end of both.
-
-- System Test: Running the system test executes three concurrent passport offices with the same parameters (i.e., same number of Customers, Senators, and Clerks). Inspecting the output will show that each passport office simulation completes and runs independently of each other.
++ How to test Part 3: Monitor Variables
+- cd network
+- gmake
+- nachos -server -m 0  
+- nachos -m 1 -x ../test/monitortest
++ Test Output
+- Monitor test tests all operations of monitor variable.  Creates a monitor variable of size 2, sets the values and retrieves them, and then destroys the monitor variable.
 
 VI. Discussion:
-+ Experiment expectation: Multiple user programs run to completion.
-+ Experiment result: Multiple user programs run to completion.
++ Experiment expectation: Multiple user programs run to completion.  Locks, CVs, and MVs can be shared across processes.
++ Experiment result: Multiple user programs run to completion.  Locks, CVs, and MVs can be shared across processes.
 + Explanation: It works.  Check program output as validation.
 
 VIII. Miscellaneous:

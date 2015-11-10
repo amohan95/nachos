@@ -33,7 +33,8 @@ CFLAGS = -G 0 -c $(INCDIR)
 
 all: halt matmult sort testfiles thread_tests exec_test lock_tests \
 		 condition_tests system_test system_test_exec \
-     matmult_virtual_mem_test sort_virtual_mem_test
+     matmult_virtual_mem_test sort_virtual_mem_test \
+     monitortest conditiontest1 conditiontest2
 
 start.o: start.s ../userprog/syscall.h
 	$(CPP) $(CPPFLAGS) start.s > strt.s
@@ -115,6 +116,31 @@ system_test_exec.o: system_test_exec.c simulation.c
 system_test_exec: system_test_exec.o start.o
 	$(LD) $(LDFLAGS) start.o system_test_exec.o -o system_test_exec.coff
 	../bin/coff2noff system_test_exec.coff system_test_exec
+
+print_tests.o: print_tests.c
+	$(CC) $(CFLAGS) -c print_tests.c
+print_tests: print_tests.o start.o
+	$(LD) $(LDFLAGS) start.o print_tests.o -o print_tests.coff
+	../bin/coff2noff print_tests.coff print_tests
+
+monitortest.o: monitortest.c
+	$(CC) $(CFLAGS) -c monitortest.c
+monitortest: monitortest.o start.o
+	$(LD) $(LDFLAGS) start.o monitortest.o -o monitortest.coff
+	../bin/coff2noff monitortest.coff monitortest
+
+conditiontest1.o: conditiontest1.c
+	$(CC) $(CFLAGS) -c conditiontest1.c
+conditiontest1: conditiontest1.o start.o
+	$(LD) $(LDFLAGS) start.o conditiontest1.o -o conditiontest1.coff
+	../bin/coff2noff conditiontest1.coff conditiontest1
+
+conditiontest2.o: conditiontest2.c
+	$(CC) $(CFLAGS) -c conditiontest2.c
+conditiontest2: conditiontest2.o start.o
+	$(LD) $(LDFLAGS) start.o conditiontest2.o -o conditiontest2.coff
+	../bin/coff2noff conditiontest2.coff conditiontest2
+
 
 clean:
 	rm -f *.o *.coff
