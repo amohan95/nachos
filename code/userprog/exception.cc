@@ -349,7 +349,7 @@ void Yield_Syscall() {
 
 int CreateLock_Syscall(int name, int len) {
   #ifdef NETWORK
-    printf("CREATE Lock Syscall Starting\n");
+    DEBUG('R', "CREATE Lock Syscall Starting\n");
     char * buffer = new char[len + 1];
     copyin(name, len, buffer);
     PacketHeader outPktHdr, inPktHdr;
@@ -367,7 +367,7 @@ int CreateLock_Syscall(int name, int len) {
     ss << result;
     int lockID;
     ss >> lockID;
-    printf("CREATE Lock Syscall Receive lockID: %d\n", lockID);
+    DEBUG('R', "CREATE Lock Syscall Receive lockID: %d\n", lockID);
     return lockID;
   #else
     lockTableLock->Acquire();
@@ -412,7 +412,7 @@ int DestroyLock_Syscall(int lock) {
     if (result_val == 0) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
-      printf("Successfully destroyed lock in syscall\n");
+      DEBUG('R',"Successfully destroyed lock in syscall\n");
       return result_val;
     }
   #else
@@ -445,7 +445,7 @@ int DestroyLock_Syscall(int lock) {
 
 int CreateCondition_Syscall(int name, int len) {
   #ifdef NETWORK
-    printf("CREATE CV Syscall Starting\n");
+    DEBUG('R', "CREATE CV Syscall Starting\n");
     char * buffer = new char[len + 1];
     copyin(name, len, buffer);
     PacketHeader outPktHdr, inPktHdr;
@@ -463,7 +463,7 @@ int CreateCondition_Syscall(int name, int len) {
     ss << result;
     int cvID;
     ss >> cvID;
-    printf("CREATE CV Syscall Receive cvID: %d\n", cvID);
+    DEBUG('R', "CREATE CV Syscall Receive cvID: %d\n", cvID);
     return cvID;
   #else
     conditionTableLock->Acquire();
@@ -525,7 +525,7 @@ int Acquire_Syscall(int lock) {
     if (result_val == 0) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
-      printf("Successfully acquired lock in syscall\n");
+      DEBUG('R', "Successfully acquired lock in syscall\n");
       return result_val;
     }
 
@@ -564,7 +564,7 @@ int Release_Syscall(int lock) {
     if (result_val == 0) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
-      printf("Successfully released lock in syscall\n");
+      DEBUG('R', "Successfully released lock in syscall\n");
       return result_val;
     }
   #else
@@ -601,6 +601,7 @@ int Wait_Syscall(int cv, int lock) {
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
     postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    DEBUG('R', "Recevied in wait on cv in syscall\n");
     ss.str("");
     ss.clear();
     ss << result;
@@ -609,7 +610,7 @@ int Wait_Syscall(int cv, int lock) {
     if (result_val == 0) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
-      printf("Successfully waited on cv in syscall\n");
+      DEBUG('R', "Successfully waited on cv in syscall\n");
       return result_val;
     }
 
@@ -660,7 +661,7 @@ int Signal_Syscall(int cv, int lock) {
     if (result_val == 0) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
-      printf("Successfully signalled on cv in syscall\n");
+      DEBUG('R', "Successfully signalled on cv in syscall\n");
       return result_val;
     }
 
@@ -718,7 +719,7 @@ int Broadcast_Syscall(int cv, int lock) {
     if (result_val == 0) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
-      printf("Successfully broadcasted on cv in syscall\n");
+      DEBUG('R', "Successfully broadcasted on cv in syscall\n");
       return result_val;
     }
 
@@ -788,7 +789,7 @@ void PrintNum_Syscall(int num) {
 
 #ifdef NETWORK
 int CreateMonitor_Syscall(int name, int len, int arr_size) {
-  printf("CREATE Monitor Syscall Starting\n");
+  DEBUG('R', "CREATE Monitor Syscall Starting\n");
   if (arr_size <= 0 || arr_size > MAX_MONITOR) {
     printf("CREATE Monitor Syscall UNSUCCESSFUL b/c size is invalid");
     return UNSUCCESSFUL_SYSCALL;
@@ -811,7 +812,7 @@ int CreateMonitor_Syscall(int name, int len, int arr_size) {
 
   int mvID;
   ss >> mvID;
-  printf("CREATE Monitor Syscall Receive mvID: %d\n", mvID);
+  DEBUG('R', "CREATE Monitor Syscall Receive mvID: %d\n", mvID);
   return mvID;
 }
 
@@ -834,7 +835,7 @@ int SetMonitor_Syscall(int mv, int index, int value) {
   if (result_val == 0) {
     return UNSUCCESSFUL_SYSCALL;
   } else {
-    printf("Successfully set mv in syscall\n");
+    DEBUG('R', "Successfully set mv in syscall\n");
     return result_val;
   }
 }
@@ -860,7 +861,7 @@ int GetMonitor_Syscall(int mv, int index) {
   } else {
     int mv_val;
     ss >> mv_val;
-    printf("Successfully got mv in syscall\n");
+   DEBUG('R', "Successfully got mv in syscall\n");
     return mv_val;
   }
 }
@@ -884,7 +885,7 @@ int DestroyMonitor_Syscall(int mv) {
   if (result_val == 0) {
     return UNSUCCESSFUL_SYSCALL;
   } else {
-    printf("Successfully destroyed mv in syscall\n");
+    DEBUG('R', "Successfully destroyed mv in syscall\n");
     return result_val;
   }
 }

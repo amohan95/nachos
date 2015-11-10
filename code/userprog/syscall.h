@@ -192,7 +192,7 @@ void Print(char* string, int len);
 void PrintNum(int num);
 int CreateMonitor(char* name, int len, int arr_size);
 int SetMonitor(int mv, int index, int value);
-int GetMonitor(int mv);
+int GetMonitor(int mv, int index);
 int DestroyMonitor(int mv);
 
 

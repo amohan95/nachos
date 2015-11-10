@@ -35,10 +35,11 @@ struct Message {
     PacketHeader packetHdr;
     MailHeader mailHdr;
     char * data;
-    Message(PacketHeader p, MailHeader m, char * d) {
+    Message(PacketHeader p, MailHeader m, char * d, int len) {
         packetHdr = p;
         mailHdr = m;
-        data = d;
+        data = new char[len];
+        strcpy(data, d);
     }
 };
 
@@ -87,7 +88,7 @@ struct ServerMV {
 
 // Server for Project 3 Part 3
 void Server() {
-    DEBUG('Z', "In server function\n");
+    DEBUG('R', "In server function\n");
     int currentLock = 0;
     int currentCV = 0;
     int currentMV = 0;
@@ -106,7 +107,7 @@ void Server() {
         outMailHdr.to = inMailHdr.from;
         outMailHdr.from = SERVER_MAILBOX;
 
-        DEBUG('Z', "Received packet\n");
+        DEBUG('R', "Received packet\n");
 
         // Parse the message
         int s;
@@ -118,7 +119,7 @@ void Server() {
         switch (s) {
             // Returns the lock ID for the given
             case CREATE_LOCK: {
-                DEBUG('Z', "Create lock on server starting\n");
+                DEBUG('R', "Create lock on server starting\n");
                 std::string lock_name = ss.str();
                 int lockID;
                 bool found = false;
@@ -140,56 +141,55 @@ void Server() {
                 outMailHdr.length = ss.str().length() + 1;
                 char *cstr = new char[ss.str().length() + 1];
                 strcpy(cstr, ss.str().c_str());
-                DEBUG('Z',"Create lock on server sending: %s\n", cstr);
+                DEBUG('R',"Create lock on server sending: %s\n", cstr);
                 postOffice->Send(outPktHdr, outMailHdr, cstr);
                 break;
             }
             // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
             case ACQUIRE_LOCK: {
-                DEBUG('Z', "Acquiring lock on server starting\n");
+                DEBUG('R', "Acquiring lock on server starting\n");
                 int lockID;
                 ss >> lockID;
                 outMailHdr.length = 2;
                 if (locks.find(lockID) != locks.end()) {
                     ServerLock *temp_lock = &(locks.find(lockID)->second);
                     if (temp_lock->busy) {
-                        DEBUG('Z', "Found lock and busy\n");
-                        Message m(outPktHdr, outMailHdr, "1");
+                        DEBUG('R', "Found lock and busy\n");
+                        Message m(outPktHdr, outMailHdr, "1", 2);
                         temp_lock->addToWaitQ(m);
                     } else {
-                        DEBUG('Z', "Found lock and not busy\n");
+                        DEBUG('R', "Found lock and not busy\n");
                         temp_lock->busy = true;
                         temp_lock->machineID = inPktHdr.from;
                         postOffice->Send(outPktHdr, outMailHdr, "1");
                     }
-                    break;
                 } else {
-                    DEBUG('Z', "Couldn't find lock\n");
+                    DEBUG('R', "Couldn't find lock\n");
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }
                 break;
             }
             // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
             case RELEASE_LOCK: {
-                DEBUG('Z', "Releasing lock on server starting\n");
+                DEBUG('R', "Releasing lock on server starting\n");
                 int lockID;
                 ss >> lockID;
-                bool isValid = false;
                 outMailHdr.length = 2;
                 if (locks.find(lockID) != locks.end()) {
                     ServerLock* temp_lock = &(locks.find(lockID)->second);
                     if (temp_lock->machineID != inPktHdr.from) {
-                        DEBUG('Z', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
+                        DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
                         postOffice->Send(outPktHdr, outMailHdr, "0");
                     } else if (!temp_lock->waitQ.empty()) {
-                        DEBUG('Z', "Releasing from waitQ\n");
+                        DEBUG('R', "Releasing from waitQ\n");
                         Message m = temp_lock->waitQ.front();
                         temp_lock->waitQ.pop_front();
                         temp_lock->machineID = m.packetHdr.to;
+                        DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
                         postOffice->Send(m.packetHdr, m.mailHdr, m.data);
                         postOffice->Send(outPktHdr, outMailHdr, "1");
                     } else {
-                        DEBUG('Z', "Releasing no waitQ\n");
+                        DEBUG('R', "Releasing no waitQ\n");
                         temp_lock->busy = false;
                         temp_lock->machineID = -1;
                         if (temp_lock->toBeDeleted) {
@@ -198,38 +198,37 @@ void Server() {
                         postOffice->Send(outPktHdr, outMailHdr, "1");
                     }
                 } else {
-                    DEBUG('Z', "Couldn't find lock\n");
+                    DEBUG('R', "Couldn't find lock\n");
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }
                 break;
             }
             // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
             case DESTROY_LOCK: {
-                DEBUG('Z', "Destroying lock on server starting\n");
+                DEBUG('R', "Destroying lock on server starting\n");
                 int lockID;
                 ss >> lockID;
-                bool isValid = false;
                 outMailHdr.length = 2;
                 if (locks.find(lockID) != locks.end()) {
                     ServerLock* temp_lock = &(locks.find(lockID)->second);
                     if (temp_lock->busy) {
-                        DEBUG('Z', "In use so, marking for deletion\n");
+                        DEBUG('R', "In use so, marking for deletion\n");
                         temp_lock->toBeDeleted = true;
                         postOffice->Send(outPktHdr, outMailHdr, "1");
                     } else {
-                        DEBUG('Z', "Successfully deleted\n");
+                        DEBUG('R', "Successfully deleted\n");
                         locks.erase(locks.find(lockID));
                         postOffice->Send(outPktHdr, outMailHdr, "1");
                     }
                 } else {
-                    DEBUG('Z', "Couldn't find lock\n");
+                    DEBUG('R', "Couldn't find lock\n");
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }
                 break;
             }
             // Returns the cv ID for the given CV.
             case CREATE_CV: {
-                DEBUG('Z', "Create cv on server starting\n");
+                DEBUG('R', "Create cv on server starting\n");
                 std::string cv_name = ss.str();
                 int cvID;
                 bool found = false;
@@ -251,40 +250,39 @@ void Server() {
                 outMailHdr.length = ss.str().length() + 1;
                 char *cstr = new char[ss.str().length() + 1];
                 strcpy(cstr, ss.str().c_str());
-                DEBUG('Z', "Create cv on server sending: %s\n", cstr);
+                DEBUG('R', "Create cv on server sending: %s\n", cstr);
                 postOffice->Send(outPktHdr, outMailHdr, cstr);
                 break;
             }
             case WAIT_CV: {
-                DEBUG('Z', "Waiting on cv on server starting\n");
+                DEBUG('R', "Waiting on cv on server starting\n");
                 int cvID, lockID;
                 ss >> cvID;
                 ss >> lockID;
-                bool isValid = false;
                 outMailHdr.length = 2;
                 if (cvs.find(cvID) != cvs.end() && locks.find(lockID) != locks.end()) {
                     ServerCV* temp_cv = &(cvs.find(cvID)->second);
                     ServerLock* temp_lock = &(locks.find(lockID)->second);
                     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
                             || temp_lock->machineID != inPktHdr.from) {
-                        DEBUG('Z', "Trying to wait on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
+                        DEBUG('R', "Trying to wait on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
                         postOffice->Send(outPktHdr, outMailHdr, "0");
                         break;
                     } else {
-                        DEBUG('Z', "Adding to CV waitQ\n");
-                        Message m(outPktHdr, outMailHdr, "1");
+                        DEBUG('R', "Adding to CV waitQ\n");
+                        Message m(outPktHdr, outMailHdr, "1", 2);
                         temp_cv->addToWaitQ(m);
                         temp_cv->lockID = lockID;
 
                         // Release lock
                         if (!temp_lock->waitQ.empty()) {
-                            DEBUG('Z', "Releasing from waitQ\n");
+                            DEBUG('R', "Releasing from waitQ\n");
                             Message m2 = temp_lock->waitQ.front();
                             temp_lock->waitQ.pop_front();
                             temp_lock->machineID = m2.packetHdr.to;
                             postOffice->Send(m2.packetHdr, m2.mailHdr, m2.data);
                         } else {
-                            DEBUG('Z', "Releasing no waitQ\n");
+                            DEBUG('R', "Releasing no waitQ\n");
                             temp_lock->busy = false;
                             temp_lock->machineID = -1;
                             if (temp_lock->toBeDeleted) {
@@ -293,37 +291,36 @@ void Server() {
                         }
                     }
                 } else {
-                    DEBUG('Z', "Couldn't find cv or lock\n");
+                    DEBUG('R', "Couldn't find cv or lock\n");
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }
                 break;
             }
             case SIGNAL_CV: {
-                DEBUG('Z', "Signalling on cv on server starting\n");
+                DEBUG('R', "Signalling on cv on server starting\n");
                 int cvID, lockID;
                 ss >> cvID;
                 ss >> lockID;
-                bool isValid = false;
                 outMailHdr.length = 2;
                 if (cvs.find(cvID) != cvs.end() && locks.find(lockID) != locks.end()) {
                     ServerCV* temp_cv = &(cvs.find(cvID)->second);
                     ServerLock* temp_lock = &(locks.find(lockID)->second);
                     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
                             || temp_lock->machineID != inPktHdr.from) {
-                        DEBUG('Z', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
+                        DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
                         postOffice->Send(outPktHdr, outMailHdr, "0");
                         break;
                     } else {
                         if (!temp_cv->waitQ.empty()) {
-                            DEBUG('Z', "Releasing from waitQ and acquire lock\n");
+                            DEBUG('R', "Releasing from waitQ and acquire lock\n");
                             Message m = temp_cv->waitQ.front();
                             temp_cv->waitQ.pop_front();
                             
                             if (temp_lock->busy) {
-                                DEBUG('Z', "lock is busy\n");
+                                DEBUG('R', "lock is busy\n");
                                 temp_lock->addToWaitQ(m);
                             } else {
-                                DEBUG('Z', "lock is not busy\n");
+                                DEBUG('R', "lock is not busy\n");
                                 temp_lock->busy = true;
                                 temp_lock->machineID = inPktHdr.from;
                                 postOffice->Send(m.packetHdr, m.mailHdr, m.data);
@@ -339,24 +336,23 @@ void Server() {
                         }
                     }
                 } else {
-                    DEBUG('Z', "Couldn't find cv or lock\n");
+                    DEBUG('R', "Couldn't find cv or lock\n");
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }
                 break;
             }
             case BROADCAST_CV: {
-                DEBUG('Z', "Broadcasting on cv on server starting\n");
+                DEBUG('R', "Broadcasting on cv on server starting\n");
                 int cvID, lockID;
                 ss >> cvID;
                 ss >> lockID;
-                bool isValid = false;
                 outMailHdr.length = 2;
                 if (cvs.find(cvID) != cvs.end() && locks.find(lockID) != locks.end()) {
                     ServerCV* temp_cv = &(cvs.find(cvID)->second);
                     ServerLock* temp_lock = &(locks.find(lockID)->second);
                     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
                             || temp_lock->machineID != inPktHdr.from) {
-                        DEBUG('Z', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
+                        DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
                         postOffice->Send(outPktHdr, outMailHdr, "0");
                         break;
                     } else {
@@ -365,10 +361,10 @@ void Server() {
                             temp_cv->waitQ.pop_front();
                             
                             if (temp_lock->busy) {
-                                DEBUG('Z', "lock is busy\n");
+                                DEBUG('R', "lock is busy\n");
                                 temp_lock->addToWaitQ(m);
                             } else {
-                                DEBUG('Z', "lock is not busy\n");
+                                DEBUG('R', "lock is not busy\n");
                                 temp_lock->busy = true;
                                 temp_lock->machineID = inPktHdr.from;
                                 postOffice->Send(m.packetHdr, m.mailHdr, m.data);
@@ -381,36 +377,35 @@ void Server() {
                         postOffice->Send(outPktHdr, outMailHdr, "1");
                     }
                 } else {
-                    DEBUG('Z', "Couldn't find cv or lock\n");
+                    DEBUG('R', "Couldn't find cv or lock\n");
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }
                 break;
             }
             case DESTROY_CV: {
-                DEBUG('Z', "Destroying cv on server starting\n");
+                DEBUG('R', "Destroying cv on server starting\n");
                 int cvID;
                 ss >> cvID;
-                bool isValid = false;
                 outMailHdr.length = 2;
                 if (cvs.find(cvID) != cvs.end()) {
                     ServerCV* temp_cv = &(cvs.find(cvID)->second);
                     if (!temp_cv->waitQ.empty()) {
-                        DEBUG('Z', "Stuff on waitQ so marking for deletion\n");
+                        DEBUG('R', "Stuff on waitQ so marking for deletion\n");
                         temp_cv->toBeDeleted = true;
                         postOffice->Send(outPktHdr, outMailHdr, "1");
                     } else {
-                        DEBUG('Z', "Successfully deleted\n");
+                        DEBUG('R', "Successfully deleted\n");
                         cvs.erase(cvs.find(cvID));
                         postOffice->Send(outPktHdr, outMailHdr, "1");
                     }
                 } else {
-                    DEBUG('Z', "Couldn't find lock\n");
+                    DEBUG('R', "Couldn't find lock\n");
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }
                 break;
             }
             case CREATE_MV: {
-                DEBUG('Z', "Create mv on server starting\n");
+                DEBUG('R', "Create mv on server starting\n");
                 int size;
                 ss >> size;
                 std::string mv_name = ss.str();
@@ -434,12 +429,12 @@ void Server() {
                 outMailHdr.length = ss.str().length() + 1;
                 char *cstr = new char[ss.str().length() + 1];
                 strcpy(cstr, ss.str().c_str());
-                DEBUG('Z',"Create mv on server sending: %s\n", cstr);
+                DEBUG('R',"Create mv on server sending: %s\n", cstr);
                 postOffice->Send(outPktHdr, outMailHdr, cstr);
                 break;
             }
             case SET_MV: {
-                DEBUG('Z', "Setting mv on server starting\n");
+                DEBUG('R', "Setting mv on server starting\n");
                 int mvID, index, value;
                 ss >> mvID;
                 ss >> index;
@@ -449,14 +444,14 @@ void Server() {
                     (mvs.find(mvID)->second).value[index] = value;
                     postOffice->Send(outPktHdr, outMailHdr, "1");
                 } else {
-                    DEBUG('Z', "Couldn't find mv or index is out of range\n");
+                    DEBUG('R', "Couldn't find mv or index is out of range\n");
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }
                 break;
             }
             // First send wether or not success, if success then return value;
             case GET_MV: {
-                DEBUG('Z', "Getting mv on server starting\n");
+                DEBUG('R', "Getting mv on server starting\n");
                 int mvID, index;
                 ss >> mvID;
                 ss >> index;
@@ -469,14 +464,14 @@ void Server() {
                      outMailHdr.length = ss.str().length() + 1;
                     postOffice->Send(outPktHdr, outMailHdr, cstr);
                 } else {
-                    DEBUG('Z', "Couldn't find mv or index is out of range\n");
+                    DEBUG('R', "Couldn't find mv or index is out of range\n");
                     outMailHdr.length = 2;
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }
                 break;
             }
             case DESTROY_MV: {
-                DEBUG('Z', "Destroying mv on server starting\n");
+                DEBUG('R', "Destroying mv on server starting\n");
                 int mvID;
                 ss >> mvID;
                 outMailHdr.length = 2;
@@ -484,7 +479,7 @@ void Server() {
                     mvs.erase(mvs.find(mvID));
                     postOffice->Send(outPktHdr, outMailHdr, "1");
                 } else {
-                    DEBUG('Z', "Couldn't find lock\n");
+                    DEBUG('R', "Couldn't find lock\n");
                     postOffice->Send(outPktHdr, outMailHdr, "0");
                 }
                 break;
