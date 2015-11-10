@@ -786,6 +786,110 @@ void PrintNum_Syscall(int num) {
   printf("%d", num);
 }
 
+#ifdef NETWORK
+int CreateMonitor_Syscall(int name, int len, int arr_size) {
+  printf("CREATE Monitor Syscall Starting\n");
+  if (arr_size <= 0 || arr_size > MAX_MONITOR) {
+    printf("CREATE Monitor Syscall UNSUCCESSFUL b/c size is invalid");
+    return UNSUCCESSFUL_SYSCALL;
+  }
+  char * buffer = new char[len + 1];
+  copyin(name, len, buffer);
+  PacketHeader outPktHdr, inPktHdr;
+  MailHeader outMailHdr, inMailHdr;
+  char result[MaxMailSize];
+
+  stringstream ss;
+  ss << CREATE_MV << " " << arr_size << " " << buffer;
+  out_header_init(outPktHdr, outMailHdr, ss.str().length());
+  postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+  postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+  ss.str("");
+  ss.clear();
+  ss << result;
+
+  int mvID;
+  ss >> mvID;
+  printf("CREATE Monitor Syscall Receive mvID: %d\n", mvID);
+  return mvID;
+}
+
+int SetMonitor_Syscall(int mv, int index, int value) {
+  PacketHeader outPktHdr, inPktHdr;
+  MailHeader outMailHdr, inMailHdr;
+  char result[MaxMailSize];
+
+  stringstream ss;
+  ss << SET_MV << " " << mv << " " << index << " " << value;
+  out_header_init(outPktHdr, outMailHdr, ss.str().length());
+  postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+  postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+  ss.str("");
+  ss.clear();
+  ss << result;
+  int result_val;
+  ss >> result_val;
+  if (result_val == 0) {
+    return UNSUCCESSFUL_SYSCALL;
+  } else {
+    printf("Successfully set mv in syscall\n");
+    return result_val;
+  }
+}
+
+int GetMonitor_Syscall(int mv, int index) {
+  PacketHeader outPktHdr, inPktHdr;
+  MailHeader outMailHdr, inMailHdr;
+  char result[MaxMailSize];
+
+  stringstream ss;
+  ss << GET_MV << " " << mv << " " << index;
+  out_header_init(outPktHdr, outMailHdr, ss.str().length());
+  postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+  postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+  ss.str("");
+  ss.clear();
+  ss << result;
+  int success;
+  ss >> success;
+  if (!success) {
+    return UNSUCCESSFUL_SYSCALL;
+  } else {
+    int mv_val;
+    ss >> mv_val;
+    printf("Successfully got mv in syscall\n");
+    return mv_val;
+  }
+}
+
+int DestroyMonitor_Syscall(int mv) {
+  PacketHeader outPktHdr, inPktHdr;
+  MailHeader outMailHdr, inMailHdr;
+  char result[MaxMailSize];
+
+  stringstream ss;
+  ss << DESTROY_MV << " " << mv;
+  out_header_init(outPktHdr, outMailHdr, ss.str().length());
+  postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+  postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+  ss.str("");
+  ss.clear();
+  ss << result;
+  int result_val;
+  ss >> result_val;
+  if (result_val == 0) {
+    return UNSUCCESSFUL_SYSCALL;
+  } else {
+    printf("Successfully destroyed mv in syscall\n");
+    return result_val;
+  }
+}
+#endif
+
 void ExceptionHandler(ExceptionType which) {
   int type = machine->ReadRegister(2); // Which syscall?
   int rv=0; 	// the return value from a syscall
@@ -896,7 +1000,27 @@ void ExceptionHandler(ExceptionType which) {
       case SC_PrintNum:
         DEBUG('s', "Print number syscall.\n");
         PrintNum_Syscall(machine->ReadRegister(4));
+        break;
+      #ifdef NETWORK
+      case SC_CreateMonitor:
+        DEBUG('s', "Create monitor variable syscall.\n");
+        rv = CreateMonitor_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), 
+            machine->ReadRegister(6));
+        break;
+      case SC_GetMonitor:
+        DEBUG('s', "Get monitor variable syscall.\n");
+        rv = GetMonitor_Syscall(machine->ReadRegister(4));
         break; 
+      case SC_SetMonitor:
+        DEBUG('s', "Set monitor variable syscall.\n");
+        v = SetMonitor_Syscall(machine->ReadRegister(4), machine->ReadRegister(5),
+            machine->ReadRegister(6));
+        break;
+      case SC_DestroyMonitor:
+        DEBUG('s', "Destroy monitor variable syscall.\n");
+        rv = DestroyMonitor_Syscall(machine->ReadRegister(4));
+        break;  
+      #endif
     }
 
     // Put in the return value and increment the PC

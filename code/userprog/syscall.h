@@ -42,6 +42,10 @@
 #define SC_Rand             20
 #define SC_Print            21
 #define SC_PrintNum         22
+#define SC_CreateMonitor    23
+#define SC_GetMonitor       24
+#define SC_SetMonitor       25
+#define SC_DestroyMonitor   26
 
 #define MAXFILENAME 256
 
@@ -186,6 +190,10 @@ int Broadcast(int cv, int lock);
 int Rand();
 void Print(char* string, int len);
 void PrintNum(int num);
+int CreateMonitor(char* name, int len, int arr_size);
+int SetMonitor(int mv, int index, int value);
+int GetMonitor(int mv);
+int DestroyMonitor(int mv);
 
 
 #endif /* IN_ASM */

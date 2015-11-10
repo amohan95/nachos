@@ -13,5 +13,12 @@
 #define SIGNAL_CV 7
 #define BROADCAST_CV 8
 #define DESTROY_CV 9
+#define CREATE_MV 10
+#define SET_MV 11
+#define GET_MV 12
+#define DESTROY_MV 13
+
+#define FAIL 0
+#define SUCCESS 1
 
 #endif

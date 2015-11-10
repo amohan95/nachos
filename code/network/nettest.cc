@@ -74,6 +74,16 @@ struct ServerCV {
     }
 };
 
+struct ServerMV {
+    std::vector<int> value;
+    std::string name;
+    ServerMV(std::string n, int size) {
+        name = n;
+        for (int i = 0; i < size; ++i) {
+            value.push_back(0);
+        }
+    }
+};
 
 // Server for Project 3 Part 3
 void Server() {
@@ -82,6 +92,7 @@ void Server() {
     int currentCV = 0;
     std::map<int, ServerLock> locks;
     std::map<int, ServerCV> cvs;
+    std::map<int, ServerMV> mvs;
 
     for (;;) {
         // Receive a message
@@ -391,6 +402,86 @@ void Server() {
                         cvs.erase(cvs.find(cvID));
                         postOffice->Send(outPktHdr, outMailHdr, "1");
                     }
+                } else {
+                    DEBUG('Z', "Couldn't find lock\n");
+                    postOffice->Send(outPktHdr, outMailHdr, "0");
+                }
+                break;
+            }
+            case CREATE_MV: {
+                DEBUG('Z', "Create mv on server starting\n");
+                int size;
+                ss >> size;
+                std::string mv_name = ss.str();
+                int mvID;
+                bool found = false;
+                for (std::map<int, ServerMV>::iterator it = mvs.begin(); it != mvs.end(); ++it) {
+                    if (it->second.name == mv_name) {
+                        mvID = it->first;
+                        found = true;
+                        break;
+                    }
+                } 
+                if (!found) {
+                    mvID = currentMV;
+                    ServerMV mv(mv_name, size);
+                    mvs.insert(std::pair<int, ServerMV>(currentMV++, mv));
+                }
+                ss.str("");
+                ss.clear();
+                ss << (mvID);
+                outMailHdr.length = ss.str().length() + 1;
+                char *cstr = new char[ss.str().length() + 1];
+                strcpy(cstr, ss.str().c_str());
+                DEBUG('Z',"Create mv on server sending: %s\n", cstr);
+                postOffice->Send(outPktHdr, outMailHdr, cstr);
+                break;
+            }
+            case SET_MV: {
+                DEBUG('Z', "Setting mv on server starting\n");
+                int mvID, index, value;
+                ss >> mvID;
+                ss >> index;
+                ss >> value;
+                outMailHdr.length = 2;
+                if (mvs.find(cvID) != mvs.end() && mvs.find(cvID)->second.value.size() > index) {
+                    (mvs.find(mvID)->second)->value[index] = value;
+                    postOffice->Send(outPktHdr, outMailHdr, "1");
+                } else {
+                    DEBUG('Z', "Couldn't find cv or index is out of range\n");
+                    postOffice->Send(outPktHdr, outMailHdr, "0");
+                }
+                break;
+            }
+            // First send wether or not success, if success then return value;
+            case GET_MV: {
+                DEBUG('Z', "Getting mv on server starting\n");
+                int mvID, index;
+                ss >> mvID;
+                ss >> index;
+                if (mvs.find(cvID) != mvs.end() && mvs.find(cvID)->second.value.size() > index) {
+                    ss.str("");
+                    ss.clear();
+                    ss << "1 " << (mvs.find(mvID)->second)->value[index];
+                    char *cstr = new char[ss.str().length() + 1];
+                    strcpy(cstr, ss.str().c_str());
+                     outMailHdr.length = ss.str().length() + 1;
+                    postOffice->Send(outPktHdr, outMailHdr, cstr);
+                } else {
+                    DEBUG('Z', "Couldn't find cv or index is out of range\n");
+                    outMailHdr.length = 2;
+                    postOffice->Send(outPktHdr, outMailHdr, "0");
+                }
+                break;
+            }
+            case DESTROY_MV: {
+                DEBUG('Z', "Destroying mv on server starting\n");
+                int mvID;
+                ss >> mvID;
+                outMailHdr.length = 2;
+                if (mvs.find(mvID) != mvs.end()) {
+                    mvs.erase(mvs.find(mvID));
+                    postOffice->Send(outPktHdr, outMailHdr, "1");
                 } else {
                     DEBUG('Z', "Couldn't find lock\n");
                     postOffice->Send(outPktHdr, outMailHdr, "0");
