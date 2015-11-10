@@ -257,9 +257,7 @@ void KernelThread(int vaddr) {
            currentThread->getName());
     return;
   }
-  currentThread->stack_vaddr_bottom_ =
-      currentThread->space->num_pages() - divRoundUp(UserStackSize, PageSize);
-
+  
   currentThread->space->InitRegisters();
   currentThread->space->RestoreState();
 
@@ -300,17 +298,16 @@ void Exec_Syscall(int vaddr, int len) {
   }
 
   OpenFile* executable = fileSystem->Open(name);
-
   if (executable == NULL) {
     printf("Unable to open file %s\n", name);
     return;
   }
+  delete executable;
 
   Thread* thread = new Thread("New Process Thread");
-  thread->space = new AddrSpace(executable);
+  thread->space = new AddrSpace(name);
   thread->stack_vaddr_bottom_ =
       thread->space->num_pages() - divRoundUp(UserStackSize, PageSize);
-  delete executable;
 
   processTableLock->Acquire();
   processThreadTable[thread->space] += 1;
@@ -921,6 +918,62 @@ int DestroyMonitor_Syscall(int mv) {
 }
 #endif
 
+int HandleMemoryFull() {
+  DEBUG('v', "No physical pages free, choosing a page to evict.\n");
+  int ppn = -1;
+  switch (evictionPolicy) {
+    case FIFO:
+      // kind of FIFO
+      ppn = page_manager->NextAllocatedPage();
+      break;
+    case RAND:
+      ppn = rand() % NumPhysPages;
+      break;
+    default:
+      printf("Unknown eviction policy %d.", evictionPolicy);
+      break;
+  }
+  DEBUG('v', "Evicting page %d.\n", ppn);
+  ipt[ppn].owner->EvictPage(ppn);
+  return ppn;
+}
+
+int HandleIPTMiss(int vpn) {
+  DEBUG('v', "IPT miss for virtual page %d.\n", vpn);
+  int ppn = page_manager->ObtainFreePage();
+  DEBUG('v', "Tried to obtain physical page and got %d.\n", ppn);
+  if (ppn == -1) {
+    ppn = HandleMemoryFull();
+  }
+  DEBUG('v', "Loading physical page %d as virtual page %d.\n", ppn, vpn);
+  currentThread->space->LoadPage(vpn, ppn);
+  return ppn;
+}
+
+void HandlePageFault(int vaddr) {
+  DEBUG('v', "Page fault for virtual address 0x%x.\n", vaddr);
+  int vpn = vaddr / PageSize;
+
+  // Set interrupts off for the entire page fault handling process, as per
+  // Crowley's instructions.
+  InterruptSetter is;
+
+  int ppn = -1;
+  for (int i = 0; i < NumPhysPages; ++i){
+    if (ipt[i].owner == currentThread->space && ipt[i].valid &&
+        ipt[i].virtualPage == vpn) {
+      ppn = i;
+      break;
+    }
+  }
+  DEBUG('v', "Searched IPT for vpn %d belonging to process 0x%x, found %d\n", vpn, currentThread->space, ppn);
+  if (ppn == -1) {
+    ppn = HandleIPTMiss(vpn);
+  }
+
+  currentThread->space->PopulateTlbEntry(vpn);
+}
+
 void ExceptionHandler(ExceptionType which) {
   int type = machine->ReadRegister(2); // Which syscall?
   int rv=0; 	// the return value from a syscall
@@ -1060,6 +1113,8 @@ void ExceptionHandler(ExceptionType which) {
     machine->WriteRegister(PCReg,machine->ReadRegister(NextPCReg));
     machine->WriteRegister(NextPCReg,machine->ReadRegister(PCReg)+4);
     return;
+  } else if (which == PageFaultException) {
+    HandlePageFault(machine->ReadRegister(BadVAddrReg));
   } else {
     cout<<"Unexpected user mode exception - which:"<<which<<"  type:"<< type<<endl;
     interrupt->Halt();

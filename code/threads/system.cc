@@ -7,7 +7,7 @@
 
 #include "copyright.h"
 #include "system.h"
-#include "string.h"
+#include "../userprog/inverted_translation_entry.h"
 
 // This defines *all* of the global data structures used by Nachos.
 // These are all initialized and de-allocated by this file.
@@ -20,6 +20,7 @@ Statistics *stats;      // performance metrics
 Timer *timer;       // the hardware timer device,
           // for invoking context switches
 
+
 Lock* processTableLock = new Lock("Kernel Process Table");
 Lock* lockTableLock = new Lock("Kernel Lock Table");
 KernelLock* lockTable[NUM_SYSTEM_LOCKS] = {NULL};
@@ -27,6 +28,12 @@ Lock* conditionTableLock = new Lock("Kernel Condition Table");
 KernelCondition* conditionTable[NUM_SYSTEM_CONDITIONS] = {NULL};
 std::map<AddrSpace*, uint32_t> processThreadTable =
     std::map<AddrSpace*, uint32_t>();
+
+Lock* iptLock = new Lock("Kernel IPT Lock");
+InvertedTranslationEntry ipt[NumPhysPages];
+EvictionPolicy evictionPolicy = FIFO;
+Lock* swapLock = new Lock("Kernel Swap Lock");
+Swap* swapFile = new Swap();
 
 #ifdef FILESYS_NEEDED
 FileSystem  *fileSystem;
@@ -39,13 +46,11 @@ SynchDisk   *synchDisk;
 #ifdef USER_PROGRAM // requires either FILESYS or FILESYS_STUB
 Machine *machine; // user program memory and registers
 PageManager* page_manager;
+int currentTlb;
 #endif
 
 #ifdef NETWORK
 PostOffice *postOffice;
-#define CREATE_LOCK 1;
-#define DESTROY_LOCK 2;
-#define ACQUIRE_LOCK 3;
 #endif
 
 
@@ -102,7 +107,7 @@ Initialize(int argc, char **argv)
 #endif
 #ifdef NETWORK
     double rely = 1;    // network reliability
-    int netname = 0;    // UNIX socket name
+		int netname = 0;
 #endif
     
     for (argc--, argv++; argc > 0; argc -= argCount, argv += argCount) {
@@ -137,6 +142,7 @@ Initialize(int argc, char **argv)
   } else if (!strcmp(*argv, "-m")) {
       ASSERT(argc > 1);
       netname = atoi(*(argv + 1));
+			machineId = netname;
       argCount = 2;
   }
 #endif
@@ -163,6 +169,7 @@ Initialize(int argc, char **argv)
 #ifdef USER_PROGRAM
     machine = new Machine(debugUserProg); // this must come first
     page_manager = new PageManager();
+    currentTlb = 0;
 #endif
 
 #ifdef FILESYS

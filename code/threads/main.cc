@@ -149,7 +149,12 @@ main(int argc, char **argv)
             argCount = 2;
         } else if (!strcmp(*argv, "-server")) {
           Server();
-        }
+        } else if (!strcmp(*argv, "-P")) {
+					if (!strcmp(*(argv + 1), "RAND")) {
+						evictionPolicy = RAND;
+					}
+					argCount = 2;
+				}
 #endif // NETWORK
     }
     currentThread->Finish();	// NOTE: if the procedure "main" 

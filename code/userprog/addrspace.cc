@@ -15,12 +15,13 @@
 // All rights reserved.  See copyright.h for copyright notice and limitation 
 // of liability and disclaimer of warranty provisions.
 
-#include "copyright.h"
-#include "system.h"
+#include "../threads/copyright.h"
+#include "../threads/system.h"
+#include "../threads/synch.h"
+#include "../machine/machine.h"
 #include "addrspace.h"
-#include "noff.h"
+#include "../bin/noff.h"
 #include "table.h"
-#include "synch.h"
 
 extern "C" { int bzero(char *, int); };
 
@@ -115,9 +116,9 @@ SwapHeader (NoffHeader *noffH)
 //      and being unable to read key parts of the executable.
 //      Incompletely consretucted address spaces have the member
 //      constructed set to false.
-//----------------------------------------------------------------------
+//----------------------------------------------------------------------N
 
-AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
+AddrSpace::AddrSpace(char* execFile) : fileTable(MaxOpenFiles) {
   NoffHeader noffH;
   int size;
 
@@ -125,6 +126,7 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
   fileTable.Put(0);
   fileTable.Put(0);
 
+	executable = fileSystem->Open(execFile);
   executable->ReadAt((char *)&noffH, sizeof(noffH), 0);
   if ((noffH.noffMagic != NOFFMAGIC) && 
 	(WordToHost(noffH.noffMagic) == NOFFMAGIC))
@@ -138,33 +140,23 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
 
   size = numPages * PageSize;
 
-  MutexLock l(&page_manager->lock_);
-  if (page_manager->num_available_pages() < numPages) {
-    printf("Nachos is out of memory. Terminating.\n");
-    interrupt->Halt();
-  }
-
   DEBUG('a', "Initializing address space, num pages %d, size %d\n", 
 				numPages, size);
 
   // first, set up the translation 
-  pageTable = new TranslationEntry[numPages];
+  pageTable = new SwappableTranslationEntry[numPages];
   for (int i = 0; i < numPages; i++) {
-  	pageTable[i].virtualPage = i;
-  	pageTable[i].physicalPage = page_manager->ObtainFreePage();
-  	pageTable[i].valid = TRUE;
-  	pageTable[i].use = FALSE;
-  	pageTable[i].dirty = FALSE;
-  	pageTable[i].readOnly = FALSE;  // if the code segment was entirely on 
+		pageTable[i].virtualPage = i;
+		pageTable[i].physicalPage = -1;
+		pageTable[i].valid = FALSE;
+		pageTable[i].use = FALSE;
+		pageTable[i].dirty = FALSE;
+		pageTable[i].readOnly = FALSE;  // if the code segment was entirely on 
 				// a separate page, we could set its 
 				// pages to be read-only
-    
-    if (i < data_code_pages) {
-      executable->ReadAt(
-        &(machine->mainMemory[pageTable[i].physicalPage * PageSize]),
-        PageSize, PageSize * i + 40);
-    }
-  }
+		pageTable[i].byteOffset = PageSize * i + 40;
+		pageTable[i].diskLocation = EXECUTABLE;
+	}
 }
 
 
@@ -175,24 +167,79 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
 //  and file tables
 //----------------------------------------------------------------------
 
-AddrSpace::~AddrSpace()
-{
-    delete pageTable;
+AddrSpace::~AddrSpace() {
+	delete [] pageTable;
+	delete executable;
+}
+
+void AddrSpace::LoadPage(int vpn, int ppn) {
+	if (pageTable[vpn].diskLocation == EXECUTABLE) {
+		DEBUG('v', "Reading page from from executable 0x%x to physical page %d.\n",
+				pageTable[vpn].byteOffset, ppn);
+		executable->ReadAt(machine->mainMemory + ppn * PageSize, PageSize,
+			pageTable[vpn].byteOffset);
+	} else if (pageTable[vpn].diskLocation == SWAP) {
+		swapLock->Acquire();
+		DEBUG('v', "Reading page from swap 0x%x to physical page %d.\n",
+				pageTable[vpn].byteOffset, ppn);
+		swapFile->Read(ppn, pageTable[vpn].byteOffset);
+		swapLock->Release();
+	}
+	pageTable[vpn].virtualPage = vpn;
+	pageTable[vpn].physicalPage = ppn;
+	pageTable[vpn].valid = TRUE;
+	pageTable[vpn].use = FALSE;
+	pageTable[vpn].dirty = FALSE;
+	pageTable[vpn].readOnly = FALSE;
+
+	iptLock->Acquire();
+	ipt[ppn].virtualPage = vpn;
+	ipt[ppn].physicalPage = ppn;
+	ipt[ppn].valid = TRUE;
+	ipt[ppn].use = FALSE;
+	ipt[ppn].dirty = FALSE;
+	ipt[ppn].readOnly = FALSE;
+	ipt[ppn].owner = this;
+	iptLock->Release();
+}
+
+void AddrSpace::EvictPage(int ppn) {
+	iptLock->Acquire();
+	int vpn = ipt[ppn].virtualPage;
+	ipt[ppn].valid = FALSE;
+	iptLock->Release();
+	pageTable[vpn].valid = FALSE;
+	pageTable[vpn].dirty = ipt[ppn].dirty;
+	for (int i = 0; i < TLBSize; ++i) {
+		if (machine->tlb[i].physicalPage == ppn) {
+			DEBUG('v', "Invalidating TLB entry %d.\n", i);
+			machine->tlb[i].valid = FALSE;
+			pageTable[vpn].dirty = machine->tlb[i].dirty;
+			break;
+		}
+	}
+	if (pageTable[vpn].dirty) {
+		if (pageTable[vpn].diskLocation == EXECUTABLE ||
+				pageTable[vpn].byteOffset == -1) {
+			DEBUG('v', "Writing physical page %d to swap file.\n", ppn);
+			pageTable[vpn].byteOffset = swapFile->Write(ppn);
+			DEBUG('v', "Virtual page %d for process 0x%x at 0x%x in swap file.\n",
+					vpn, this, pageTable[vpn].byteOffset);
+		} else {
+			DEBUG('v', "Updating virtual page %d as physical page %d in swap file.\n",
+					vpn, ppn);
+			swapFile->Update(ppn, pageTable[vpn].byteOffset);
+		}
+		pageTable[vpn].diskLocation = SWAP;
+		pageTable[vpn].physicalPage = -1;
+	}
 }
 
 int AddrSpace::AllocateStackPages() {
-  MutexLock l(&page_manager->lock_);
-
   int num_new_pages = divRoundUp(UserStackSize, PageSize);
-  
-  if (page_manager->num_available_pages() < num_new_pages) {
-    printf("Out of physical pages. Failed to allocate more stack.\n");
-    interrupt->Halt();
-    return -1;
-  }
 
-  TranslationEntry* new_page_table = 
-      new TranslationEntry[numPages + num_new_pages];
+  SwappableTranslationEntry* new_page_table =
+		new SwappableTranslationEntry[numPages + num_new_pages];
 
   for (int i = 0; i < numPages; ++i) {
     new_page_table[i].virtualPage = pageTable[i].virtualPage;
@@ -201,20 +248,23 @@ int AddrSpace::AllocateStackPages() {
     new_page_table[i].use = pageTable[i].use;
     new_page_table[i].dirty = pageTable[i].dirty;
     new_page_table[i].readOnly = pageTable[i].readOnly;
+		new_page_table[i].byteOffset = pageTable[i].byteOffset;
+		new_page_table[i].diskLocation = pageTable[i].diskLocation;
   }
+	delete [] pageTable;
 
-  currentThread->stack_vaddr_bottom_ = numPages;
+	currentThread->stack_vaddr_bottom_ = numPages;
 
   for (int i = numPages; i < num_new_pages + numPages; ++i) {
     new_page_table[i].virtualPage = i;
-    new_page_table[i].physicalPage = page_manager->ObtainFreePage();
-    new_page_table[i].valid = TRUE;
+    new_page_table[i].physicalPage = -1;
+    new_page_table[i].valid = FALSE;
     new_page_table[i].use = FALSE;
     new_page_table[i].dirty = FALSE;
     new_page_table[i].readOnly = FALSE;
+		new_page_table[i].byteOffset = -1;
+		new_page_table[i].diskLocation = NEITHER;
   }
-
-  delete [] pageTable;
 
   pageTable = new_page_table;
 
@@ -224,21 +274,80 @@ int AddrSpace::AllocateStackPages() {
 }
 
 void AddrSpace::DeallocateStack() {
-  MutexLock l(&page_manager->lock_);
   int stack_bottom = currentThread->stack_vaddr_bottom_;
   int num_stack_pages = divRoundUp(UserStackSize, PageSize);
   for (int i = stack_bottom; i < stack_bottom + num_stack_pages; ++i) {
+    // Invalidate the TLB entries for any stack pages deallocated.
+    for (int j = 0; j < TLBSize; ++j) {
+      TranslationEntry* entry = &(machine->tlb[j]);
+      if (entry->valid && entry->virtualPage == i) {
+        entry->valid = false;
+      }
+    }
+    if (pageTable[i].valid) {
+      page_manager->FreePage(pageTable[i].physicalPage);
+    }
     pageTable[i].valid = false;
-    page_manager->FreePage(pageTable[i].physicalPage);
+		iptLock->Acquire();
+		if (ipt[pageTable[i].physicalPage].owner == this) {
+			ipt[pageTable[i].physicalPage].valid = FALSE;
+		}
+		iptLock->Release();
   }
 }
 
 void AddrSpace::DeallocateAllPages() {
-  MutexLock l(&page_manager->lock_);
   for (int i = 0; i < numPages; ++i) {
+    // Invalidate the TLB entries for any stack pages deallocated.
+    for (int j = 0; j < TLBSize; ++j) {
+      TranslationEntry* entry = &(machine->tlb[j]);
+      if (entry->valid && entry->virtualPage == i) {
+        entry->valid = false;
+      }
+    }
     if (pageTable[i].valid) {
       page_manager->FreePage(pageTable[i].physicalPage);
     }
+		iptLock->Acquire();
+		if (ipt[pageTable[i].physicalPage].owner == this) {
+			ipt[pageTable[i].physicalPage].valid = FALSE;
+		}
+		iptLock->Release();
+  }
+}
+
+void AddrSpace::PopulateTlbEntry(int vpn) {
+	DEBUG('v', "Overwriting %s physical page %d in TLB with virtual page %d.\n",
+			(machine->tlb[currentTlb].dirty ? "dirty" : "clean"),
+			machine->tlb[currentTlb].physicalPage, vpn);
+	iptLock->Acquire();
+	ipt[machine->tlb[currentTlb].physicalPage].dirty =
+		machine->tlb[currentTlb].dirty;
+	iptLock->Release();
+	pageTable[machine->tlb[currentTlb].virtualPage].dirty =
+		machine->tlb[currentTlb].dirty;
+  machine->tlb[currentTlb].virtualPage = pageTable[vpn].virtualPage;
+  machine->tlb[currentTlb].physicalPage = pageTable[vpn].physicalPage;
+  machine->tlb[currentTlb].valid = pageTable[vpn].valid;
+  machine->tlb[currentTlb].use = pageTable[vpn].use;
+  machine->tlb[currentTlb].dirty = pageTable[vpn].dirty;
+  machine->tlb[currentTlb].readOnly = pageTable[vpn].readOnly;
+	currentTlb = (currentTlb + 1) % TLBSize;
+}
+
+void AddrSpace::InvalidateTlb() {
+  for (int i = 0; i < TLBSize; ++i) {
+    TranslationEntry* tlb_entry = &(machine->tlb[i]);
+    if (tlb_entry->valid && tlb_entry->dirty) {
+      pageTable[tlb_entry->virtualPage].dirty = true;
+			iptLock->Acquire();
+			if (ipt[tlb_entry->physicalPage].owner == this &&
+					ipt[tlb_entry->physicalPage].virtualPage == tlb_entry->virtualPage) {
+				ipt[tlb_entry->physicalPage].dirty = TRUE;
+			}
+			iptLock->Release();
+    }
+    tlb_entry->valid = false;
   }
 }
 
@@ -295,6 +404,6 @@ void AddrSpace::SaveState()
 
 void AddrSpace::RestoreState() 
 {
-    machine->pageTable = pageTable;
+    // machine->pageTable = pageTable;
     machine->pageTableSize = numPages;
 }

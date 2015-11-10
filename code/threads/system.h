@@ -16,6 +16,8 @@
 #include "stats.h"
 #include "timer.h"
 #include "../userprog/page_manager.h"
+#include "../userprog/swap.h"
+#include "../userprog/inverted_translation_entry.h"
 
 #include <map>
 
@@ -59,10 +61,22 @@ struct KernelCondition {
 extern Lock* conditionTableLock;
 extern KernelCondition* conditionTable[NUM_SYSTEM_CONDITIONS];
 
+extern Lock* iptLock;
+extern InvertedTranslationEntry ipt[NumPhysPages];
+enum EvictionPolicy {
+  FIFO = 0,
+  RAND,
+  NUM_EVICTION_POLICIES
+};
+extern EvictionPolicy evictionPolicy;
+extern Lock* swapLock;
+extern Swap* swapFile;
+
 #ifdef USER_PROGRAM
 #include "machine.h"
 extern Machine* machine;  // user program memory and registers
 extern PageManager* page_manager;
+extern int currentTlb;
 #endif
 
 #ifdef FILESYS_NEEDED 		// FILESYS or FILESYS_STUB 
@@ -80,6 +94,7 @@ extern SynchDisk   *synchDisk;
 extern PostOffice* postOffice;
 #define MAX_MONITOR 1000
 #define NUM_MONITORS 10000
+extern int machineId;
 #endif
 
 #endif // SYSTEM_H

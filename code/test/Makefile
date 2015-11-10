@@ -32,7 +32,9 @@ INCDIR =-I../userprog -I../threads
 CFLAGS = -G 0 -c $(INCDIR) 
 
 all: halt matmult sort testfiles thread_tests exec_test lock_tests \
-		 condition_tests system_test system_test_exec monitortest conditiontest1 conditiontest2
+		 condition_tests system_test system_test_exec \
+     matmult_virtual_mem_test sort_virtual_mem_test \
+     monitortest conditiontest1 conditiontest2
 
 start.o: start.s ../userprog/syscall.h
 	$(CPP) $(CPPFLAGS) start.s > strt.s
@@ -87,6 +89,20 @@ condition_tests.o: condition_tests.c
 condition_tests.coff: condition_tests.o start.o
 	$(LD) $(LDFLAGS) $^ -o $@
 condition_tests: condition_tests.coff
+	../bin/coff2noff $< $@
+
+matmult_virtual_mem_test.o: matmult_virtual_mem_test.c
+	$(CC) $(CFLAGS) -c $^
+matmult_virtual_mem_test.coff: matmult_virtual_mem_test.o start.o
+	$(LD) $(LDFLAGS) $^ -o $@
+matmult_virtual_mem_test: matmult_virtual_mem_test.coff
+	../bin/coff2noff $< $@
+
+sort_virtual_mem_test.o: sort_virtual_mem_test.c
+	$(CC) $(CFLAGS) -c $^
+sort_virtual_mem_test.coff: sort_virtual_mem_test.o start.o
+	$(LD) $(LDFLAGS) $^ -o $@
+sort_virtual_mem_test: sort_virtual_mem_test.coff
 	../bin/coff2noff $< $@
 
 system_test.o: system_test.c simulation.c
