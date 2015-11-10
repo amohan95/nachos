@@ -367,6 +367,9 @@ int CreateLock_Syscall(int name, int len) {
     ss << result;
     int lockID;
     ss >> lockID;
+    if (lockID == -1) {
+      return UNSUCCESSFUL_SYSCALL;
+    }
     DEBUG('R', "CREATE Lock Syscall Receive lockID: %d\n", lockID);
     return lockID;
   #else
@@ -463,6 +466,9 @@ int CreateCondition_Syscall(int name, int len) {
     ss << result;
     int cvID;
     ss >> cvID;
+    if (cvID == -1) {
+      return UNSUCCESSFUL_SYSCALL;
+    }
     DEBUG('R', "CREATE CV Syscall Receive cvID: %d\n", cvID);
     return cvID;
   #else
@@ -486,23 +492,47 @@ int CreateCondition_Syscall(int name, int len) {
 }
 
 int DestroyCondition_Syscall(int cv) {
-  conditionTableLock->Acquire();
-  if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
-      || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
-      || conditionTable[cv]->addrSpace != currentThread->space) {
+  #ifdef NETWORK
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char result[MaxMailSize];
+
+    stringstream ss;
+    ss << DESTROY_CV << " " << cv;
+    out_header_init(outPktHdr, outMailHdr, ss.str().length());
+    postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
+
+    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    ss.str("");
+    ss.clear();
+    ss << result;
+    int result_val;
+    ss >> result_val;
+    if (result_val == 0) {
+      return UNSUCCESSFUL_SYSCALL;
+    } else {
+      DEBUG('R',"Successfully destroyed lock in syscall\n");
+      return result_val;
+    }
+  #else
+    conditionTableLock->Acquire();
+    if (cv < 0 || cv >= NUM_SYSTEM_CONDITIONS
+        || conditionTable[cv] == NULL || conditionTable[cv]->toBeDeleted
+        || conditionTable[cv]->addrSpace != currentThread->space) {
+      conditionTableLock->Release();
+      return UNSUCCESSFUL_SYSCALL;
+    }
+    if (conditionTable[cv]->threadsUsing == 0) {
+      delete conditionTable[cv]->condition;
+      delete [] conditionTable[cv]->name;
+      delete conditionTable[cv];
+      conditionTable[cv] = NULL;
+    } else {
+      conditionTable[cv]->toBeDeleted = true;
+    }
     conditionTableLock->Release();
-    return UNSUCCESSFUL_SYSCALL;
-  }
-  if (conditionTable[cv]->threadsUsing == 0) {
-    delete conditionTable[cv]->condition;
-    delete [] conditionTable[cv]->name;
-    delete conditionTable[cv];
-    conditionTable[cv] = NULL;
-  } else {
-    conditionTable[cv]->toBeDeleted = true;
-  }
-  conditionTableLock->Release();
-  return 0;
+    return 0;
+  #endif
 }
 
 int Acquire_Syscall(int lock) {

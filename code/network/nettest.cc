@@ -131,6 +131,10 @@ void Server() {
                     }
                 } 
                 if (!found) {
+                    if (locks.size() >= NUM_SYSTEM_LOCKS) {
+                        outMailHdr.length = 3;
+                        postOffice->Send(outPktHdr, outMailHdr, "-1");
+                    }
                     lockID = currentLock;
                     ServerLock lock(lock_name);
                     locks.insert(std::pair<int, ServerLock>(currentLock++, lock));
@@ -240,6 +244,10 @@ void Server() {
                     }
                 } 
                 if (!found) {
+                    if (cvs.size() >= NUM_SYSTEM_CONDITIONS) {
+                        outMailHdr.length = 3;
+                        postOffice->Send(outPktHdr, outMailHdr, "-1");
+                    }
                     cvID = currentCV;
                     ServerCV cv(cv_name);
                     cvs.insert(std::pair<int, ServerCV>(currentCV++, cv));

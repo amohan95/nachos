@@ -5,7 +5,7 @@
 #include "syscall.h"
 
 int main() {
-  /*OpenFileId fd;
+  OpenFileId fd;
   int bytesread;
   char buf[20];
 
@@ -19,19 +19,5 @@ int main() {
     fd = Open("testfile", 8);
     bytesread = Read( buf, 100, fd );
     Write( buf, bytesread, ConsoleOutput );
-    Close(fd);*/
-  int status;
-  int j;
-  int i = CreateLock("Lock", 4);
-  PrintNum(i);
-  Print("\n", 1);
-  j = CreateCondition("CV", 2);
-  status = Acquire(i);
-  Print("Acquire: ", 9);
-  PrintNum(status);
-  Print("\n", 1);
-  Signal(j, i);
-  Print("Returned from signal", 18);
-  Release(i);
-  Exit(0);
+    Close(fd);
 }
