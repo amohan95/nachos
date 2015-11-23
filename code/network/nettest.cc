@@ -94,6 +94,9 @@ void create_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
 void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
     PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID);
 
+void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID);
+
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
@@ -127,50 +130,20 @@ void Server() {
 
     // Process the message and Send a reply… maybe
     switch (s) {
-      // Returns the lock ID for the given
       case CREATE_LOCK: {
         create_lock(outPktHdr, outMailHdr, currentLock, locks, ss.str());
         break;
       }
-      // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
       case ACQUIRE_LOCK: {
         int lockID;
         ss >> lockID;
         acquire_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
         break;
       }
-      // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
       case RELEASE_LOCK: {
-        DEBUG('R', "Releasing lock on server starting\n");
         int lockID;
         ss >> lockID;
-        outMailHdr.length = 2;
-        if (locks.find(lockID) != locks.end()) {
-          ServerLock* temp_lock = &(locks.find(lockID)->second);
-          if (temp_lock->machineID != inPktHdr.from) {
-            DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
-            postOffice->Send(outPktHdr, outMailHdr, "0");
-          } else if (!temp_lock->waitQ.empty()) {
-            DEBUG('R', "Releasing from waitQ\n");
-            Message m = temp_lock->waitQ.front();
-            temp_lock->waitQ.pop_front();
-            temp_lock->machineID = m.packetHdr.to;
-            DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
-            postOffice->Send(m.packetHdr, m.mailHdr, m.data);
-            postOffice->Send(outPktHdr, outMailHdr, "1");
-          } else {
-            DEBUG('R', "Releasing no waitQ\n");
-            temp_lock->busy = false;
-            temp_lock->machineID = -1;
-            if (temp_lock->toBeDeleted && temp_lock->numWaitingOnCV == 0) {
-              locks.erase(locks.find(lockID));
-            }
-            postOffice->Send(outPktHdr, outMailHdr, "1");
-          }
-        } else {
-          DEBUG('R', "Couldn't find lock\n");
-          postOffice->Send(outPktHdr, outMailHdr, "0");
-        }
+        release_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
         break;
       }
       // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
@@ -515,6 +488,39 @@ void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
       DEBUG('R', "Found lock and not busy\n");
       temp_lock->busy = true;
       temp_lock->machineID = inPktHdr.from;
+      postOffice->Send(outPktHdr, outMailHdr, "1");
+    }
+  } else {
+    DEBUG('R', "Couldn't find lock\n");
+    postOffice->Send(outPktHdr, outMailHdr, "0");
+  }
+}
+
+// Returns 0 if lock doesn't exist, 1 if it does and is acquired.
+void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID) {
+  DEBUG('R', "Releasing lock on server starting\n");
+  outMailHdr.length = 2;
+  if (locks.find(lockID) != locks.end()) {
+    ServerLock* temp_lock = &(locks.find(lockID)->second);
+    if (temp_lock->machineID != inPktHdr.from) {
+      DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
+      postOffice->Send(outPktHdr, outMailHdr, "0");
+    } else if (!temp_lock->waitQ.empty()) {
+      DEBUG('R', "Releasing from waitQ\n");
+      Message m = temp_lock->waitQ.front();
+      temp_lock->waitQ.pop_front();
+      temp_lock->machineID = m.packetHdr.to;
+      DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
+      postOffice->Send(m.packetHdr, m.mailHdr, m.data);
+      postOffice->Send(outPktHdr, outMailHdr, "1");
+    } else {
+      DEBUG('R', "Releasing no waitQ\n");
+      temp_lock->busy = false;
+      temp_lock->machineID = -1;
+      if (temp_lock->toBeDeleted && temp_lock->numWaitingOnCV == 0) {
+        locks.erase(locks.find(lockID));
+      }
       postOffice->Send(outPktHdr, outMailHdr, "1");
     }
   } else {
