@@ -97,6 +97,9 @@ void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
 void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
     PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID);
 
+void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    std::map<int, ServerLock> & locks, int lockID);
+
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
@@ -148,25 +151,9 @@ void Server() {
       }
       // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
       case DESTROY_LOCK: {
-        DEBUG('R', "Destroying lock on server starting\n");
         int lockID;
         ss >> lockID;
-        outMailHdr.length = 2;
-        if (locks.find(lockID) != locks.end()) {
-          ServerLock* temp_lock = &(locks.find(lockID)->second);
-          if (temp_lock->busy || temp_lock->numWaitingOnCV > 0) {
-            DEBUG('R', "In use so, marking for deletion\n");
-            temp_lock->toBeDeleted = true;
-            postOffice->Send(outPktHdr, outMailHdr, "1");
-          } else {
-            DEBUG('R', "Successfully deleted\n");
-            locks.erase(locks.find(lockID));
-            postOffice->Send(outPktHdr, outMailHdr, "1");
-          }
-        } else {
-          DEBUG('R', "Couldn't find lock\n");
-          postOffice->Send(outPktHdr, outMailHdr, "0");
-        }
+        destroy_lock(outPktHdr, outMailHdr, locks, lockID);
         break;
       }
       // Returns the cv ID for the given CV.
@@ -521,6 +508,28 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
       if (temp_lock->toBeDeleted && temp_lock->numWaitingOnCV == 0) {
         locks.erase(locks.find(lockID));
       }
+      postOffice->Send(outPktHdr, outMailHdr, "1");
+    }
+  } else {
+    DEBUG('R', "Couldn't find lock\n");
+    postOffice->Send(outPktHdr, outMailHdr, "0");
+  }
+}
+
+// Returns 0 if lock doesn't exist, 1 if it does and is acquired.
+void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    std::map<int, ServerLock> & locks, int lockID) {
+  DEBUG('R', "Destroying lock on server starting\n");
+  outMailHdr.length = 2;
+  if (locks.find(lockID) != locks.end()) {
+    ServerLock* temp_lock = &(locks.find(lockID)->second);
+    if (temp_lock->busy || temp_lock->numWaitingOnCV > 0) {
+      DEBUG('R', "In use so, marking for deletion\n");
+      temp_lock->toBeDeleted = true;
+      postOffice->Send(outPktHdr, outMailHdr, "1");
+    } else {
+      DEBUG('R', "Successfully deleted\n");
+      locks.erase(locks.find(lockID));
       postOffice->Send(outPktHdr, outMailHdr, "1");
     }
   } else {
