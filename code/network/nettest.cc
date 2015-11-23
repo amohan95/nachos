@@ -121,6 +121,15 @@ void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
 void create_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentMV,
     std::map<int, ServerMV> & mvs, int size, string mv_name);
 
+void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    std::map<int, ServerMV> & mvs, int mvID, int index, int value);
+
+void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
+    std::map<int, ServerMV> & mvs, int mvID, int index);
+
+void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    std::map<int, ServerMV> & mvs, int mvID);
+
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
@@ -215,54 +224,24 @@ void Server() {
         break;
       }
       case SET_MV: {
-        DEBUG('R', "Setting mv on server starting\n");
         int mvID, index, value;
         ss >> mvID;
         ss >> index;
         ss >> value;
-        outMailHdr.length = 2;
-        if (mvs.find(mvID) != mvs.end() && mvs.find(mvID)->second.value.size() > index) {
-          (mvs.find(mvID)->second).value[index] = value;
-          postOffice->Send(outPktHdr, outMailHdr, "1");
-        } else {
-          DEBUG('R', "Couldn't find mv or index is out of range\n");
-          postOffice->Send(outPktHdr, outMailHdr, "0");
-        }
+        set_mv(outPktHdr, outMailHdr, mvs, mvID, index, value);
         break;
       }
-      // First send wether or not success, if success then return value;
       case GET_MV: {
-        DEBUG('R', "Getting mv on server starting\n");
         int mvID, index;
         ss >> mvID;
         ss >> index;
-        if (mvs.find(mvID) != mvs.end() && mvs.find(mvID)->second.value.size() > index) {
-          ss.str("");
-          ss.clear();
-          ss << "1 " << (mvs.find(mvID)->second).value[index];
-          char *cstr = new char[ss.str().length() + 1];
-          strcpy(cstr, ss.str().c_str());
-          outMailHdr.length = ss.str().length() + 1;
-          postOffice->Send(outPktHdr, outMailHdr, cstr);
-        } else {
-          DEBUG('R', "Couldn't find mv or index is out of range\n");
-          outMailHdr.length = 2;
-          postOffice->Send(outPktHdr, outMailHdr, "0");
-        }
+        get_mv(outPktHdr, outMailHdr, mvs, mvID, index);
         break;
       }
       case DESTROY_MV: {
-        DEBUG('R', "Destroying mv on server starting\n");
         int mvID;
         ss >> mvID;
-        outMailHdr.length = 2;
-        if (mvs.find(mvID) != mvs.end()) {
-          mvs.erase(mvs.find(mvID));
-          postOffice->Send(outPktHdr, outMailHdr, "1");
-        } else {
-          DEBUG('R', "Couldn't find lock\n");
-          postOffice->Send(outPktHdr, outMailHdr, "0");
-        }
+        destroy_mv(outPktHdr, outMailHdr, mvs, mvID);
         break;
       }
     }
@@ -583,6 +562,50 @@ void create_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentMV,
   strcpy(cstr, ss.str().c_str());
   DEBUG('R',"Create mv on server sending: %s\n", cstr);
   postOffice->Send(outPktHdr, outMailHdr, cstr);
+}
+
+void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    std::map<int, ServerMV> & mvs, int mvID, int index, int value) {
+  DEBUG('R', "Setting mv on server starting\n");
+  outMailHdr.length = 2;
+  if (mvs.find(mvID) != mvs.end() && mvs.find(mvID)->second.value.size() > index) {
+    (mvs.find(mvID)->second).value[index] = value;
+    postOffice->Send(outPktHdr, outMailHdr, "1");
+  } else {
+    DEBUG('R', "Couldn't find mv or index is out of range\n");
+    postOffice->Send(outPktHdr, outMailHdr, "0");
+  }
+}
+
+// First send whether or not success, if success then return value
+void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
+    std::map<int, ServerMV> & mvs, int mvID, int index) {
+  DEBUG('R', "Getting mv on server starting\n");
+  if (mvs.find(mvID) != mvs.end() && mvs.find(mvID)->second.value.size() > index) {
+    stringstream ss;
+    ss << "1 " << (mvs.find(mvID)->second).value[index];
+    char *cstr = new char[ss.str().length() + 1];
+    strcpy(cstr, ss.str().c_str());
+    outMailHdr.length = ss.str().length() + 1;
+    postOffice->Send(outPktHdr, outMailHdr, cstr);
+  } else {
+    DEBUG('R', "Couldn't find mv or index is out of range\n");
+    outMailHdr.length = 2;
+    postOffice->Send(outPktHdr, outMailHdr, "0");
+  }
+}
+
+void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    std::map<int, ServerMV> & mvs, int mvID) {
+  DEBUG('R', "Destroying mv on server starting\n");
+  outMailHdr.length = 2;
+  if (mvs.find(mvID) != mvs.end()) {
+    mvs.erase(mvs.find(mvID));
+    postOffice->Send(outPktHdr, outMailHdr, "1");
+  } else {
+    DEBUG('R', "Couldn't find lock\n");
+    postOffice->Send(outPktHdr, outMailHdr, "0");
+  }
 }
 
 // Test out message delivery, by doing the following:
