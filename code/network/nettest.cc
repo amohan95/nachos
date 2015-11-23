@@ -115,6 +115,9 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader in
     std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
     int lockID);
 
+void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    std::map<int, ServerCV> & cvs, int cvID);
+
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
@@ -196,25 +199,9 @@ void Server() {
         break;
       }
       case DESTROY_CV: {
-        DEBUG('R', "Destroying cv on server starting\n");
         int cvID;
         ss >> cvID;
-        outMailHdr.length = 2;
-        if (cvs.find(cvID) != cvs.end()) {
-          ServerCV* temp_cv = &(cvs.find(cvID)->second);
-          if (!temp_cv->waitQ.empty()) {
-            DEBUG('R', "Stuff on waitQ so marking for deletion\n");
-            temp_cv->toBeDeleted = true;
-            postOffice->Send(outPktHdr, outMailHdr, "1");
-          } else {
-            DEBUG('R', "Successfully deleted\n");
-            cvs.erase(cvs.find(cvID));
-            postOffice->Send(outPktHdr, outMailHdr, "1");
-          }
-        } else {
-          DEBUG('R', "Couldn't find lock\n");
-          postOffice->Send(outPktHdr, outMailHdr, "0");
-        }
+        destroy_cv(outPktHdr, outMailHdr, cvs, cvID);
         break;
       }
       case CREATE_MV: {
@@ -566,6 +553,27 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader in
     }
   } else {
     DEBUG('R', "Couldn't find cv or lock\n");
+    postOffice->Send(outPktHdr, outMailHdr, "0");
+  }
+}
+
+void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    std::map<int, ServerCV> & cvs, int cvID) {
+  DEBUG('R', "Destroying cv on server starting\n");
+  outMailHdr.length = 2;
+  if (cvs.find(cvID) != cvs.end()) {
+    ServerCV* temp_cv = &(cvs.find(cvID)->second);
+    if (!temp_cv->waitQ.empty()) {
+      DEBUG('R', "Stuff on waitQ so marking for deletion\n");
+      temp_cv->toBeDeleted = true;
+      postOffice->Send(outPktHdr, outMailHdr, "1");
+    } else {
+      DEBUG('R', "Successfully deleted\n");
+      cvs.erase(cvs.find(cvID));
+      postOffice->Send(outPktHdr, outMailHdr, "1");
+    }
+  } else {
+    DEBUG('R', "Couldn't find lock\n");
     postOffice->Send(outPktHdr, outMailHdr, "0");
   }
 }
