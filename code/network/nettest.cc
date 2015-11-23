@@ -118,6 +118,9 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader in
 void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerCV> & cvs, int cvID);
 
+void create_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentMV,
+    std::map<int, ServerMV> & mvs, int size, string mv_name);
+
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
@@ -205,32 +208,10 @@ void Server() {
         break;
       }
       case CREATE_MV: {
-        DEBUG('R', "Create mv on server starting\n");
         int size;
         ss >> size;
         std::string mv_name = ss.str();
-        int mvID;
-        bool found = false;
-        for (std::map<int, ServerMV>::iterator it = mvs.begin(); it != mvs.end(); ++it) {
-          if (it->second.name == mv_name) {
-            mvID = it->first;
-            found = true;
-            break;
-          }
-        } 
-        if (!found) {
-          mvID = currentMV;
-          ServerMV mv(mv_name, size);
-          mvs.insert(std::pair<int, ServerMV>(currentMV++, mv));
-        }
-        ss.str("");
-        ss.clear();
-        ss << (mvID);
-        outMailHdr.length = ss.str().length() + 1;
-        char *cstr = new char[ss.str().length() + 1];
-        strcpy(cstr, ss.str().c_str());
-        DEBUG('R',"Create mv on server sending: %s\n", cstr);
-        postOffice->Send(outPktHdr, outMailHdr, cstr);
+        create_mv(outPktHdr, outMailHdr, currentMV, mvs, size, mv_name);
         break;
       }
       case SET_MV: {
@@ -576,6 +557,32 @@ void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
     DEBUG('R', "Couldn't find lock\n");
     postOffice->Send(outPktHdr, outMailHdr, "0");
   }
+}
+
+void create_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentMV,
+    std::map<int, ServerMV> & mvs, int size, string mv_name) {
+  DEBUG('R', "Create mv on server starting\n");
+  int mvID;
+  bool found = false;
+  for (std::map<int, ServerMV>::iterator it = mvs.begin(); it != mvs.end(); ++it) {
+    if (it->second.name == mv_name) {
+      mvID = it->first;
+      found = true;
+      break;
+    }
+  } 
+  if (!found) {
+    mvID = currentMV;
+    ServerMV mv(mv_name, size);
+    mvs.insert(std::pair<int, ServerMV>(currentMV++, mv));
+  }
+  stringstream ss;
+  ss << (mvID);
+  outMailHdr.length = ss.str().length() + 1;
+  char *cstr = new char[ss.str().length() + 1];
+  strcpy(cstr, ss.str().c_str());
+  DEBUG('R',"Create mv on server sending: %s\n", cstr);
+  postOffice->Send(outPktHdr, outMailHdr, cstr);
 }
 
 // Test out message delivery, by doing the following:
