@@ -130,6 +130,10 @@ void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
 void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerMV> & mvs, int mvID);
 
+void release_lock_helper(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID, 
+    ServerLock* temp_lock, bool send);
+
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
@@ -313,26 +317,7 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
   outMailHdr.length = 2;
   if (locks.find(lockID) != locks.end()) {
     ServerLock* temp_lock = &(locks.find(lockID)->second);
-    if (temp_lock->machineID != inPktHdr.from) {
-      DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
-      postOffice->Send(outPktHdr, outMailHdr, "0");
-    } else if (!temp_lock->waitQ.empty()) {
-      DEBUG('R', "Releasing from waitQ\n");
-      Message m = temp_lock->waitQ.front();
-      temp_lock->waitQ.pop_front();
-      temp_lock->machineID = m.packetHdr.to;
-      DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
-      postOffice->Send(m.packetHdr, m.mailHdr, m.data);
-      postOffice->Send(outPktHdr, outMailHdr, "1");
-    } else {
-      DEBUG('R', "Releasing no waitQ\n");
-      temp_lock->busy = false;
-      temp_lock->machineID = -1;
-      if (temp_lock->toBeDeleted && temp_lock->numWaitingOnCV == 0) {
-        locks.erase(locks.find(lockID));
-      }
-      postOffice->Send(outPktHdr, outMailHdr, "1");
-    }
+    release_lock_helper(outPktHdr, outMailHdr, inPktHdr, locks, lockID, temp_lock, true);
   } else {
     DEBUG('R', "Couldn't find lock\n");
     postOffice->Send(outPktHdr, outMailHdr, "0");
@@ -412,20 +397,7 @@ void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHd
       temp_cv->lockID = lockID;
 
       // Release lock
-      if (!temp_lock->waitQ.empty()) {
-        DEBUG('R', "Releasing from waitQ\n");
-        Message m2 = temp_lock->waitQ.front();
-        temp_lock->waitQ.pop_front();
-        temp_lock->machineID = m2.packetHdr.to;
-        postOffice->Send(m2.packetHdr, m2.mailHdr, m2.data);
-      } else {
-        DEBUG('R', "Releasing no waitQ\n");
-        temp_lock->busy = false;
-        temp_lock->machineID = -1;
-        if (temp_lock->toBeDeleted) {
-          locks.erase(locks.find(lockID));
-        }
-      }
+      release_lock_helper(outPktHdr, outMailHdr, inPktHdr, locks, lockID, temp_lock, false);
     }
   } else {
     DEBUG('R', "Couldn't find cv or lock\n");
@@ -605,6 +577,35 @@ void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
   } else {
     DEBUG('R', "Couldn't find lock\n");
     postOffice->Send(outPktHdr, outMailHdr, "0");
+  }
+}
+
+void release_lock_helper(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID, 
+    ServerLock* temp_lock, bool send) {
+  if (temp_lock->machineID != inPktHdr.from) {
+    DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
+    postOffice->Send(outPktHdr, outMailHdr, "0");
+  } else if (!temp_lock->waitQ.empty()) {
+    DEBUG('R', "Releasing from waitQ\n");
+    Message m = temp_lock->waitQ.front();
+    temp_lock->waitQ.pop_front();
+    temp_lock->machineID = m.packetHdr.to;
+    DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
+    postOffice->Send(m.packetHdr, m.mailHdr, m.data);
+    if (send) {
+      postOffice->Send(outPktHdr, outMailHdr, "1");
+    }
+  } else {
+    DEBUG('R', "Releasing no waitQ\n");
+    temp_lock->busy = false;
+    temp_lock->machineID = -1;
+    if (temp_lock->toBeDeleted && temp_lock->numWaitingOnCV == 0) {
+      locks.erase(locks.find(lockID));
+    }
+    if (send) {
+      postOffice->Send(outPktHdr, outMailHdr, "1");
+    }
   }
 }
 
