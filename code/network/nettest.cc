@@ -91,6 +91,9 @@ struct ServerMV {
 void create_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
   int & currentLock, std::map<int, ServerLock> & locks, string lock_name);
 
+void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID);
+
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
@@ -131,26 +134,9 @@ void Server() {
       }
       // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
       case ACQUIRE_LOCK: {
-        DEBUG('R', "Acquiring lock on server starting\n");
         int lockID;
         ss >> lockID;
-        outMailHdr.length = 2;
-        if (locks.find(lockID) != locks.end()) {
-          ServerLock *temp_lock = &(locks.find(lockID)->second);
-          if (temp_lock->busy) {
-            DEBUG('R', "Found lock and busy\n");
-            Message m(outPktHdr, outMailHdr, "1", 2);
-            temp_lock->addToWaitQ(m);
-          } else {
-            DEBUG('R', "Found lock and not busy\n");
-            temp_lock->busy = true;
-            temp_lock->machineID = inPktHdr.from;
-            postOffice->Send(outPktHdr, outMailHdr, "1");
-          }
-        } else {
-          DEBUG('R', "Couldn't find lock\n");
-          postOffice->Send(outPktHdr, outMailHdr, "0");
-        }
+        acquire_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
         break;
       }
       // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
@@ -482,6 +468,7 @@ void Server() {
   interrupt->Halt();
 }
 
+// Returns the lock ID for the given
 void create_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
     int & currentLock, std::map<int, ServerLock> & locks, string lock_name) {
   DEBUG('R', "Create lock on server starting\n");
@@ -511,6 +498,29 @@ void create_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
   strcpy(cstr, ss.str().c_str());
   DEBUG('R',"Create lock on server sending: %s\n", cstr);
   postOffice->Send(outPktHdr, outMailHdr, cstr);
+}
+
+// Returns 0 if lock doesn't exist, 1 if it does and is acquired.
+void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
+    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID) {
+  DEBUG('R', "Acquiring lock on server starting\n");
+  outMailHdr.length = 2;
+  if (locks.find(lockID) != locks.end()) {
+    ServerLock *temp_lock = &(locks.find(lockID)->second);
+    if (temp_lock->busy) {
+      DEBUG('R', "Found lock and busy\n");
+      Message m(outPktHdr, outMailHdr, "1", 2);
+      temp_lock->addToWaitQ(m);
+    } else {
+      DEBUG('R', "Found lock and not busy\n");
+      temp_lock->busy = true;
+      temp_lock->machineID = inPktHdr.from;
+      postOffice->Send(outPktHdr, outMailHdr, "1");
+    }
+  } else {
+    DEBUG('R', "Couldn't find lock\n");
+    postOffice->Send(outPktHdr, outMailHdr, "0");
+  }
 }
 
 // Test out message delivery, by doing the following:
