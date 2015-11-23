@@ -48,12 +48,14 @@ struct ServerLock {
     int machineID;
     std::string name;
     bool toBeDeleted;
+    int numWaitingOnCV;
     std::deque<Message> waitQ;
     ServerLock(std::string n) {
         machineID = -1;
         name = n;
         busy = false;
         toBeDeleted = false;
+        numWaitingOnCV = 0;
     }
     void addToWaitQ(Message m) {
         waitQ.push_back(m);
@@ -196,7 +198,7 @@ void Server() {
                         DEBUG('R', "Releasing no waitQ\n");
                         temp_lock->busy = false;
                         temp_lock->machineID = -1;
-                        if (temp_lock->toBeDeleted) {
+                        if (temp_lock->toBeDeleted && temp_lock->numWaitingOnCV == 0) {
                             locks.erase(locks.find(lockID));
                         }
                         postOffice->Send(outPktHdr, outMailHdr, "1");
@@ -215,7 +217,7 @@ void Server() {
                 outMailHdr.length = 2;
                 if (locks.find(lockID) != locks.end()) {
                     ServerLock* temp_lock = &(locks.find(lockID)->second);
-                    if (temp_lock->busy) {
+                    if (temp_lock->busy || temp_lock->numWaitingOnCV > 0) {
                         DEBUG('R', "In use so, marking for deletion\n");
                         temp_lock->toBeDeleted = true;
                         postOffice->Send(outPktHdr, outMailHdr, "1");
@@ -278,6 +280,7 @@ void Server() {
                         break;
                     } else {
                         DEBUG('R', "Adding to CV waitQ\n");
+                        ++temp_lock->numWaitingOnCV;
                         Message m(outPktHdr, outMailHdr, "1", 2);
                         temp_cv->addToWaitQ(m);
                         temp_cv->lockID = lockID;
@@ -321,6 +324,7 @@ void Server() {
                     } else {
                         if (!temp_cv->waitQ.empty()) {
                             DEBUG('R', "Releasing from waitQ and acquire lock\n");
+                            --temp_lock->numWaitingOnCV;
                             Message m = temp_cv->waitQ.front();
                             temp_cv->waitQ.pop_front();
                             
@@ -365,6 +369,7 @@ void Server() {
                         break;
                     } else {
                         while(!temp_cv->waitQ.empty()) {
+                            --temp_lock->numWaitingOnCV;
                             Message m = temp_cv->waitQ.front();
                             temp_cv->waitQ.pop_front();
                             
