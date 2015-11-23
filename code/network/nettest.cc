@@ -100,6 +100,9 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
 void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerLock> & locks, int lockID);
 
+void create_cv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentCV,
+    std::map<int, ServerCV> & cvs, string cv_name);
+
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
@@ -149,43 +152,14 @@ void Server() {
         release_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
         break;
       }
-      // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
       case DESTROY_LOCK: {
         int lockID;
         ss >> lockID;
         destroy_lock(outPktHdr, outMailHdr, locks, lockID);
         break;
       }
-      // Returns the cv ID for the given CV.
       case CREATE_CV: {
-        DEBUG('R', "Create cv on server starting\n");
-        std::string cv_name = ss.str();
-        int cvID;
-        bool found = false;
-        for (std::map<int, ServerCV>::iterator it = cvs.begin(); it != cvs.end(); ++it) {
-          if (it->second.name == cv_name) {
-            cvID = it->first;
-            found = true;
-            break;
-          }
-        } 
-        if (!found) {
-          if (cvs.size() >= NUM_SYSTEM_CONDITIONS) {
-            outMailHdr.length = 3;
-            postOffice->Send(outPktHdr, outMailHdr, "-1");
-          }
-          cvID = currentCV;
-          ServerCV cv(cv_name);
-          cvs.insert(std::pair<int, ServerCV>(currentCV++, cv));
-        }
-        ss.str("");
-        ss.clear();
-        ss << (cvID);
-        outMailHdr.length = ss.str().length() + 1;
-        char *cstr = new char[ss.str().length() + 1];
-        strcpy(cstr, ss.str().c_str());
-        DEBUG('R', "Create cv on server sending: %s\n", cstr);
-        postOffice->Send(outPktHdr, outMailHdr, cstr);
+        create_cv(outPktHdr, outMailHdr, currentCV, cvs, ss.str());
         break;
       }
       case WAIT_CV: {
@@ -536,6 +510,37 @@ void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
     DEBUG('R', "Couldn't find lock\n");
     postOffice->Send(outPktHdr, outMailHdr, "0");
   }
+}
+
+// Returns the cv ID for the given CV.
+void create_cv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentCV,
+    std::map<int, ServerCV> & cvs, string cv_name) {
+  DEBUG('R', "Create cv on server starting\n");
+  int cvID;
+  bool found = false;
+  for (std::map<int, ServerCV>::iterator it = cvs.begin(); it != cvs.end(); ++it) {
+    if (it->second.name == cv_name) {
+      cvID = it->first;
+      found = true;
+      break;
+    }
+  } 
+  if (!found) {
+    if (cvs.size() >= NUM_SYSTEM_CONDITIONS) {
+      outMailHdr.length = 3;
+      postOffice->Send(outPktHdr, outMailHdr, "-1");
+    }
+    cvID = currentCV;
+    ServerCV cv(cv_name);
+    cvs.insert(std::pair<int, ServerCV>(currentCV++, cv));
+  }
+  stringstream ss;
+  ss << (cvID);
+  outMailHdr.length = ss.str().length() + 1;
+  char *cstr = new char[ss.str().length() + 1];
+  strcpy(cstr, ss.str().c_str());
+  DEBUG('R', "Create cv on server sending: %s\n", cstr);
+  postOffice->Send(outPktHdr, outMailHdr, cstr);
 }
 
 // Test out message delivery, by doing the following:
