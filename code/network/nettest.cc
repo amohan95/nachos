@@ -103,6 +103,10 @@ void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
 void create_cv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentCV,
     std::map<int, ServerCV> & cvs, string cv_name);
 
+void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
+    std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
+    int lockID);
+
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
@@ -163,46 +167,10 @@ void Server() {
         break;
       }
       case WAIT_CV: {
-        DEBUG('R', "Waiting on cv on server starting\n");
         int cvID, lockID;
         ss >> cvID;
         ss >> lockID;
-        outMailHdr.length = 2;
-        if (cvs.find(cvID) != cvs.end() && locks.find(lockID) != locks.end()) {
-          ServerCV* temp_cv = &(cvs.find(cvID)->second);
-          ServerLock* temp_lock = &(locks.find(lockID)->second);
-          if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
-              || temp_lock->machineID != inPktHdr.from) {
-            DEBUG('R', "Trying to wait on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
-            postOffice->Send(outPktHdr, outMailHdr, "0");
-            break;
-          } else {
-            DEBUG('R', "Adding to CV waitQ\n");
-            ++temp_lock->numWaitingOnCV;
-            Message m(outPktHdr, outMailHdr, "1", 2);
-            temp_cv->addToWaitQ(m);
-            temp_cv->lockID = lockID;
-
-            // Release lock
-            if (!temp_lock->waitQ.empty()) {
-              DEBUG('R', "Releasing from waitQ\n");
-              Message m2 = temp_lock->waitQ.front();
-              temp_lock->waitQ.pop_front();
-              temp_lock->machineID = m2.packetHdr.to;
-              postOffice->Send(m2.packetHdr, m2.mailHdr, m2.data);
-            } else {
-              DEBUG('R', "Releasing no waitQ\n");
-              temp_lock->busy = false;
-              temp_lock->machineID = -1;
-              if (temp_lock->toBeDeleted) {
-                locks.erase(locks.find(lockID));
-              }
-            }
-          }
-        } else {
-          DEBUG('R', "Couldn't find cv or lock\n");
-          postOffice->Send(outPktHdr, outMailHdr, "0");
-        }
+        wait_cv(outPktHdr, outMailHdr, inPktHdr, locks, cvs, cvID, lockID);
         break;
       }
       case SIGNAL_CV: {
@@ -541,6 +509,47 @@ void create_cv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentCV,
   strcpy(cstr, ss.str().c_str());
   DEBUG('R', "Create cv on server sending: %s\n", cstr);
   postOffice->Send(outPktHdr, outMailHdr, cstr);
+}
+
+void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
+    std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
+    int lockID) {
+  DEBUG('R', "Waiting on cv on server starting\n");
+  outMailHdr.length = 2;
+  if (cvs.find(cvID) != cvs.end() && locks.find(lockID) != locks.end()) {
+    ServerCV* temp_cv = &(cvs.find(cvID)->second);
+    ServerLock* temp_lock = &(locks.find(lockID)->second);
+    if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
+        || temp_lock->machineID != inPktHdr.from) {
+      DEBUG('R', "Trying to wait on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
+      postOffice->Send(outPktHdr, outMailHdr, "0");
+    } else {
+      DEBUG('R', "Adding to CV waitQ\n");
+      ++temp_lock->numWaitingOnCV;
+      Message m(outPktHdr, outMailHdr, "1", 2);
+      temp_cv->addToWaitQ(m);
+      temp_cv->lockID = lockID;
+
+      // Release lock
+      if (!temp_lock->waitQ.empty()) {
+        DEBUG('R', "Releasing from waitQ\n");
+        Message m2 = temp_lock->waitQ.front();
+        temp_lock->waitQ.pop_front();
+        temp_lock->machineID = m2.packetHdr.to;
+        postOffice->Send(m2.packetHdr, m2.mailHdr, m2.data);
+      } else {
+        DEBUG('R', "Releasing no waitQ\n");
+        temp_lock->busy = false;
+        temp_lock->machineID = -1;
+        if (temp_lock->toBeDeleted) {
+          locks.erase(locks.find(lockID));
+        }
+      }
+    }
+  } else {
+    DEBUG('R', "Couldn't find cv or lock\n");
+    postOffice->Send(outPktHdr, outMailHdr, "0");
+  }
 }
 
 // Test out message delivery, by doing the following:
