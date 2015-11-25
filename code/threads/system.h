@@ -94,6 +94,7 @@ extern SynchDisk   *synchDisk;
 extern PostOffice* postOffice;
 #define MAX_MONITOR 1000
 #define NUM_MONITORS 10000
+#define NUM_SERVERS 1
 extern int machineId;
 #endif
 

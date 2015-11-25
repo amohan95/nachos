@@ -26,7 +26,6 @@
 #include "string.h"
 #include "deque.h"
 #include "map.h"
-#include "vector.h"
 
 #include <sstream>
 #include <iostream>
