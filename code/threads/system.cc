@@ -52,6 +52,7 @@ int currentTlb;
 #ifdef NETWORK
 PostOffice *postOffice;
 int machineId = 0;
+int numServers = 0;
 #endif
 
 
@@ -150,6 +151,10 @@ Initialize(int argc, char **argv)
       netname = atoi(*(argv + 1));
 			machineId = netname;
       argCount = 2;
+  } else if (!strcmp(*argv, "-sn")) {
+    ASSERT(argc > 1);
+    numServers = atoi(*(argv + 1));
+    argCount = 2;
   }
 #endif
     }
