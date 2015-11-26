@@ -18,6 +18,12 @@
 #define GET_MV 12
 #define DESTROY_MV 13
 
+#define SERVER_REQUEST 1
+#define SERVER_RESPONSE 2
+
+#define NO 0
+#define YES 1
+
 #define FAIL 0
 #define SUCCESS 1
 

@@ -87,8 +87,27 @@ struct ServerMV {
   }
 };
 
-void create_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
-  int & currentLock, std::map<int, ServerLock> & locks, string lock_name);
+struct Request {
+  int requestorMID;
+  int requestorMB;
+  int requestType;
+  bool yesResponse;
+  int noCount;
+  string info;
+  Request(int mid, int mb, int type, string info_string) {
+    requestorMID = mid;
+    requestorMB = mb;
+    requestType = type;
+    info = info_string;
+    yesResponse = false;
+    noCount = 0;
+  }
+};
+
+int find_lock(string lock_name);
+
+int create_new_lock(int & currentLock, map<int, ServerLock> & locks, 
+    string lock_name);
 
 void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
     PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID);
@@ -133,18 +152,27 @@ void release_lock_helper(PacketHeader outPktHdr, MailHeader outMailHdr,
     PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID, 
     ServerLock* temp_lock, bool send);
 
+void setup_message_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, string s) {
+  outMailHdr.length = s.length() + 1;
+  char *cstr = new char[s.length() + 1];
+  strcpy(cstr, s.c_str());
+  postOffice->Send(outPktHdr, outMailHdr, cstr);
+}
+
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
   int currentLock = 0;
   int currentCV = 0;
   int currentMV = 0;
+  int currentRequest = 0;
   std::map<int, ServerLock> locks;
   std::map<int, ServerCV> cvs;
   std::map<int, ServerMV> mvs;
+  std::map<int, Request> pending_requests;
 
   for (;;) {
-    // Receive a message
+    // Receive a message.
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
     char buffer[MaxMailSize];
@@ -156,7 +184,7 @@ void Server() {
 
     DEBUG('R', "Received packet\n");
 
-    // Parse the message
+    // Parse the message.
     int s;
     stringstream ss(buffer);
     DEBUG('R', "MESSAGE: ");
@@ -164,88 +192,172 @@ void Server() {
     DEBUG('R', "\n");
     ss >> s;
 
-    // Process the message and Send a reply… maybe
-    switch (s) {
-      case CREATE_LOCK: {
-        create_lock(outPktHdr, outMailHdr, currentLock, locks, ss.str());
-        break;
+    if (inPktHdr.from >= numServers) { // Client message.
+      switch (s) {
+        case CREATE_LOCK: {
+          string lock_name = ss.str();
+          int lockID = find_lock(lock_name);
+          if (lockID != -1) { // If on this server, send response.
+            stringstream ss;
+            ss << lockID;
+            DEBUG('R',"Create lock on server sending: %s\n", cstr);
+            setup_message_and_send(outPktHdr, outMailHdr, lock_name);
+          } else if (numServers == 1) { // If only server, create lock and send response.
+            lockID = create_new_lock(currentLock, locks, lock_name);
+            if (lockID == -1) {
+              outMailHdr.length = 3;
+              postOffice->Send(outPktHdr, outMailHdr, "-1");
+            } else {
+              send_create_lock(outPktHdr, outMailHdr, lockID);
+            }
+          } else { // See if on another server.
+            pending_requests.insert(std::pair(currentRequest++, 
+                Request(inPktHdr.from, inMailHdr.from, s, lock_name)));
+            outMailHdr.to = SERVER_MAILBOX;
+            for (int i = 0; i < numServers; ++i) {
+              if (i != machineID) {
+                outPktHdr.to = i;
+                stringstream ss;
+                ss << SERVER_REQUEST << " " << currentRequest - 1  << " " << s 
+                    << " " << inPktHdr.from << " " << inMailHdr.from << " " 
+                    << lock_name;
+                setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+              }
+            }
+          }
+          break;
+        }
+        case ACQUIRE_LOCK: {
+          int lockID;
+          ss >> lockID;
+          acquire_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
+          break;
+        }
+        case RELEASE_LOCK: {
+          int lockID;
+          ss >> lockID;
+          release_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
+          break;
+        }
+        case DESTROY_LOCK: {
+          int lockID;
+          ss >> lockID;
+          destroy_lock(outPktHdr, outMailHdr, locks, lockID);
+          break;
+        }
+        case CREATE_CV: {
+          create_cv(outPktHdr, outMailHdr, currentCV, cvs, ss.str());
+          break;
+        }
+        case WAIT_CV: {
+          int cvID, lockID;
+          ss >> cvID;
+          ss >> lockID;
+          wait_cv(outPktHdr, outMailHdr, inPktHdr, locks, cvs, cvID, lockID);
+          break;
+        }
+        case SIGNAL_CV: {
+          int cvID, lockID;
+          ss >> cvID;
+          ss >> lockID;
+          signal_cv(outPktHdr, outMailHdr, inPktHdr, locks, cvs, cvID, lockID);
+          break;
+        }
+        case BROADCAST_CV: {
+          int cvID, lockID;
+          ss >> cvID;
+          ss >> lockID;
+          broadcast_cv(outPktHdr, outMailHdr, inPktHdr, locks, cvs, cvID, lockID);
+          break;
+        }
+        case DESTROY_CV: {
+          int cvID;
+          ss >> cvID;
+          destroy_cv(outPktHdr, outMailHdr, cvs, cvID);
+          break;
+        }
+        case CREATE_MV: {
+          int size;
+          ss >> size;
+          std::string mv_name = ss.str();
+          create_mv(outPktHdr, outMailHdr, currentMV, mvs, size, mv_name);
+          break;
+        }
+        case SET_MV: {
+          int mvID, index, value;
+          ss >> mvID;
+          ss >> index;
+          ss >> value;
+          set_mv(outPktHdr, outMailHdr, mvs, mvID, index, value);
+          break;
+        }
+        case GET_MV: {
+          int mvID, index;
+          ss >> mvID;
+          ss >> index;
+          get_mv(outPktHdr, outMailHdr, mvs, mvID, index);
+          break;
+        }
+        case DESTROY_MV: {
+          int mvID;
+          ss >> mvID;
+          destroy_mv(outPktHdr, outMailHdr, mvs, mvID);
+          break;
+        }
       }
-      case ACQUIRE_LOCK: {
-        int lockID;
-        ss >> lockID;
-        acquire_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
-        break;
-      }
-      case RELEASE_LOCK: {
-        int lockID;
-        ss >> lockID;
-        release_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
-        break;
-      }
-      case DESTROY_LOCK: {
-        int lockID;
-        ss >> lockID;
-        destroy_lock(outPktHdr, outMailHdr, locks, lockID);
-        break;
-      }
-      case CREATE_CV: {
-        create_cv(outPktHdr, outMailHdr, currentCV, cvs, ss.str());
-        break;
-      }
-      case WAIT_CV: {
-        int cvID, lockID;
-        ss >> cvID;
-        ss >> lockID;
-        wait_cv(outPktHdr, outMailHdr, inPktHdr, locks, cvs, cvID, lockID);
-        break;
-      }
-      case SIGNAL_CV: {
-        int cvID, lockID;
-        ss >> cvID;
-        ss >> lockID;
-        signal_cv(outPktHdr, outMailHdr, inPktHdr, locks, cvs, cvID, lockID);
-        break;
-      }
-      case BROADCAST_CV: {
-        int cvID, lockID;
-        ss >> cvID;
-        ss >> lockID;
-        broadcast_cv(outPktHdr, outMailHdr, inPktHdr, locks, cvs, cvID, lockID);
-        break;
-      }
-      case DESTROY_CV: {
-        int cvID;
-        ss >> cvID;
-        destroy_cv(outPktHdr, outMailHdr, cvs, cvID);
-        break;
-      }
-      case CREATE_MV: {
-        int size;
-        ss >> size;
-        std::string mv_name = ss.str();
-        create_mv(outPktHdr, outMailHdr, currentMV, mvs, size, mv_name);
-        break;
-      }
-      case SET_MV: {
-        int mvID, index, value;
-        ss >> mvID;
-        ss >> index;
-        ss >> value;
-        set_mv(outPktHdr, outMailHdr, mvs, mvID, index, value);
-        break;
-      }
-      case GET_MV: {
-        int mvID, index;
-        ss >> mvID;
-        ss >> index;
-        get_mv(outPktHdr, outMailHdr, mvs, mvID, index);
-        break;
-      }
-      case DESTROY_MV: {
-        int mvID;
-        ss >> mvID;
-        destroy_mv(outPktHdr, outMailHdr, mvs, mvID);
-        break;
+    } else { // Server message.
+      int requestId;
+      ss >> requestId;
+      if (s == SERVER_REQUEST) { // Server request.
+        ss >> s;
+        switch (s) {
+          case CREATE_LOCK: {
+            int pkt, mail;
+            ss >> pkt;
+            ss >> mail;
+            string lock_name = ss.str();
+            int lockID = find_lock(lock_name);
+
+            // If on this server, send response to client and yes to requesting server.
+            if (lockID != -1) { 
+              ss.str("");
+              ss.clear();
+              ss << SERVER_RESPONSE << " " << requestId << " " << YES;
+              setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+              
+              ss.str("");
+              ss.clear();
+              ss << lockID;
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
+              setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+            } else { // Send no.
+              ss.str("");
+              ss.clear();
+              ss << SERVER_RESPONSE << " " << requestId << " " << NO;
+              setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+            }
+            break;
+          }
+        }
+      } else { // Server response.
+        bool yes;
+        ss >> yes;
+        map<int, Request>::iterator it = pending_requests.find(requestId);
+        if (yes) {
+          it->yesResponse = true;
+          if (numServers == 2) {
+            pending_requests.erase(it);
+          }
+        } else if (it->noCount == numServers - 3) {
+          if (it->yesResponse) {
+            pending_requests.erase(it);
+          } else {
+            // DO REQUEST
+          }
+        } else {
+          it->noCount++;
+        }
       }
     }
   }
@@ -254,36 +366,26 @@ void Server() {
   interrupt->Halt();
 }
 
-// Returns the lock ID for the given
-void create_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    int & currentLock, std::map<int, ServerLock> & locks, string lock_name) {
-  DEBUG('R', "Create lock on server starting\n");
-  int lockID;
-  bool found = false;
+// Returns the lock ID for the given lock or -1 if not on this server.
+int find_lock(string lock_name) {
   for (std::map<int, ServerLock>::iterator it = locks.begin(); 
       it != locks.end(); ++it) {
     if (it->second.name == lock_name) {
-      lockID = it->first;
-      found = true;
-      break;
+      return it->first;
     }
-  } 
-  if (!found) {
-    if (locks.size() >= NUM_SYSTEM_LOCKS) {
-      outMailHdr.length = 3;
-      postOffice->Send(outPktHdr, outMailHdr, "-1");
-    }
-    lockID = currentLock;
-    ServerLock lock(lock_name);
-    locks.insert(std::pair<int, ServerLock>(currentLock++, lock));
   }
-  stringstream ss;
-  ss << (lockID);
-  outMailHdr.length = ss.str().length() + 1;
-  char *cstr = new char[ss.str().length() + 1];
-  strcpy(cstr, ss.str().c_str());
-  DEBUG('R',"Create lock on server sending: %s\n", cstr);
-  postOffice->Send(outPktHdr, outMailHdr, cstr);
+  return -1;
+}
+
+// Returns the lock ID for the new lock, or -1 if not possible.
+int create_new_lock(int & currentLock, map<int, ServerLock> & locks, 
+    string lock_name) {
+  if (locks.size() >= NUM_SYSTEM_LOCKS) {
+    return -1;
+  }
+  ServerLock lock(lock_name);
+  locks.insert(std::pair<int, ServerLock>(currentLock++, lock));
+  return currentLock - 1;
 }
 
 // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
