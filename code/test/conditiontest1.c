@@ -7,8 +7,8 @@ int main() {
   lock = CreateLock("Lock", 4);
   PrintNum(lock);
   Print("\n", 1);
-  Print("Creating Condition Variable. Index returned: ", 45);
-  /*cv = CreateCondition("CV", 2);
+  /*Print("Creating Condition Variable. Index returned: ", 45);
+  cv = CreateCondition("CV", 2);*/
   Print("Acquiring Lock\n", 15);
   status = Acquire(lock);
   if (status) {
@@ -16,7 +16,7 @@ int main() {
   } else {
     Print("FAIL: Something went wrong Acquire\n", 35);
   }
-  Print("Calling Wait and waiting to be signalled by other program.\n", 60);
+  /*Print("Calling Wait and waiting to be signalled by other program.\n", 60);
   Wait(cv, lock);
   Print("Returned from wait and releasing lock\n", 38);
   status = Release(lock);

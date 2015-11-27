@@ -372,7 +372,7 @@ void Server() {
             ss >> lockID;
             // If on this server, send response to client and yes to requesting server.
             if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
-              DEBUG('R', "Found lock and handling acquire of lockid: %s\n", lockID);
+              DEBUG('R', "Found lock and handling acquire of lockid: %d\n", lockID);
               ss.str("");
               ss.clear();
               ss << SERVER_RESPONSE << " " << requestId << " " << YES;
