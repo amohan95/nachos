@@ -445,7 +445,7 @@ int find_lock_by_name(std::map<int, ServerLock> locks, string lock_name) {
 // Returns true if it is on this server, false otherwise.
 bool find_lock_by_id(std::map<int, ServerLock>& locks, int id) {
   std::map<int, ServerLock>::iterator it = locks.find(id);
-  return it != locks.end();
+  return it != locks.end() && !it->second.toBeDeleted;
 }
 
 
