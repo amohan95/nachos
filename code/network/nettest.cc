@@ -167,6 +167,26 @@ string get_rest_of_stream(std::stringstream& ss) {
   return full;
 }
 
+void create_request_and_send_servers(PacketHeader inPktHdr, 
+    MailHeader inMailHdr, PacketHeader outPktHdr, 
+    MailHeader outMailHdr, map<int, Request> & pending_requests, 
+    int & currentRequest, int type, string info) {
+  pending_requests.insert(std::pair<int, Request>(currentRequest++, 
+      Request(inPktHdr.from, inMailHdr.from, type, info)));
+  outMailHdr.to = SERVER_MAILBOX;
+  for (int i = 0; i < numServers; ++i) {
+    if (i != machineId) {
+      DEBUG('R', "Sending find request to server: %d for %s\n", i, info.c_str());
+      outPktHdr.to = i;
+      stringstream ss;
+      ss << SERVER_REQUEST << " " << currentRequest - 1  << " " << type 
+          << " " << inPktHdr.from << " " << inMailHdr.from << " " 
+          << info;
+      setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+    }
+  }
+}
+
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
@@ -214,21 +234,8 @@ void Server() {
           } else if (numServers == 1) { // If only server, create lock and send response.
             create_new_lock_and_send(outPktHdr, outMailHdr, currentLock, locks, lock_name);
           } else { // See if on another server.
-            pending_requests.insert(std::pair<int, Request>(currentRequest++, 
-                Request(inPktHdr.from, inMailHdr.from, s, lock_name)));
-            outMailHdr.to = SERVER_MAILBOX;
-            for (int i = 0; i < numServers; ++i) {
-              if (i != machineId) {
-                DEBUG('R', "Sending find lock request to server: %d for lock %s\n", i, lock_name.c_str());
-                outPktHdr.to = i;
-                ss.str("");
-                ss.clear();
-                ss << SERVER_REQUEST << " " << currentRequest - 1  << " " << s 
-                    << " " << inPktHdr.from << " " << inMailHdr.from << " " 
-                    << lock_name;
-                setup_message_and_send(outPktHdr, outMailHdr, ss.str());
-              }
-            }
+            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
+                pending_requests, currentRequest, s, lock_name);
           }
           break;
         }
