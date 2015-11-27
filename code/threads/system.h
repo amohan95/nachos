@@ -92,10 +92,10 @@ extern SynchDisk   *synchDisk;
 #ifdef NETWORK
 #include "post.h"
 extern PostOffice* postOffice;
-#define MAX_MONITOR 1000
-#define NUM_MONITORS 10000
 extern int machineId;
 extern int numServers;
+#define MAX_MONITOR 1000
+#define NUM_MONITORS 10000
 #endif
 
 #endif // SYSTEM_H

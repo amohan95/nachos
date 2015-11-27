@@ -8,7 +8,7 @@ int main() {
   PrintNum(lock);
   Print("\n", 1);
   Print("Creating Condition Variable. Index returned: ", 45);
-  cv = CreateCondition("CV", 2);
+  /*cv = CreateCondition("CV", 2);
   Print("Acquiring Lock\n", 15);
   status = Acquire(lock);
   if (status) {
@@ -19,6 +19,6 @@ int main() {
   Print("Calling Signal.\n", 16);
   Signal(cv, lock);
   Print("Returned from signal and releasing lock\n", 40);
-  Release(lock);
+  Release(lock);*/
   Exit(0);
 }

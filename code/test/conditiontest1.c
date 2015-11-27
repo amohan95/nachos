@@ -8,7 +8,7 @@ int main() {
   PrintNum(lock);
   Print("\n", 1);
   Print("Creating Condition Variable. Index returned: ", 45);
-  cv = CreateCondition("CV", 2);
+  /*cv = CreateCondition("CV", 2);
   Print("Acquiring Lock\n", 15);
   status = Acquire(lock);
   if (status) {
@@ -28,6 +28,6 @@ int main() {
   Print("Destroying Lock\n", 16);
   DestroyLock(lock);
   Print("Destroying Condition Variable\n", 30);
-  DestroyCondition(cv);
+  DestroyCondition(cv);*/
   Exit(0);
 }
