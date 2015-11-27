@@ -102,7 +102,9 @@ struct Request {
   }
 };
 
-int find_lock(std::map<int, ServerLock> locks, string lock_name);
+int find_lock_by_name(std::map<int, ServerLock> locks, string lock_name);
+
+ServerLock* find_lock_by_id(std::map<int, ServerLock>& locks, int id);
 
 void create_new_lock_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, 
     int & currentLock, map<int, ServerLock> & locks, string lock_name);
@@ -224,7 +226,7 @@ void Server() {
       switch (s) {
         case CREATE_LOCK: {
           string lock_name = get_rest_of_stream(ss);
-          int lockID = find_lock(locks, lock_name);
+          int lockID = find_lock_by_name(locks, lock_name);
           if (lockID != -1) { // If on this server, send response.
             ss.str("");
             ss.clear();
@@ -242,7 +244,18 @@ void Server() {
         case ACQUIRE_LOCK: {
           int lockID;
           ss >> lockID;
-          acquire_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
+          if (find_lock_by_id(lockID)) {  // If on this server, send response.
+            acquire_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
+          } else if (numServers == 1) { // If only server, send error.
+            DEBUG('R', "Couldn't find lock\n");
+            postOffice->Send(outPktHdr, outMailHdr, "0");
+          } else { // See if on another server.
+            ss.str("");
+            ss.clear();
+            ss << lockID;
+            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
+                pending_requests, currentRequest, s, ss.str());
+          }
           break;
         }
         case RELEASE_LOCK: {
@@ -323,13 +336,13 @@ void Server() {
       ss >> requestId;
       if (s == SERVER_REQUEST) { // Server request.
         ss >> s;
+        int pkt, mail;
+        ss >> pkt;
+        ss >> mail;
         switch (s) {
           case CREATE_LOCK: {
-            int pkt, mail;
-            ss >> pkt;
-            ss >> mail;
             string lock_name = get_rest_of_stream(ss);
-            int lockID = find_lock(locks, lock_name);
+            int lockID = find_lock_by_name(locks, lock_name);
 
             // If on this server, send response to client and yes to requesting server.
             if (lockID != -1) { 
@@ -353,6 +366,29 @@ void Server() {
               setup_message_and_send(outPktHdr, outMailHdr, ss.str());
             }
             break;
+          }
+          case ACQUIRE_LOCK: {
+            int lockID;
+            ss >> lockID;
+            // If on this server, send response to client and yes to requesting server.
+            if (find_lock_by_id(lockID)) {  // If on this server, send response.
+              DEBUG('R', "Found lock and handling acquire of lockid: %s\n", lockID);
+              ss.str("");
+              ss.clear();
+              ss << SERVER_RESPONSE << " " << requestId << " " << YES;
+              setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
+              inPktHdr.from = pkt;
+              acquire_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
+            } else { // Send no.
+              DEBUG('R', "Can't Find lock id: %d\n", lockID);
+              ss.str("");
+              ss.clear();
+              ss << SERVER_RESPONSE << " " << requestId << " " << NO;
+              setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+            }
           }
         }
       } else { // Server response.
@@ -391,7 +427,7 @@ void Server() {
 }
 
 // Returns the lock ID for the given lock or -1 if not on this server.
-int find_lock(std::map<int, ServerLock> locks, string lock_name) {
+int find_lock_by_name(std::map<int, ServerLock> locks, string lock_name) {
   for (std::map<int, ServerLock>::iterator it = locks.begin(); 
       it != locks.end(); ++it) {
     if (it->second.name == lock_name) {
@@ -400,6 +436,13 @@ int find_lock(std::map<int, ServerLock> locks, string lock_name) {
   }
   return -1;
 }
+
+// Returns true if it is on this server, false otherwise.
+bool find_lock_by_id(std::map<int, ServerLock>& locks, int id) {
+  std::map<int, ServerLock>::iterator it = locks.find(id);
+  return it != locks.end();
+}
+
 
 // Returns the lock ID for the new lock, or -1 if not possible.
 void create_new_lock_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, 
@@ -421,21 +464,16 @@ void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
     PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID) {
   DEBUG('R', "Acquiring lock on server starting\n");
   outMailHdr.length = 2;
-  if (locks.find(lockID) != locks.end()) {
-    ServerLock *temp_lock = &(locks.find(lockID)->second);
-    if (temp_lock->busy) {
-      DEBUG('R', "Found lock and busy\n");
-      Message m(outPktHdr, outMailHdr, "1", 2);
-      temp_lock->addToWaitQ(m);
-    } else {
-      DEBUG('R', "Found lock and not busy\n");
-      temp_lock->busy = true;
-      temp_lock->machineID = inPktHdr.from;
-      postOffice->Send(outPktHdr, outMailHdr, "1");
-    }
+  ServerLock *temp_lock = &(locks.find(lockID)->second);
+  if (temp_lock->busy) {
+    DEBUG('R', "Found lock and busy\n");
+    Message m(outPktHdr, outMailHdr, "1", 2);
+    temp_lock->addToWaitQ(m);
   } else {
-    DEBUG('R', "Couldn't find lock\n");
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    DEBUG('R', "Found lock and not busy\n");
+    temp_lock->busy = true;
+    temp_lock->machineID = inPktHdr.from;
+    postOffice->Send(outPktHdr, outMailHdr, "1");
   }
 }
 
