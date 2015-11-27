@@ -104,7 +104,7 @@ struct Request {
 
 int find_lock_by_name(std::map<int, ServerLock> locks, string lock_name);
 
-ServerLock* find_lock_by_id(std::map<int, ServerLock>& locks, int id);
+bool find_lock_by_id(std::map<int, ServerLock>& locks, int id);
 
 void create_new_lock_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, 
     int & currentLock, map<int, ServerLock> & locks, string lock_name);
@@ -244,7 +244,7 @@ void Server() {
         case ACQUIRE_LOCK: {
           int lockID;
           ss >> lockID;
-          if (find_lock_by_id(lockID)) {  // If on this server, send response.
+          if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
             acquire_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
           } else if (numServers == 1) { // If only server, send error.
             DEBUG('R', "Couldn't find lock\n");
@@ -371,7 +371,7 @@ void Server() {
             int lockID;
             ss >> lockID;
             // If on this server, send response to client and yes to requesting server.
-            if (find_lock_by_id(lockID)) {  // If on this server, send response.
+            if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
               DEBUG('R', "Found lock and handling acquire of lockid: %s\n", lockID);
               ss.str("");
               ss.clear();
@@ -406,11 +406,16 @@ void Server() {
           pending_requests.erase(it);
         } else if (it->second.noCount == numServers - 2){
           DEBUG('R', "Sending client response since all nos\n");
+          outPktHdr.to = it->second.requestorMID;
+          outMailHdr.to = it->second.requestorMB;
           switch(it->second.requestType) {
             case CREATE_LOCK: {
-              outPktHdr.to = it->second.requestorMID;
-              outMailHdr.to = it->second.requestorMB;
               create_new_lock_and_send(outPktHdr, outMailHdr, currentLock, locks, it->second.info);
+              break;
+            }
+            case ACQUIRE_LOCK: {
+              outMailHdr.length = 3;
+              postOffice->Send(outPktHdr, outMailHdr, "-1");
               break;
             }
           }
