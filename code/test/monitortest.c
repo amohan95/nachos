@@ -7,7 +7,7 @@ int main() {
   mv = CreateMonitor("MV", 2, 2);
   PrintNum(mv);
   Print("\n", 1);
-  /*SetMonitor(mv, 0, 1);
+  SetMonitor(mv, 0, 1);
   SetMonitor(mv, 1, 2);
   Print("Should be 1: ", 13);
   PrintNum(GetMonitor(mv, 0));
@@ -15,6 +15,6 @@ int main() {
   Print("Should be 2: ", 13);
   PrintNum(GetMonitor(mv, 1));
   Print("\n", 1);
-  DestroyMonitor(mv);*/
+  DestroyMonitor(mv);
   Exit(0);
 }

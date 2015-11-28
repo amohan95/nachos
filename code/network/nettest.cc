@@ -103,51 +103,37 @@ struct Request {
 };
 
 int find_lock_by_name(std::map<int, ServerLock> locks, string lock_name);
-
 bool find_lock_by_id(std::map<int, ServerLock>& locks, int id);
-
 void create_new_lock_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, 
     int & currentLock, map<int, ServerLock> & locks, string lock_name);
-
 void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
     std::map<int, ServerLock> & locks, int lockID);
-
 void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, 
     std::map<int, ServerLock> & locks, int lockID, ServerLock* temp_lock,
     bool send);
-
 void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerLock> & locks, int lockID);
-
 void create_cv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentCV,
     std::map<int, ServerCV> & cvs, string cv_name);
-
 void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
     std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
     int lockID);
-
 void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
     std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
     int lockID);
-
 void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
     std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
     int lockID);
-
 void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerCV> & cvs, int cvID);
-
 int find_mv_by_name(std::map<int, ServerMV> mvs, string mv_name);
-
+bool find_mv_by_id(std::map<int, ServerMV>& mvs, int id);
 void create_new_mv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr,
     int & currentMV, std::map<int, ServerMV> & mvs, int size, string mv_name);
-
 void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerMV> & mvs, int mvID, int index, int value);
-
 void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
     std::map<int, ServerMV> & mvs, int mvID, int index);
-
 void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerMV> & mvs, int mvID);
 
@@ -255,7 +241,7 @@ void Server() {
             acquire_lock(outPktHdr, outMailHdr, inPktHdr.from, locks, lockID);
           } else if (numServers == 1) { // If only server, send error.
             DEBUG('R', "Couldn't find lock\n");
-            setup_message_and_send(outPktHdr, outMailHdr, "0");
+            setup_message_and_send(outPktHdr, outMailHdr, "-1");
           } else { // See if on another server.
             ss.str("");
             ss.clear();
@@ -274,7 +260,7 @@ void Server() {
                 &(locks.find(lockID)->second), true);
           } else if (numServers == 1) { // If only server, send error.
             DEBUG('R', "Couldn't find lock\n");
-            setup_message_and_send(outPktHdr, outMailHdr, "0");
+            setup_message_and_send(outPktHdr, outMailHdr, "-1");
           } else { // See if on another server.
             ss.str("");
             ss.clear();
@@ -292,7 +278,7 @@ void Server() {
             destroy_lock(outPktHdr, outMailHdr, locks, lockID);
           } else if (numServers == 1) { // If only server, send error.
             DEBUG('R', "Couldn't find lock\n");
-            setup_message_and_send(outPktHdr, outMailHdr, "0");
+            setup_message_and_send(outPktHdr, outMailHdr, "-1");
           } else { // See if on another server.
             ss.str("");
             ss.clear();
@@ -361,20 +347,59 @@ void Server() {
           ss >> mvID;
           ss >> index;
           ss >> value;
-          set_mv(outPktHdr, outMailHdr, mvs, mvID, index, value);
+
+          if (find_mv_by_id(mvs, mvID)) {  // If on this server, send response.
+            DEBUG('R',"MV found on server setting: %d\n", mvID);
+            set_mv(outPktHdr, outMailHdr, mvs, mvID, index, value);
+          } else if (numServers == 1) { // If only server, send error.
+            DEBUG('R', "Couldn't find mv\n");
+            setup_message_and_send(outPktHdr, outMailHdr, "-1");
+          } else { // See if on another server.
+            ss.str("");
+            ss.clear();
+            ss << mvID << " " << index << " " << value << " ";
+            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
+                pending_requests, currentRequest, s, ss.str());
+          }
           break;
         }
         case GET_MV: {
           int mvID, index;
           ss >> mvID;
           ss >> index;
-          get_mv(outPktHdr, outMailHdr, mvs, mvID, index);
+
+          if (find_mv_by_id(mvs, mvID)) {  // If on this server, send response.
+            DEBUG('R',"MV found on server getting: %d\n", mvID);
+            get_mv(outPktHdr, outMailHdr, mvs, mvID, index);
+          } else if (numServers == 1) { // If only server, send error.
+            DEBUG('R', "Couldn't find mv\n");
+            setup_message_and_send(outPktHdr, outMailHdr, "-1");
+          } else { // See if on another server.
+            ss.str("");
+            ss.clear();
+            ss << mvID << " " << index;
+            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
+                pending_requests, currentRequest, s, ss.str());
+          }
           break;
         }
         case DESTROY_MV: {
           int mvID;
           ss >> mvID;
-          destroy_mv(outPktHdr, outMailHdr, mvs, mvID);
+
+          if (find_mv_by_id(mvs, mvID)) {  // If on this server, send response.
+            DEBUG('R', "Found mv and destroying: %d\n", mvID);
+            destroy_mv(outPktHdr, outMailHdr, mvs, mvID);
+          } else if (numServers == 1) { // If only server, send error.
+            DEBUG('R', "Couldn't find mv\n");
+            setup_message_and_send(outPktHdr, outMailHdr, "-1");
+          } else { // See if on another server.
+            ss.str("");
+            ss.clear();
+            ss << mvID;
+            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
+                pending_requests, currentRequest, s, ss.str());
+          }
           break;
         }
       }
@@ -504,15 +529,60 @@ void Server() {
             break;
           }
           case SET_MV: {
-            
+            int mvID, index, value;
+            ss >> mvID;
+            ss >> index;
+            ss >> value;
+
+            // If on this server, send response to client and yes to requesting server.
+            if (mvID != -1) { 
+              DEBUG('R', "Found MV and handling set: %d\n", mvID);
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+              
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
+              set_mv(outPktHdr, outMailHdr, mvs, mvID, index, value);
+            } else { // Send no.
+              DEBUG('R', "Can't Find MV: %d\n", mvID);
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
             break;
           }
           case GET_MV: {
-            
+            int mvID, index;
+            ss >> mvID;
+            ss >> index;
+
+            // If on this server, send response to client and yes to requesting server.
+            if (mvID != -1) { 
+              DEBUG('R', "Found MV and handling get: %d\n", mvID);
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
+              get_mv(outPktHdr, outMailHdr, mvs, mvID, index);
+            } else { // Send no.
+              DEBUG('R', "Can't Find MV: %d\n", mvID);
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
             break;
           }
           case DESTROY_MV: {
-            
+            int mvID;
+            ss >> mvID;
+
+            // If on this server, send response to client and yes to requesting server.
+            if (mvID != -1) { 
+              DEBUG('R', "Found MV and handling destroy: %d\n", mvID);
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
+              destroy_mv(outPktHdr, outMailHdr, mvs, mvID);
+            } else { // Send no.
+              DEBUG('R', "Can't Find MV: %d\n", mvID);
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
             break;
           }
         }
@@ -555,19 +625,19 @@ void Server() {
               break;
             }
             case WAIT_CV: {
-              
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
             case SIGNAL_CV: {
-              
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
             case BROADCAST_CV: {
-              
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
             case DESTROY_CV: {
-              
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
             case CREATE_MV: {
@@ -581,15 +651,15 @@ void Server() {
               break;
             }
             case SET_MV: {
-              
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
             case GET_MV: {
-              
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
             case DESTROY_MV: {
-              
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
           }
@@ -649,7 +719,7 @@ void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
     temp_lock->addToWaitQ(m);
   } else if (temp_lock->toBeDeleted){
     DEBUG('R', "Lock requested is marked for deletion\n");
-    setup_message_and_send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
   } else {
     DEBUG('R', "Found lock and not busy or trying to acquire lock it already has\n");
     temp_lock->busy = true;
@@ -664,7 +734,7 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
     bool send) {
   if (temp_lock->machineID != pkt) {
     DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, pkt);
-    setup_message_and_send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
   } else if (!temp_lock->waitQ.empty()) {
     DEBUG('R', "Releasing from waitQ\n");
     Message m = temp_lock->waitQ.front();
@@ -740,7 +810,7 @@ void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHd
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
         || temp_lock->machineID != inPktHdr.from) {
       DEBUG('R', "Trying to wait on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
-      setup_message_and_send(outPktHdr, outMailHdr, "0");
+      setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
       DEBUG('R', "Adding to CV waitQ\n");
       ++temp_lock->numWaitingOnCV;
@@ -753,7 +823,7 @@ void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHd
     }
   } else {
     DEBUG('R', "Couldn't find cv or lock\n");
-    setup_message_and_send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
   }
 }
 
@@ -767,7 +837,7 @@ void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPkt
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
         || temp_lock->machineID != inPktHdr.from) {
       DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
-      setup_message_and_send(outPktHdr, outMailHdr, "0");
+      setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
       if (!temp_cv->waitQ.empty()) {
         DEBUG('R', "Releasing from waitQ and acquire lock\n");
@@ -796,7 +866,7 @@ void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPkt
     }
   } else {
     DEBUG('R', "Couldn't find cv or lock\n");
-    setup_message_and_send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
   }
 }
 
@@ -810,7 +880,7 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader in
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
       || temp_lock->machineID != inPktHdr.from) {
       DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
-    setup_message_and_send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
       while(!temp_cv->waitQ.empty()) {
         --temp_lock->numWaitingOnCV;
@@ -835,7 +905,7 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader in
     }
   } else {
     DEBUG('R', "Couldn't find cv or lock\n");
-    setup_message_and_send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
   }
 }
 
@@ -855,7 +925,7 @@ void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
     }
   } else {
     DEBUG('R', "Couldn't find lock\n");
-    setup_message_and_send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
   }
 }
 
@@ -868,6 +938,12 @@ int find_mv_by_name(std::map<int, ServerMV> mvs, string mv_name) {
     }
   } 
   return -1;
+}
+
+// Returns true if it is on this server, false otherwise.
+bool find_mv_by_id(std::map<int, ServerMV>& mvs, int id) {
+  std::map<int, ServerMV>::iterator it = mvs.find(id);
+  return it != mvs.end();
 }
 
 void create_new_mv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr,
@@ -887,12 +963,12 @@ void create_new_mv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr,
 void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerMV> & mvs, int mvID, int index, int value) {
   DEBUG('R', "Setting mv on server starting\n");
-  if (mvs.find(mvID) != mvs.end() && mvs.find(mvID)->second.value.size() > index) {
+  if (mvs.find(mvID)->second.value.size() > index) {
     (mvs.find(mvID)->second).value[index] = value;
     setup_message_and_send(outPktHdr, outMailHdr, "1");
   } else {
-    DEBUG('R', "Couldn't find mv or index is out of range\n");
-    setup_message_and_send(outPktHdr, outMailHdr, "0");
+    DEBUG('R', "Mv index is out of range\n");
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
   }
 }
 
@@ -900,26 +976,20 @@ void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
 void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
     std::map<int, ServerMV> & mvs, int mvID, int index) {
   DEBUG('R', "Getting mv on server starting\n");
-  if (mvs.find(mvID) != mvs.end() && mvs.find(mvID)->second.value.size() > index) {
+  if (mvs.find(mvID)->second.value.size() > index) {
     stringstream ss;
     ss << "1 " << (mvs.find(mvID)->second).value[index];
     setup_message_and_send(outPktHdr, outMailHdr, ss.str());
   } else {
-    DEBUG('R', "Couldn't find mv or index is out of range\n");
-    setup_message_and_send(outPktHdr, outMailHdr, "0");
+    DEBUG('R', "Mv index is out of range\n");
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
   }
 }
 
 void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerMV> & mvs, int mvID) {
-  DEBUG('R', "Destroying mv on server starting\n");
-  if (mvs.find(mvID) != mvs.end()) {
-    mvs.erase(mvs.find(mvID));
-    setup_message_and_send(outPktHdr, outMailHdr, "1");
-  } else {
-    DEBUG('R', "Couldn't find lock\n");
-    setup_message_and_send(outPktHdr, outMailHdr, "0");
-  }
+  mvs.erase(mvs.find(mvID));
+  setup_message_and_send(outPktHdr, outMailHdr, "1");
 }
 
 // Test out message delivery, by doing the following:
