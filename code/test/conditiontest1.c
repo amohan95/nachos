@@ -18,14 +18,14 @@ int main() {
   }
   /*Print("Calling Wait and waiting to be signalled by other program.\n", 60);
   Wait(cv, lock);
-  Print("Returned from wait and releasing lock\n", 38);
+  Print("Returned from wait and releasing lock\n", 38);*/
   status = Release(lock);
   if (status) {
     Print("Successfully Released\n", 22);
   } else {
     Print("FAIL: Something went wrong Release\n", 35);
   }
-  Print("Destroying Lock\n", 16);
+  /*Print("Destroying Lock\n", 16);
   DestroyLock(lock);
   Print("Destroying Condition Variable\n", 30);
   DestroyCondition(cv);*/

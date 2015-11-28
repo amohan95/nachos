@@ -17,8 +17,8 @@ int main() {
     Print("FAIL: Something went wrong Acquire\n", 35);
   }
   /*Print("Calling Signal.\n", 16);
-  Signal(cv, lock);
+  Signal(cv, lock);*/
   Print("Returned from signal and releasing lock\n", 40);
-  Release(lock);*/
+  Release(lock);
   Exit(0);
 }

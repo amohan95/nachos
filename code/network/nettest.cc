@@ -109,11 +109,12 @@ bool find_lock_by_id(std::map<int, ServerLock>& locks, int id);
 void create_new_lock_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, 
     int & currentLock, map<int, ServerLock> & locks, string lock_name);
 
-void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID);
+void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
+    std::map<int, ServerLock> & locks, int lockID);
 
-void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID);
+void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, 
+    std::map<int, ServerLock> & locks, int lockID, ServerLock* temp_lock,
+    bool send);
 
 void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerLock> & locks, int lockID);
@@ -147,10 +148,6 @@ void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
 
 void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerMV> & mvs, int mvID);
-
-void release_lock_helper(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID, 
-    ServerLock* temp_lock, bool send);
 
 void setup_message_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, string s) {
   outMailHdr.length = s.length() + 1;
@@ -187,6 +184,14 @@ void create_request_and_send_servers(PacketHeader inPktHdr,
       setup_message_and_send(outPktHdr, outMailHdr, ss.str());
     }
   }
+}
+
+void sendResponse(PacketHeader outPktHdr, MailHeader outMailHdr, int requestId, 
+    bool yes) {
+  stringstream ss;
+  int response = yes ? YES : NO;
+  ss << SERVER_RESPONSE << " " << requestId << " " << response;
+  setup_message_and_send(outPktHdr, outMailHdr, ss.str());
 }
 
 // Server for Project 3 Part 3
@@ -245,10 +250,10 @@ void Server() {
           int lockID;
           ss >> lockID;
           if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
-            acquire_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
+            acquire_lock(outPktHdr, outMailHdr, inPktHdr.from, locks, lockID);
           } else if (numServers == 1) { // If only server, send error.
             DEBUG('R', "Couldn't find lock\n");
-            postOffice->Send(outPktHdr, outMailHdr, "0");
+            setup_message_and_send(outPktHdr, outMailHdr, "0");
           } else { // See if on another server.
             ss.str("");
             ss.clear();
@@ -261,7 +266,20 @@ void Server() {
         case RELEASE_LOCK: {
           int lockID;
           ss >> lockID;
-          release_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
+          if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
+            DEBUG('R', "Found lock and releasing: %d\n", lockID);
+            release_lock(outPktHdr, outMailHdr, inPktHdr.from, locks, lockID,
+                &(locks.find(lockID)->second), true);
+          } else if (numServers == 1) { // If only server, send error.
+            DEBUG('R', "Couldn't find lock\n");
+            setup_message_and_send(outPktHdr, outMailHdr, "0");
+          } else { // See if on another server.
+            ss.str("");
+            ss.clear();
+            ss << lockID;
+            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
+                pending_requests, currentRequest, s, ss.str());
+          }
           break;
         }
         case DESTROY_LOCK: {
@@ -347,10 +365,7 @@ void Server() {
             // If on this server, send response to client and yes to requesting server.
             if (lockID != -1) { 
               DEBUG('R', "Found lock and sending to client: %s\n", lock_name.c_str());
-              ss.str("");
-              ss.clear();
-              ss << SERVER_RESPONSE << " " << requestId << " " << YES;
-              setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
               
               ss.str("");
               ss.clear();
@@ -360,10 +375,7 @@ void Server() {
               setup_message_and_send(outPktHdr, outMailHdr, ss.str());
             } else { // Send no.
               DEBUG('R', "Can't Find lock: %s\n", lock_name.c_str());
-              ss.str("");
-              ss.clear();
-              ss << SERVER_RESPONSE << " " << requestId << " " << NO;
-              setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
             }
             break;
           }
@@ -373,21 +385,32 @@ void Server() {
             // If on this server, send response to client and yes to requesting server.
             if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
               DEBUG('R', "Found lock and handling acquire of lockid: %d\n", lockID);
-              ss.str("");
-              ss.clear();
-              ss << SERVER_RESPONSE << " " << requestId << " " << YES;
-              setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
 
               outPktHdr.to = pkt;
               outMailHdr.to = mail;
-              inPktHdr.from = pkt;
-              acquire_lock(outPktHdr, outMailHdr, inPktHdr, locks, lockID);
+              acquire_lock(outPktHdr, outMailHdr, pkt, locks, lockID);
             } else { // Send no.
               DEBUG('R', "Can't Find lock id: %d\n", lockID);
-              ss.str("");
-              ss.clear();
-              ss << SERVER_RESPONSE << " " << requestId << " " << NO;
-              setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
+            break;
+          }
+          case RELEASE_LOCK: {
+            int lockID;
+            ss >> lockID;
+            // If on this server, send response to client and yes to requesting server.
+            if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
+              DEBUG('R', "Found lock and handling release of lockid: %d\n", lockID);
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
+              release_lock(outPktHdr, outMailHdr, pkt, locks, lockID, 
+                  &(locks.find(lockID)->second), true);
+            } else { // Send no.
+              DEBUG('R', "Can't Find lock id: %d\n", lockID);
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
             }
           }
         }
@@ -414,6 +437,11 @@ void Server() {
               break;
             }
             case ACQUIRE_LOCK: {
+              outMailHdr.length = 3;
+              postOffice->Send(outPktHdr, outMailHdr, "-1");
+              break;
+            }
+            case RELEASE_LOCK: {
               outMailHdr.length = 3;
               postOffice->Send(outPktHdr, outMailHdr, "-1");
               break;
@@ -445,7 +473,7 @@ int find_lock_by_name(std::map<int, ServerLock> locks, string lock_name) {
 // Returns true if it is on this server, false otherwise.
 bool find_lock_by_id(std::map<int, ServerLock>& locks, int id) {
   std::map<int, ServerLock>::iterator it = locks.find(id);
-  return it != locks.end() && !it->second.toBeDeleted;
+  return it != locks.end();
 }
 
 
@@ -466,33 +494,53 @@ void create_new_lock_and_send(PacketHeader outPktHdr, MailHeader outMailHdr,
 
 // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
 void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID) {
+    int pkt, std::map<int, ServerLock> & locks, int lockID) {
   DEBUG('R', "Acquiring lock on server starting\n");
   outMailHdr.length = 2;
   ServerLock *temp_lock = &(locks.find(lockID)->second);
-  if (temp_lock->busy) {
+  if (temp_lock->busy && temp_lock->machineID != pkt) {
     DEBUG('R', "Found lock and busy\n");
     Message m(outPktHdr, outMailHdr, "1", 2);
     temp_lock->addToWaitQ(m);
+  } else if (temp_lock->toBeDeleted){
+    DEBUG('R', "Lock requested is marked for deletion\n");
+    postOffice->Send(outPktHdr, outMailHdr, "0");
   } else {
-    DEBUG('R', "Found lock and not busy\n");
+    DEBUG('R', "Found lock and not busy or trying to acquire lock it already has\n");
     temp_lock->busy = true;
-    temp_lock->machineID = inPktHdr.from;
+    temp_lock->machineID = pkt;
     postOffice->Send(outPktHdr, outMailHdr, "1");
   }
 }
 
 // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
-void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID) {
-  DEBUG('R', "Releasing lock on server starting\n");
+void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, 
+    std::map<int, ServerLock> & locks, int lockID, ServerLock* temp_lock,
+    bool send) {
   outMailHdr.length = 2;
-  if (locks.find(lockID) != locks.end()) {
-    ServerLock* temp_lock = &(locks.find(lockID)->second);
-    release_lock_helper(outPktHdr, outMailHdr, inPktHdr, locks, lockID, temp_lock, true);
-  } else {
-    DEBUG('R', "Couldn't find lock\n");
+  if (temp_lock->machineID != pkt) {
+    DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, pkt);
     postOffice->Send(outPktHdr, outMailHdr, "0");
+  } else if (!temp_lock->waitQ.empty()) {
+    DEBUG('R', "Releasing from waitQ\n");
+    Message m = temp_lock->waitQ.front();
+    temp_lock->waitQ.pop_front();
+    temp_lock->machineID = m.packetHdr.to;
+    DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
+    postOffice->Send(m.packetHdr, m.mailHdr, m.data);
+    if (send) {
+      postOffice->Send(outPktHdr, outMailHdr, "1");
+    }
+  } else {
+    DEBUG('R', "Releasing no waitQ\n");
+    temp_lock->busy = false;
+    temp_lock->machineID = -1;
+    if (temp_lock->toBeDeleted && temp_lock->numWaitingOnCV == 0) {
+      locks.erase(locks.find(lockID));
+    }
+    if (send) {
+      postOffice->Send(outPktHdr, outMailHdr, "1");
+    }
   }
 }
 
@@ -569,7 +617,7 @@ void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHd
       temp_cv->lockID = lockID;
 
       // Release lock
-      release_lock_helper(outPktHdr, outMailHdr, inPktHdr, locks, lockID, temp_lock, false);
+      release_lock(outPktHdr, outMailHdr, inPktHdr.from, locks, lockID, temp_lock, false);
     }
   } else {
     DEBUG('R', "Couldn't find cv or lock\n");
@@ -749,35 +797,6 @@ void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
   } else {
     DEBUG('R', "Couldn't find lock\n");
     postOffice->Send(outPktHdr, outMailHdr, "0");
-  }
-}
-
-void release_lock_helper(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    PacketHeader inPktHdr, std::map<int, ServerLock> & locks, int lockID, 
-    ServerLock* temp_lock, bool send) {
-  if (temp_lock->machineID != inPktHdr.from) {
-    DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
-    postOffice->Send(outPktHdr, outMailHdr, "0");
-  } else if (!temp_lock->waitQ.empty()) {
-    DEBUG('R', "Releasing from waitQ\n");
-    Message m = temp_lock->waitQ.front();
-    temp_lock->waitQ.pop_front();
-    temp_lock->machineID = m.packetHdr.to;
-    DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
-    postOffice->Send(m.packetHdr, m.mailHdr, m.data);
-    if (send) {
-      postOffice->Send(outPktHdr, outMailHdr, "1");
-    }
-  } else {
-    DEBUG('R', "Releasing no waitQ\n");
-    temp_lock->busy = false;
-    temp_lock->machineID = -1;
-    if (temp_lock->toBeDeleted && temp_lock->numWaitingOnCV == 0) {
-      locks.erase(locks.find(lockID));
-    }
-    if (send) {
-      postOffice->Send(outPktHdr, outMailHdr, "1");
-    }
   }
 }
 
