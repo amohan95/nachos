@@ -437,13 +437,11 @@ void Server() {
               break;
             }
             case ACQUIRE_LOCK: {
-              outMailHdr.length = 3;
-              postOffice->Send(outPktHdr, outMailHdr, "-1");
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
             case RELEASE_LOCK: {
-              outMailHdr.length = 3;
-              postOffice->Send(outPktHdr, outMailHdr, "-1");
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
           }
@@ -481,8 +479,7 @@ bool find_lock_by_id(std::map<int, ServerLock>& locks, int id) {
 void create_new_lock_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, 
     int & currentLock, map<int, ServerLock> & locks, string lock_name) {
   if (locks.size() >= NUM_SYSTEM_LOCKS) {
-    outMailHdr.length = 3;
-    postOffice->Send(outPktHdr, outMailHdr, "-1");
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
   } else {
     ServerLock lock(lock_name);
     locks.insert(std::pair<int, ServerLock>(currentLock++, lock));
@@ -496,7 +493,6 @@ void create_new_lock_and_send(PacketHeader outPktHdr, MailHeader outMailHdr,
 void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
     int pkt, std::map<int, ServerLock> & locks, int lockID) {
   DEBUG('R', "Acquiring lock on server starting\n");
-  outMailHdr.length = 2;
   ServerLock *temp_lock = &(locks.find(lockID)->second);
   if (temp_lock->busy && temp_lock->machineID != pkt) {
     DEBUG('R', "Found lock and busy\n");
@@ -504,12 +500,12 @@ void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
     temp_lock->addToWaitQ(m);
   } else if (temp_lock->toBeDeleted){
     DEBUG('R', "Lock requested is marked for deletion\n");
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "0");
   } else {
     DEBUG('R', "Found lock and not busy or trying to acquire lock it already has\n");
     temp_lock->busy = true;
     temp_lock->machineID = pkt;
-    postOffice->Send(outPktHdr, outMailHdr, "1");
+    setup_message_and_send(outPktHdr, outMailHdr, "1");
   }
 }
 
@@ -517,19 +513,18 @@ void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
 void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, 
     std::map<int, ServerLock> & locks, int lockID, ServerLock* temp_lock,
     bool send) {
-  outMailHdr.length = 2;
   if (temp_lock->machineID != pkt) {
     DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, pkt);
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "0");
   } else if (!temp_lock->waitQ.empty()) {
     DEBUG('R', "Releasing from waitQ\n");
     Message m = temp_lock->waitQ.front();
     temp_lock->waitQ.pop_front();
     temp_lock->machineID = m.packetHdr.to;
     DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
-    postOffice->Send(m.packetHdr, m.mailHdr, m.data);
+    setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
     if (send) {
-      postOffice->Send(outPktHdr, outMailHdr, "1");
+      setup_message_and_send(outPktHdr, outMailHdr, "1");
     }
   } else {
     DEBUG('R', "Releasing no waitQ\n");
@@ -539,7 +534,7 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
       locks.erase(locks.find(lockID));
     }
     if (send) {
-      postOffice->Send(outPktHdr, outMailHdr, "1");
+      setup_message_and_send(outPktHdr, outMailHdr, "1");
     }
   }
 }
@@ -548,21 +543,20 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
 void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerLock> & locks, int lockID) {
   DEBUG('R', "Destroying lock on server starting\n");
-  outMailHdr.length = 2;
   if (locks.find(lockID) != locks.end()) {
     ServerLock* temp_lock = &(locks.find(lockID)->second);
     if (temp_lock->busy || temp_lock->numWaitingOnCV > 0) {
       DEBUG('R', "In use so, marking for deletion\n");
       temp_lock->toBeDeleted = true;
-      postOffice->Send(outPktHdr, outMailHdr, "1");
+      setup_message_and_send(outPktHdr, outMailHdr, "1");
     } else {
       DEBUG('R', "Successfully deleted\n");
       locks.erase(locks.find(lockID));
-      postOffice->Send(outPktHdr, outMailHdr, "1");
+      setup_message_and_send(outPktHdr, outMailHdr, "1");
     }
   } else {
     DEBUG('R', "Couldn't find lock\n");
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "0");
   }
 }
 
@@ -581,8 +575,7 @@ void create_cv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentCV,
   } 
   if (!found) {
     if (cvs.size() >= NUM_SYSTEM_CONDITIONS) {
-      outMailHdr.length = 3;
-      postOffice->Send(outPktHdr, outMailHdr, "-1");
+      setup_message_and_send(outPktHdr, outMailHdr, "-1");
     }
     cvID = currentCV;
     ServerCV cv(cv_name);
@@ -590,25 +583,21 @@ void create_cv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentCV,
   }
   stringstream ss;
   ss << (cvID);
-  outMailHdr.length = ss.str().length() + 1;
-  char *cstr = new char[ss.str().length() + 1];
-  strcpy(cstr, ss.str().c_str());
-  DEBUG('R', "Create cv on server sending: %s\n", cstr);
-  postOffice->Send(outPktHdr, outMailHdr, cstr);
+  DEBUG('R', "Create cv on server sending: %s\n", ss.str().c_str());
+  setup_message_and_send(outPktHdr, outMailHdr, ss.str());
 }
 
 void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
     std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
     int lockID) {
   DEBUG('R', "Waiting on cv on server starting\n");
-  outMailHdr.length = 2;
   if (cvs.find(cvID) != cvs.end() && locks.find(lockID) != locks.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
     ServerLock* temp_lock = &(locks.find(lockID)->second);
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
         || temp_lock->machineID != inPktHdr.from) {
       DEBUG('R', "Trying to wait on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
-      postOffice->Send(outPktHdr, outMailHdr, "0");
+      setup_message_and_send(outPktHdr, outMailHdr, "0");
     } else {
       DEBUG('R', "Adding to CV waitQ\n");
       ++temp_lock->numWaitingOnCV;
@@ -621,7 +610,7 @@ void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHd
     }
   } else {
     DEBUG('R', "Couldn't find cv or lock\n");
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "0");
   }
 }
 
@@ -629,14 +618,13 @@ void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPkt
     std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
     int lockID) {
   DEBUG('R', "Signalling on cv on server starting\n");
-  outMailHdr.length = 2;
   if (cvs.find(cvID) != cvs.end() && locks.find(lockID) != locks.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
     ServerLock* temp_lock = &(locks.find(lockID)->second);
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
         || temp_lock->machineID != inPktHdr.from) {
       DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
-      postOffice->Send(outPktHdr, outMailHdr, "0");
+      setup_message_and_send(outPktHdr, outMailHdr, "0");
     } else {
       if (!temp_cv->waitQ.empty()) {
         DEBUG('R', "Releasing from waitQ and acquire lock\n");
@@ -651,7 +639,7 @@ void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPkt
           DEBUG('R', "lock is not busy\n");
           temp_lock->busy = true;
           temp_lock->machineID = inPktHdr.from;
-          postOffice->Send(m.packetHdr, m.mailHdr, m.data);
+          setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
         }
 
         if (temp_cv->waitQ.empty()) {
@@ -660,12 +648,12 @@ void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPkt
             cvs.erase(cvs.find(cvID));
           }
         }
-        postOffice->Send(outPktHdr, outMailHdr, "1");
+        setup_message_and_send(outPktHdr, outMailHdr, "1");
       }
     }
   } else {
     DEBUG('R', "Couldn't find cv or lock\n");
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "0");
   }
 }
 
@@ -673,14 +661,13 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader in
     std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
     int lockID) {
   DEBUG('R', "Broadcasting on cv on server starting\n");
-  outMailHdr.length = 2;
   if (cvs.find(cvID) != cvs.end() && locks.find(lockID) != locks.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
     ServerLock* temp_lock = &(locks.find(lockID)->second);
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
       || temp_lock->machineID != inPktHdr.from) {
       DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "0");
     } else {
       while(!temp_cv->waitQ.empty()) {
         --temp_lock->numWaitingOnCV;
@@ -694,39 +681,38 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader in
           DEBUG('R', "lock is not busy\n");
           temp_lock->busy = true;
           temp_lock->machineID = inPktHdr.from;
-          postOffice->Send(m.packetHdr, m.mailHdr, m.data);
+          setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
         }
       } 
       temp_cv->lockID = -1;
       if (temp_cv->toBeDeleted) {
         cvs.erase(cvs.find(cvID));
       }
-      postOffice->Send(outPktHdr, outMailHdr, "1");
+      setup_message_and_send(outPktHdr, outMailHdr, "1");
     }
   } else {
     DEBUG('R', "Couldn't find cv or lock\n");
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "0");
   }
 }
 
 void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerCV> & cvs, int cvID) {
   DEBUG('R', "Destroying cv on server starting\n");
-  outMailHdr.length = 2;
   if (cvs.find(cvID) != cvs.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
     if (!temp_cv->waitQ.empty()) {
       DEBUG('R', "Stuff on waitQ so marking for deletion\n");
       temp_cv->toBeDeleted = true;
-      postOffice->Send(outPktHdr, outMailHdr, "1");
+      setup_message_and_send(outPktHdr, outMailHdr, "1");
     } else {
       DEBUG('R', "Successfully deleted\n");
       cvs.erase(cvs.find(cvID));
-      postOffice->Send(outPktHdr, outMailHdr, "1");
+      setup_message_and_send(outPktHdr, outMailHdr, "1");
     }
   } else {
     DEBUG('R', "Couldn't find lock\n");
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "0");
   }
 }
 
@@ -749,23 +735,19 @@ void create_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentMV,
   }
   stringstream ss;
   ss << (mvID);
-  outMailHdr.length = ss.str().length() + 1;
-  char *cstr = new char[ss.str().length() + 1];
-  strcpy(cstr, ss.str().c_str());
-  DEBUG('R',"Create mv on server sending: %s\n", cstr);
-  postOffice->Send(outPktHdr, outMailHdr, cstr);
+  DEBUG('R',"Create mv on server sending: %s\n", ss.str().c_str());
+  setup_message_and_send(outPktHdr, outMailHdr, ss.str());
 }
 
 void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerMV> & mvs, int mvID, int index, int value) {
   DEBUG('R', "Setting mv on server starting\n");
-  outMailHdr.length = 2;
   if (mvs.find(mvID) != mvs.end() && mvs.find(mvID)->second.value.size() > index) {
     (mvs.find(mvID)->second).value[index] = value;
-    postOffice->Send(outPktHdr, outMailHdr, "1");
+    setup_message_and_send(outPktHdr, outMailHdr, "1");
   } else {
     DEBUG('R', "Couldn't find mv or index is out of range\n");
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "0");
   }
 }
 
@@ -776,27 +758,22 @@ void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
   if (mvs.find(mvID) != mvs.end() && mvs.find(mvID)->second.value.size() > index) {
     stringstream ss;
     ss << "1 " << (mvs.find(mvID)->second).value[index];
-    char *cstr = new char[ss.str().length() + 1];
-    strcpy(cstr, ss.str().c_str());
-    outMailHdr.length = ss.str().length() + 1;
-    postOffice->Send(outPktHdr, outMailHdr, cstr);
+    setup_message_and_send(outPktHdr, outMailHdr, ss.str());
   } else {
     DEBUG('R', "Couldn't find mv or index is out of range\n");
-    outMailHdr.length = 2;
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "0");
   }
 }
 
 void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerMV> & mvs, int mvID) {
   DEBUG('R', "Destroying mv on server starting\n");
-  outMailHdr.length = 2;
   if (mvs.find(mvID) != mvs.end()) {
     mvs.erase(mvs.find(mvID));
-    postOffice->Send(outPktHdr, outMailHdr, "1");
+    setup_message_and_send(outPktHdr, outMailHdr, "1");
   } else {
     DEBUG('R', "Couldn't find lock\n");
-    postOffice->Send(outPktHdr, outMailHdr, "0");
+    setup_message_and_send(outPktHdr, outMailHdr, "0");
   }
 }
 
