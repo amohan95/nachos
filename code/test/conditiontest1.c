@@ -25,9 +25,9 @@ int main() {
   } else {
     Print("FAIL: Something went wrong Release\n", 35);
   }
-  /*Print("Destroying Lock\n", 16);
+  Print("Destroying Lock\n", 16);
   DestroyLock(lock);
-  Print("Destroying Condition Variable\n", 30);
+  /*Print("Destroying Condition Variable\n", 30);
   DestroyCondition(cv);*/
   Exit(0);
 }

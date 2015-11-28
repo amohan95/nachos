@@ -285,7 +285,19 @@ void Server() {
         case DESTROY_LOCK: {
           int lockID;
           ss >> lockID;
-          destroy_lock(outPktHdr, outMailHdr, locks, lockID);
+          if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
+            DEBUG('R', "Found lock and destroying: %d\n", lockID);
+            destroy_lock(outPktHdr, outMailHdr, locks, lockID);
+          } else if (numServers == 1) { // If only server, send error.
+            DEBUG('R', "Couldn't find lock\n");
+            setup_message_and_send(outPktHdr, outMailHdr, "0");
+          } else { // See if on another server.
+            ss.str("");
+            ss.clear();
+            ss << lockID;
+            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
+                pending_requests, currentRequest, s, ss.str());
+          }
           break;
         }
         case CREATE_CV: {
@@ -412,6 +424,24 @@ void Server() {
               DEBUG('R', "Can't Find lock id: %d\n", lockID);
               sendResponse(outPktHdr, outMailHdr, requestId, NO);
             }
+            break;
+          }
+          case DESTROY_LOCK: {
+            int lockID;
+            ss >> lockID;
+            // If on this server, send response to client and yes to requesting server.
+            if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
+              DEBUG('R', "Found lock and handling destroy of lockid: %d\n", lockID);
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
+              destroy_lock(outPktHdr, outMailHdr, locks, lockID);
+            } else { // Send no.
+              DEBUG('R', "Can't Find lock id: %d\n", lockID);
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
+            break;
           }
         }
       } else { // Server response.
@@ -441,6 +471,10 @@ void Server() {
               break;
             }
             case RELEASE_LOCK: {
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
+              break;
+            }
+            case DESTROY_LOCK: {
               setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
@@ -542,21 +576,15 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
 // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
 void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerLock> & locks, int lockID) {
-  DEBUG('R', "Destroying lock on server starting\n");
-  if (locks.find(lockID) != locks.end()) {
-    ServerLock* temp_lock = &(locks.find(lockID)->second);
-    if (temp_lock->busy || temp_lock->numWaitingOnCV > 0) {
-      DEBUG('R', "In use so, marking for deletion\n");
-      temp_lock->toBeDeleted = true;
-      setup_message_and_send(outPktHdr, outMailHdr, "1");
-    } else {
-      DEBUG('R', "Successfully deleted\n");
-      locks.erase(locks.find(lockID));
-      setup_message_and_send(outPktHdr, outMailHdr, "1");
-    }
+  ServerLock* temp_lock = &(locks.find(lockID)->second);
+  if (temp_lock->busy || temp_lock->numWaitingOnCV > 0) {
+    DEBUG('R', "In use so, marking for deletion\n");
+    temp_lock->toBeDeleted = true;
+    setup_message_and_send(outPktHdr, outMailHdr, "1");
   } else {
-    DEBUG('R', "Couldn't find lock\n");
-    setup_message_and_send(outPktHdr, outMailHdr, "0");
+    DEBUG('R', "Successfully deleted\n");
+    locks.erase(locks.find(lockID));
+    setup_message_and_send(outPktHdr, outMailHdr, "1");
   }
 }
 
