@@ -51,6 +51,8 @@ int currentTlb;
 
 #ifdef NETWORK
 PostOffice *postOffice;
+int machineId = 0;
+int numServers = 0;
 #endif
 
 
@@ -125,7 +127,12 @@ Initialize(int argc, char **argv)
             // number generator
       randomYield = TRUE;
       argCount = 2;
-  }
+  } else if (!strcmp(*argv, "-P")) {
+					if (!strcmp(*(argv + 1), "RAND")) {
+						evictionPolicy = RAND;
+					}
+					argCount = 2;
+				}
 #ifdef USER_PROGRAM
   if (!strcmp(*argv, "-s"))
       debugUserProg = TRUE;
@@ -144,6 +151,10 @@ Initialize(int argc, char **argv)
       netname = atoi(*(argv + 1));
 			machineId = netname;
       argCount = 2;
+  } else if (!strcmp(*argv, "-sn")) {
+    ASSERT(argc > 1);
+    numServers = atoi(*(argv + 1));
+    argCount = 2;
   }
 #endif
     }

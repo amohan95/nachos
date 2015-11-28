@@ -62,6 +62,7 @@ extern void ThreadTest(void), Copy(char *unixFile, char *nachosFile);
 extern void Print(char *file), PerformanceTest(void);
 extern void StartProcess(char *file), ConsoleTest(char *in, char *out);
 extern void MailTest(int networkID);
+extern void Server();
 
 //----------------------------------------------------------------------
 // main
@@ -115,6 +116,7 @@ main(int argc, char **argv)
 	    interrupt->Halt();		// once we start the console, then 
 					// Nachos will loop forever waiting 
 					// for console input
+
 	}
 #endif // USER_PROGRAM
 #ifdef FILESYS
@@ -146,11 +148,8 @@ main(int argc, char **argv)
 						// start up another nachos
             MailTest(atoi(*(argv + 1)));
             argCount = 2;
-        } else if (!strcmp(*argv, "-P")) {
-					if (!strcmp(*(argv + 1), "RAND")) {
-						evictionPolicy = RAND;
-					}
-					argCount = 2;
+        } else if (!strcmp(*argv, "-server")) {
+          Server();
 				}
 #endif // NETWORK
     }

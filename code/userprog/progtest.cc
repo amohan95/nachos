@@ -8,15 +8,14 @@
 // All rights reserved.  See copyright.h for copyright notice and limitation 
 // of liability and disclaimer of warranty provisions.
 
-#include <iostream>
-#include <deque>
-
 #include "copyright.h"
 #include "../threads/system.h"
 #include "console.h"
 #include "addrspace.h"
 #include "synch.h"
 #include "string.h"
+#include <iostream>
+#include <deque>
 
 #define QUANTUM 100
 
