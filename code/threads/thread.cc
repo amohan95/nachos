@@ -41,6 +41,11 @@ Thread::Thread(char* threadName)
 #ifdef USER_PROGRAM
     space = NULL;
 #endif
+#ifdef NETWORK
+		mailboxesLock->Acquire();
+		mailbox = mailboxes->Find();
+		mailboxesLock->Release();
+#endif
 }
 
 //----------------------------------------------------------------------
@@ -62,6 +67,11 @@ Thread::~Thread()
     ASSERT(this != currentThread);
     if (stack != NULL)
 	DeallocBoundedArray((char *) stack, StackSize * sizeof(int));
+	#ifdef NETWORK
+	mailboxesLock->Acquire();
+	mailboxes->Clear(mailbox);
+	mailboxesLock->Release();
+	#endif
 }
 
 //----------------------------------------------------------------------

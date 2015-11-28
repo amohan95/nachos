@@ -15,6 +15,7 @@
 #include "interrupt.h"
 #include "stats.h"
 #include "timer.h"
+#include "../userprog/bitmap.h"
 #include "../userprog/page_manager.h"
 #include "../userprog/swap.h"
 #include "../userprog/inverted_translation_entry.h"
@@ -94,8 +95,11 @@ extern SynchDisk   *synchDisk;
 extern PostOffice* postOffice;
 #define MAX_MONITOR 1000
 #define NUM_MONITORS 10000
+#define NUM_MAILBOXES 10
 extern int machineId;
 extern int numServers;
+extern Lock* mailboxesLock;
+extern BitMap* mailboxes;
 #endif
 
 #endif // SYSTEM_H

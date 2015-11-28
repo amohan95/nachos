@@ -53,6 +53,8 @@ int currentTlb;
 PostOffice *postOffice;
 int machineId = 0;
 int numServers = 0;
+Lock* mailboxesLock = new Lock("Kernel Mailboxes Lock");
+BitMap* mailboxes = new BitMap(NUM_MAILBOXES);
 #endif
 
 
@@ -192,7 +194,7 @@ Initialize(int argc, char **argv)
 #endif
 
 #ifdef NETWORK
-    postOffice = new PostOffice(netname, rely, 10);
+    postOffice = new PostOffice(netname, rely, NUM_MAILBOXES);
 #endif
 }
 

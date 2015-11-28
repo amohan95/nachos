@@ -130,6 +130,10 @@ class Thread {
 
     int stack_vaddr_bottom_;
 #endif
+#ifdef NETWORK
+	public:
+		int mailbox;
+#endif
 };
 
 // Magical machine-dependent routines, defined in switch.s
