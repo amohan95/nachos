@@ -137,8 +137,10 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader in
 void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerCV> & cvs, int cvID);
 
-void create_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentMV,
-    std::map<int, ServerMV> & mvs, int size, string mv_name);
+int find_mv_by_name(std::map<int, ServerMV> mvs, string mv_name);
+
+void create_new_mv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr,
+    int & currentMV, std::map<int, ServerMV> & mvs, int size, string mv_name);
 
 void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
     std::map<int, ServerMV> & mvs, int mvID, int index, int value);
@@ -336,7 +338,22 @@ void Server() {
           int size;
           ss >> size;
           string mv_name = get_rest_of_stream(ss);
-          create_mv(outPktHdr, outMailHdr, currentMV, mvs, size, mv_name);
+          int mvID = find_mv_by_name(mvs, mv_name);
+          if (mvID != -1) { // If on this server, send response.
+            ss.str("");
+            ss.clear();
+            ss << mvID;
+            DEBUG('R',"MV found on server sending: %d\n", mvID);
+            setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+          } else if (numServers == 1) { // If only server, create mv and send response.
+            create_new_mv_and_send(outPktHdr, outMailHdr, currentMV, mvs, size, mv_name);
+          } else { // See if on another server.
+            ss.str("");
+            ss.clear();
+            ss << size << " " << mv_name;
+            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
+                pending_requests, currentRequest, s, ss.str());
+          }
           break;
         }
         case SET_MV: {
@@ -443,6 +460,61 @@ void Server() {
             }
             break;
           }
+          case CREATE_CV: {
+              
+            break;
+          }
+          case WAIT_CV: {
+            
+            break;
+          }
+          case SIGNAL_CV: {
+            
+            break;
+          }
+          case BROADCAST_CV: {
+            
+            break;
+          }
+          case DESTROY_CV: {
+            
+            break;
+          }
+          case CREATE_MV: {
+            int size;
+            ss >> size;
+            string mv_name = get_rest_of_stream(ss);
+            int mvID = find_mv_by_name(mvs, mv_name);
+
+            // If on this server, send response to client and yes to requesting server.
+            if (mvID != -1) { 
+              DEBUG('R', "Found MV and sending to client: %s\n", mv_name.c_str());
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+              
+              ss.str("");
+              ss.clear();
+              ss << mvID;
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
+              setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+            } else { // Send no.
+              DEBUG('R', "Can't Find MV: %s\n", mv_name.c_str());
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
+            break;
+          }
+          case SET_MV: {
+            
+            break;
+          }
+          case GET_MV: {
+            
+            break;
+          }
+          case DESTROY_MV: {
+            
+            break;
+          }
         }
       } else { // Server response.
         bool yes;
@@ -478,7 +550,50 @@ void Server() {
               setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
+            case CREATE_CV: {
+              
+              break;
+            }
+            case WAIT_CV: {
+              
+              break;
+            }
+            case SIGNAL_CV: {
+              
+              break;
+            }
+            case BROADCAST_CV: {
+              
+              break;
+            }
+            case DESTROY_CV: {
+              
+              break;
+            }
+            case CREATE_MV: {
+              ss.str("");
+              ss.clear();
+              ss << it->second.info;
+              int size;
+              ss >> size;
+              string mv_name = get_rest_of_stream(ss);
+              create_new_mv_and_send(outPktHdr, outMailHdr, currentMV, mvs, size, mv_name);
+              break;
+            }
+            case SET_MV: {
+              
+              break;
+            }
+            case GET_MV: {
+              
+              break;
+            }
+            case DESTROY_MV: {
+              
+              break;
+            }
           }
+          pending_requests.erase(it);
         } else {
           DEBUG('R', "Received a no server response\n");
           it->second.noCount++;
@@ -744,27 +859,29 @@ void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
   }
 }
 
-void create_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentMV,
-    std::map<int, ServerMV> & mvs, int size, string mv_name) {
-  DEBUG('R', "Create mv on server starting\n");
-  int mvID;
-  bool found = false;
-  for (std::map<int, ServerMV>::iterator it = mvs.begin(); it != mvs.end(); ++it) {
+// Returns the mv ID for the given lock or -1 if not on this server.
+int find_mv_by_name(std::map<int, ServerMV> mvs, string mv_name) {
+  for (std::map<int, ServerMV>::iterator it = mvs.begin(); it != mvs.end();
+      ++it) {
     if (it->second.name == mv_name) {
-      mvID = it->first;
-      found = true;
-      break;
+      return it->first;
     }
   } 
-  if (!found) {
-    mvID = currentMV;
+  return -1;
+}
+
+void create_new_mv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr,
+    int & currentMV, std::map<int, ServerMV> & mvs, int size, string mv_name) {
+  if (mvs.size() >= NUM_MONITORS || size > MAX_MONITOR) {
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
+  } else {
     ServerMV mv(mv_name, size);
     mvs.insert(std::pair<int, ServerMV>(currentMV++, mv));
+    stringstream ss;
+    ss << (currentMV - 1);
+    DEBUG('R',"Create mv on server sending: %s\n", ss.str().c_str());
+    setup_message_and_send(outPktHdr, outMailHdr, ss.str());
   }
-  stringstream ss;
-  ss << (mvID);
-  DEBUG('R',"Create mv on server sending: %s\n", ss.str().c_str());
-  setup_message_and_send(outPktHdr, outMailHdr, ss.str());
 }
 
 void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
