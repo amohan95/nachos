@@ -208,4 +208,11 @@ mini_passport_office_net_test: mini_passport_office_net_test.coff
 	../bin/coff2noff $< $@
 
 clean:
-	rm -f *.o *.coff
+	rm -f *.o *.coff halt matmult sort testfiles thread_tests exec_test lock_tests \
+		 condition_tests system_test system_test_exec \
+     matmult_virtual_mem_test sort_virtual_mem_test \
+     monitortest conditiontest1 conditiontest2 \
+		 sprintf_test mini_passport_office_net_test \
+     customer senator application_clerk picture_clerk \
+     passport_clerk cashier manager
+
