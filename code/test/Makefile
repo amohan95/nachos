@@ -34,7 +34,8 @@ CFLAGS = -G 0 -c $(INCDIR)
 all: halt matmult sort testfiles thread_tests exec_test lock_tests \
 		 condition_tests system_test system_test_exec \
      matmult_virtual_mem_test sort_virtual_mem_test \
-     monitortest conditiontest1 conditiontest2
+     monitortest conditiontest1 conditiontest2 \
+		 sprintf_test
 
 start.o: start.s ../userprog/syscall.h
 	$(CPP) $(CPPFLAGS) start.s > strt.s
@@ -141,6 +142,12 @@ conditiontest2: conditiontest2.o start.o
 	$(LD) $(LDFLAGS) start.o conditiontest2.o -o conditiontest2.coff
 	../bin/coff2noff conditiontest2.coff conditiontest2
 
+sprintf_test.o: sprintf_test.c
+	$(CC) $(CFLAGS) -c $^
+sprintf_test.coff: sprintf_test.o start.o
+	$(LD) $(LDFLAGS) $^ -o $@
+sprintf_test: sprintf_test.coff
+	../bin/coff2noff $< $@
 
 clean:
 	rm -f *.o *.coff

@@ -46,6 +46,7 @@
 #define SC_GetMonitor       24
 #define SC_SetMonitor       25
 #define SC_DestroyMonitor   26
+#define SC_Sprintf          27
 
 #define MAXFILENAME 256
 
@@ -195,6 +196,7 @@ int SetMonitor(int mv, int index, int value);
 int GetMonitor(int mv, int index);
 int DestroyMonitor(int mv);
 
+int Sprintf(char* dst, char* format, int len, int x);
 
 #endif /* IN_ASM */
 

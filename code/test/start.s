@@ -258,6 +258,14 @@ DestroyMonitor:
 	j	$31
 	.end DestroyMonitor
 
+	.globl Sprintf
+	.ent Sprintf
+Sprintf:
+	addiu $2,$0,SC_Sprintf
+	syscall
+	j	$31
+	.end Sprintf
+
 /* dummy function to keep gcc happy */
         .globl  __main
         .ent    __main

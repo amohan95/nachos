@@ -110,7 +110,7 @@ void Create_Syscall(unsigned int vaddr, int len) {
 void out_header_init(PacketHeader & pktHdr, MailHeader & mailHdr, int size) {
   pktHdr.to = rand() % numServers;
   mailHdr.to = SERVER_MAILBOX;
-  mailHdr.from = CLIENT_MAILBOX;
+  mailHdr.from = currentThread->mailbox;
   mailHdr.length = size + 1;
 }
 
@@ -919,6 +919,38 @@ int DestroyMonitor_Syscall(int mv) {
 }
 #endif
 
+int Sprintf_Syscall(int vdst, int format, int len, int x) {
+  char* fbuf;
+  char* buf;
+  if (!(fbuf = new char[len])) {
+    printf("%s","Error allocating kernel buffer for write!\n");
+    return UNSUCCESSFUL_SYSCALL;
+  } else {
+    if (copyin(format, len, fbuf) == -1) {
+      printf("%s","Bad pointer passed to to Sprintf: data not written\n");
+      delete[] buf;
+      return UNSUCCESSFUL_SYSCALL;
+    }
+  }
+  int xx = x;
+  int d = 0;
+  while (xx != 0) {
+    xx /= 10;
+    ++d;
+  }
+  if (!(buf = new char[len + d - 1])) {
+    printf("%s","Error allocating kernel buffer for write!\n");
+    delete [] fbuf;
+    return UNSUCCESSFUL_SYSCALL;
+  }
+  sprintf(buf, fbuf, x);
+  copyout(vdst, len + d - 1, buf);
+  copyout(vdst + len + d - 1, 1, "\0");
+  delete [] fbuf;
+  delete [] buf;
+  return len + d;
+}
+
 int HandleMemoryFull() {
   DEBUG('v', "No physical pages free, choosing a page to evict.\n");
   int ppn = -1;
@@ -1086,6 +1118,10 @@ void ExceptionHandler(ExceptionType which) {
         DEBUG('s', "Print number syscall.\n");
         PrintNum_Syscall(machine->ReadRegister(4));
         break;
+      case SC_Sprintf:
+        DEBUG('s', "Sprintf syscall.\n");
+        rv = Sprintf_Syscall(machine->ReadRegister(4), machine->ReadRegister(5),
+            machine->ReadRegister(6), machine->ReadRegister(7));
       #ifdef NETWORK
       case SC_CreateMonitor:
         DEBUG('s', "Create monitor variable syscall.\n");
