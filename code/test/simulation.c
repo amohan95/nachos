@@ -1,6 +1,17 @@
 #include "../userprog/syscall.h"
 #include "utilities.h"
 
+#define NUM_CUSTOMERS 15
+#define NUM_SENATORS 0
+#define NUM_APPLICATION_CLERKS 3
+#define NUM_PICTURE_CLERKS 3
+#define NUM_PASSPORT_CLERKS 3
+#define NUM_CASHIER_CLERKS 3
+#define NUM_TOTAL_CLERKS NUM_APPLICATION_CLERKS + NUM_PICTURE_CLERKS + NUM_PASSPORT_CLERKS + NUM_CASHIER_CLERKS
+
+char nameBuf[128];
+int nameLen;
+
 void* memcpy(void* dst, void* src, int size) {
   int i;
   char* cpy_dst = (char*) dst; 
@@ -15,17 +26,17 @@ int num_clerks_[NUM_CLERK_TYPES]
     = {NUM_APPLICATION_CLERKS, NUM_PICTURE_CLERKS, NUM_PASSPORT_CLERKS, 
         NUM_CASHIER_CLERKS};
 
+#ifndef NETWORK
 int application_clerk_init_lock_;
 int application_clerk_init_count_ = 0;
-
 int picture_clerk_init_lock_;
 int picture_clerk_init_count_ = 0;
-
 int passport_clerk_init_lock_;
 int passport_clerk_init_count_ = 0;
-
 int cashier_clerk_init_lock_;
 int cashier_clerk_init_count_ = 0;
+int customers_init_size_ = 0;
+#endif
 
 int breaking_clerks_lock_;
 int senator_lock_;
@@ -33,23 +44,26 @@ int senator_condition_;
 int customer_count_lock_;
 int customers_served_lock_;
 int customers_served_cv_;
-int num_customers_being_served_ = 0;
+int num_customers_being_served_;
 int num_customers_waiting_lock_;
-int num_customers_waiting_ = 0;
+int num_customers_waiting_;
 int num_senators_lock_;
-int num_senators_ = 0;
+int num_senators_;
 int outside_line_lock_;
 int outside_line_cv_;
 
 int line_locks_[NUM_CLERK_TYPES];
 Customer customers_[NUM_CUSTOMERS + NUM_SENATORS];
-int customers_size_ = NUM_CUSTOMERS;
-int customers_init_size_ = 0;
-int num_threads = 0;
+int customers_size_;
 
 Clerk clerks_[NUM_CLERK_TYPES][MAX_NUM_CLERKS];
+#ifdef NETWORK
+int line_counts_[NUM_CLERK_TYPES];
+int bribe_line_counts_[NUM_CLERK_TYPES];
+#else
 int line_counts_[NUM_CLERK_TYPES][MAX_NUM_CLERKS];
 int bribe_line_counts_[NUM_CLERK_TYPES][MAX_NUM_CLERKS];
+#endif
 
 Manager manager_;
 
@@ -58,9 +72,6 @@ int INITIAL_MONEY_AMOUNTS[] = {100, 600, 1100, 1600};
 int CURRENT_UNUSED_SSN = 0;
 int SENATOR_UNUSED_SSN = 0;
 
-void AddNewCustomer(Customer customer, int index);
-void AddNewSenator(Customer senator, int index);
-void DestroyCustomer(Customer* customer);
 void PrintCustomerIdentifierString(Customer* customer);
 void DoClerkWork(Customer* customer, Clerk* clerk);
 void PrintLineJoin(Customer* customer, Clerk* clerk, int bribed);
@@ -80,29 +91,53 @@ void ClerkRun(Clerk* clerk);
 void ManagerPrintMoneyReport(Manager* manager);
 void ManagerRun(Manager* manager);
 
+#ifndef NETWORK
+void AddNewCustomer(Customer customer, int index);
+void AddNewSenator(Customer senator, int index);
+void DestroyCustomer(Customer* customer);
 void RunManager();
 void RunManagerMoneyReport();
 void RunClerk();
 void RunCustomer();
 void RunSenator();
+void StartPassportOffice();
+#endif
 
 void WakeWaitingCustomers();
 void WakeClerksForSenator();
 
 void SetupPassportOffice();
-void StartPassportOffice();
 
 /* Gets the total number of customers waiting in line for a clerk type. */
 int GetNumCustomersForClerkType(ClerkType type) {
   int total = 0;
   int i;
+#ifdef NETWORK
+  int blc, lc;
+#endif
   for (i = 0; i < num_clerks_[type]; ++i) {
+#ifdef NETWORK
+    lc = GetMonitor(line_counts_[type], i);
+    if (lc == -1) {
+      Print("Error getting line count\n", 25);
+      break;
+    }
+    total += lc;
+    blc =  GetMonitor(bribe_line_counts_[type], i);
+    if (blc == -1) {
+      Print("Error getting bribe line count\n", 31);
+      break;
+    }
+    total += blc;
+#else
     total += line_counts_[type][i];
     total += bribe_line_counts_[type][i];
+#endif
   }
   return total;
 }
 
+#ifndef NETWORK
 /* Adds a new customer to the passport office by creating a new thread and
   forking it. Additionally, this will add the customer to the customers_ set.*/
 void AddNewCustomer(Customer customer, int index) {
@@ -122,6 +157,7 @@ void AddNewSenator(Customer senator, int index) {
 /*  Thread* thread = new Thread("senator thread");
   thread->Fork(thread_runners::RunSenator, reinterpret_cast<int>(senator));
 */}
+#endif
 
 /* ######## Customer Functionality ######## */
 Customer CreateCustomer(CustomerType type, int money) {
@@ -138,14 +174,10 @@ Customer CreateCustomer(CustomerType type, int money) {
   customer.passport_verified_ = 0;
   customer.picture_taken_ = 0;
   customer.running_ = 0;
-  customer.join_line_lock_ = CreateLock("jll", 3);
-  customer.join_line_lock_cv_ = CreateCondition("jllcv", 5);
   return customer;
 }
 
 void DestroyCustomer(Customer* customer) {
-  DestroyLock(customer->join_line_lock_);
-  DestroyCondition(customer->join_line_lock_cv_);
 }
 
 void PrintCustomerIdentifierString(Customer* customer) {
@@ -218,21 +250,30 @@ void SenatorRun(Customer* senator) {
   int i, j;
   ClerkType next_clerk;
   Clerk* clerk;
-  
+  int num_senators;
+
   Release(customer_count_lock_);
 
   senator->running_ = 1;
   /* Increment the number of senators in the office so that others know 
      that a senator is there. */
   Acquire(num_senators_lock_);
+#ifdef NETWORK
+  SetMonitor(num_senators_, 0, GetMonitor(num_senators, 0) + 1);
+#else
   ++num_senators_;
+#endif
   Release(num_senators_lock_);
 
   Acquire(senator_lock_);
 
   /* Wake up customers that are currently in line in the passport office so that
     they can join the outside line. */
+#ifdef NETWORK
+  while (GetMonitor(num_customers_being_served_, 0) > 0) {
+#else
   while (num_customers_being_served_ > 0) {
+#endif
     WakeWaitingCustomers();
     Yield();
   }
@@ -242,8 +283,13 @@ void SenatorRun(Customer* senator) {
   for (i = 0; i < NUM_CLERK_TYPES; ++i) {
     Acquire(line_locks_[i]);
     for (j = 0; j < num_clerks_[i]; ++j) {
+#ifdef NETWORK
+      SetMonitor(line_counts_[i], j, 0);
+      SetMonitor(bribe_line_counts_[i], j, 0);
+#else
       line_counts_[i][j] = 0;
-      bribe_line_counts_[i][j] = 0;      
+      bribe_line_counts_[i][j] = 0;
+#endif
     }
     Release(line_locks_[i]);
   }
@@ -272,9 +318,13 @@ void SenatorRun(Customer* senator) {
     }
     clerk = &(clerks_[next_clerk][0]);
     Acquire(line_locks_[next_clerk]);
+#ifdef NETWORK
+    SetMonitor(line_counts_[next_clerk], 0, GetMonitor(line_counts_[next_clerk], 0) + 1);
+#else
     ++line_counts_[next_clerk][0];
+#endif
     Release(line_locks_[next_clerk]);
-    
+
     Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
 
     PrintLineJoin(senator, clerk, 0);
@@ -283,7 +333,11 @@ void SenatorRun(Customer* senator) {
     DoClerkWork(senator, clerk);
 
     Acquire(line_locks_[next_clerk]);
+#ifdef NETWORK
+    SetMonitor(line_counts_[next_clerk], 0, GetMonitor(line_counts_[next_clerk], 0) - 1);
+#else
     --line_counts_[next_clerk][0];
+#endif
     Release(line_locks_[next_clerk]);
 
     clerk->current_customer_ = NULL;
@@ -301,8 +355,16 @@ void SenatorRun(Customer* senator) {
 
   /* Leaving the office - if there are no more senators left waiting, then
     tell all the customers outside to come back in.*/
-  --num_senators_;
-  if (num_senators_ == 0) {
+
+  Acquire(num_senators_lock_);
+#ifdef NETWORK
+  num_senators = GetMonitor(num_senators_, 0) - 1;
+  SetMonitor(num_senators_, 0, num_senators);
+#else
+  num_senators = --num_senators_;
+#endif
+  Release(num_senators_lock_);
+  if (num_senators == 0) {
     Broadcast(outside_line_cv_, outside_line_lock_);
   }
   Release(senator_lock_);
@@ -314,6 +376,7 @@ void CustomerRun(Customer* customer) {
   ClerkType next_clerk;
   int i;
   Clerk* clerk;
+  int num_customers_being_served;
 
   Release(customer_count_lock_);
 
@@ -322,7 +385,11 @@ void CustomerRun(Customer* customer) {
       (!customer->passport_verified_ || !customer->picture_taken_ ||
       !customer->completed_application_ || !customer->certified_)) {
     Acquire(num_senators_lock_);
+#ifdef NETWORK
+    if (GetMonitor(num_senators_, 0) > 0) {
+#else
     if (num_senators_ > 0) {
+#endif
       Release(num_senators_lock_);
       Acquire(outside_line_lock_);
       PrintCustomerIdentifierString(customer);
@@ -335,7 +402,11 @@ void CustomerRun(Customer* customer) {
     }
 
     Acquire(customers_served_lock_);
+#ifdef NETWORK
+    SetMonitor(num_customers_being_served_, 0, GetMonitor(num_customers_being_served_, 0) + 1);
+#else
     ++num_customers_being_served_;
+#endif
     Release(customers_served_lock_);
 
     customer->bribed_ = 0;
@@ -355,7 +426,12 @@ void CustomerRun(Customer* customer) {
     shortest = -1;
     for (i = 0; i < num_clerks_[next_clerk]; ++i) {
       if (shortest == -1 ||
+#ifdef NETWORK
+          GetMonitor(line_counts_[next_clerk], i) <
+          GetMonitor(line_counts_[next_clerk], shortest)) {
+#else
           line_counts_[next_clerk][i] < line_counts_[next_clerk][shortest]) {
+#endif
         shortest = i;
       }
     }
@@ -363,8 +439,13 @@ void CustomerRun(Customer* customer) {
       bribe_shortest = -1;
       for (i = 0; i < num_clerks_[next_clerk]; ++i) {
         if (bribe_shortest == -1 ||
-            bribe_line_counts_[next_clerk][i]
+#ifdef NETWORK
+            GetMonitor(bribe_line_counts_[next_clerk], i)
+            < GetMonitor(bribe_line_counts_[next_clerk], bribe_shortest)) {
+#else
+          bribe_line_counts_[next_clerk][i]
             < bribe_line_counts_[next_clerk][bribe_shortest]) {
+#endif
           bribe_shortest = i;
         }
       }
@@ -373,8 +454,13 @@ void CustomerRun(Customer* customer) {
         Release(line_locks_[next_clerk]);
         continue;
       }
+#ifdef NETWORK
+      if (GetMonitor(bribe_line_counts_[next_clerk], bribe_shortest)
+          < GetMonitor(line_counts_[next_clerk], shortest)) {
+#else
       if (bribe_line_counts_[next_clerk][bribe_shortest]
           < line_counts_[next_clerk][shortest]) {
+#endif
         clerk = &(clerks_[next_clerk][bribe_shortest]);
         customer->bribed_ = 1;
       } else {
@@ -398,24 +484,44 @@ void CustomerRun(Customer* customer) {
     PrintLineJoin(customer, clerk, customer->bribed_);
 
     Acquire(num_customers_waiting_lock_);
+#ifdef NETWORK
+    SetMonitor(num_customers_waiting_, 0, GetMonitor(num_customers_waiting_, 0) + 1);
+#else
     ++num_customers_waiting_;
+#endif
     Release(num_customers_waiting_lock_);
 
     JoinLine(clerk, customer->bribed_);
 
     Acquire(num_customers_waiting_lock_);
+#ifdef NETWORK
+    SetMonitor(num_customers_waiting_, 0, GetMonitor(num_customers_waiting_, 0) - 1);
+#else
     --num_customers_waiting_;
+#endif
     Release(num_customers_waiting_lock_);
 
     Acquire(customers_served_lock_);
+#ifdef NETWORK
+    SetMonitor(num_customers_being_served_, 0, GetMonitor(num_customers_being_served_, 0) + 1);
+#else
     --num_customers_being_served_;
+#endif
     Release(customers_served_lock_);
     Acquire(num_senators_lock_);
-    
+
+#ifdef NETWORK
+    if (GetMonitor(num_senators_, 0) > 0) {
+#else
     if (num_senators_ > 0) {
+#endif
       Release(num_senators_lock_);
       Acquire(customers_served_lock_);
+#ifdef NETWORK
+      if (GetMonitor(num_customers_being_served_, 0)  == 0) {
+#else
       if (num_customers_being_served_ == 0) {
+#endif
         Broadcast(customers_served_cv_, customers_served_lock_);
       }
       Release(customers_served_lock_);
@@ -426,7 +532,7 @@ void CustomerRun(Customer* customer) {
     if (!customer->running_) {
       break;
     }
-    
+
     DoClerkWork(customer, clerk);
 
     if (customer->bribed_) {
@@ -447,21 +553,30 @@ void CustomerRun(Customer* customer) {
     Print(" terminated early because it is impossible to get a passport.\n", 62);
   }
   Acquire(customers_served_lock_);
-  --num_customers_being_served_;
-  if (num_customers_being_served_ == 0) {
+#ifdef NETWORK
+  num_customers_being_served = GetMonitor(num_customers_being_served_, 0) - 1;
+  SetMonitor(num_customers_being_served_, 0, num_customers_being_served);
+#else
+  num_customers_being_served = --num_customers_being_served_;
+#endif
+  if (num_customers_being_served == 0) {
     Broadcast(customers_served_cv_, customers_served_lock_);
   }
   Release(customers_served_lock_);
-  
+
   Acquire(customer_count_lock_);
+#ifdef NETWORK
+  SetMonitor(customers_size_, 0, GetMonitor(customers_size_, 0) - 1);
+#else
   --customers_size_;
+#endif
   Release(customer_count_lock_);
 }
 
 /* ######## Clerk Functionality ######## */
 void PrintNameForClerkType(ClerkType type) {
   switch (type) {
-    case kApplication :     
+    case kApplication:
       Print("ApplicationClerk", 16);
       break;
     case kPicture :
@@ -527,7 +642,12 @@ int CollectMoney(Clerk* clerk) {
 void JoinLine(Clerk* clerk, int bribe) {
   if (bribe) {
     Acquire(clerk->bribe_line_lock_);
+#ifdef NETWORK
+    SetMonitor(bribe_line_counts_[clerk->type_], clerk->identifier_,
+        GetMonitor(bribe_line_counts_[clerk->type_], clerk->identifier_) + 1);
+#else
     ++bribe_line_counts_[clerk->type_][clerk->identifier_];
+#endif
     if (GetNumCustomersForClerkType(clerk->type_) > 
         CLERK_WAKEUP_THRESHOLD) {
       Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
@@ -536,7 +656,12 @@ void JoinLine(Clerk* clerk, int bribe) {
     Release(clerk->bribe_line_lock_);
   } else {
     Acquire(clerk->regular_line_lock_);
+#ifdef NETWORK
+    SetMonitor(line_counts_[clerk->type_], clerk->identifier_,
+        GetMonitor(line_counts_[clerk->type_], clerk->identifier_) + 1);
+#else
     ++line_counts_[clerk->type_][clerk->identifier_];
+#endif
     if (GetNumCustomersForClerkType(clerk->type_) > 
         CLERK_WAKEUP_THRESHOLD) {
       Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
@@ -547,8 +672,13 @@ void JoinLine(Clerk* clerk, int bribe) {
 }
 
 int GetNumCustomersInLine(Clerk* clerk) {
+#ifdef NETWORK
+  return GetMonitor(line_counts_[clerk->type_], clerk->identifier_) +
+      GetMonitor(bribe_line_counts_[clerk->type_], clerk->identifier_);
+#else
   return line_counts_[clerk->type_][clerk->identifier_] +
       bribe_line_counts_[clerk->type_][clerk->identifier_];
+#endif
 }
 
 void GetNextCustomer(Clerk* clerk) {
@@ -557,19 +687,21 @@ void GetNextCustomer(Clerk* clerk) {
 
   Acquire(line_locks_[clerk->type_]);
   Acquire(clerk->bribe_line_lock_);
+#ifdef NETWORK
+  bribe_line_count = GetMonitor(bribe_line_counts_[clerk->type_], clerk->identifier_);
+#else
   bribe_line_count = bribe_line_counts_[clerk->type_][clerk->identifier_];
+#endif
   Release(clerk->bribe_line_lock_);
 
   Acquire(clerk->regular_line_lock_);
+#ifdef NETWORK
+  regular_line_count = GetMonitor(line_counts_[clerk->type_], clerk->identifier_);
+#else
   regular_line_count = line_counts_[clerk->type_][clerk->identifier_];
+#endif
   Release(clerk->regular_line_lock_);
 
-	/*PrintNum(clerk->identifier_);
-	Print(" ", 1);
-	PrintNum(bribe_line_count);
-	Print(" ", 1);
-	PrintNum(regular_line_count);
-	Print("\n", 1);*/
   if (bribe_line_count > 0) {
     PrintClerkIdentifierString(clerk);
     Print(" has signalled a Customer to come to their counter.\n", 52);
@@ -579,7 +711,12 @@ void GetNextCustomer(Clerk* clerk) {
     Signal(clerk->bribe_line_lock_cv_, clerk->bribe_line_lock_);
     Release(clerk->bribe_line_lock_);
     clerk->state_ = kBusy;
+#ifdef NETWORK
+    SetMonitor(bribe_line_counts_[clerk->type_], clerk->identifier_,
+        GetMonitor(bribe_line_counts_[clerk->type_], clerk->identifier_) - 1);
+#else
     bribe_line_counts_[clerk->type_][clerk->identifier_]--;
+#endif
   } else if (regular_line_count > 0) {
     PrintClerkIdentifierString(clerk);
     Print(" has signalled a Customer to come to their counter.\n", 52);
@@ -589,7 +726,12 @@ void GetNextCustomer(Clerk* clerk) {
     Signal(clerk->regular_line_lock_cv_, clerk->regular_line_lock_);
     Release(clerk->regular_line_lock_);
     clerk->state_ = kBusy;
+#ifdef NETWORK
+    SetMonitor(line_counts_[clerk->type_], clerk->identifier_,
+        GetMonitor(line_counts_[clerk->type_], clerk->identifier_) - 1);
+#else
     line_counts_[clerk->type_][clerk->identifier_]--;
+#endif
   } else {
     clerk->state_ = kOnBreak;
   }
@@ -719,6 +861,7 @@ void ClerkRun(Clerk* clerk) {
   int i;
   int bribe;
 
+#ifndef NETWORK
   switch(clerk->type_) {
     case kApplication :     
       Release(application_clerk_init_lock_);
@@ -733,6 +876,7 @@ void ClerkRun(Clerk* clerk) {
       Release(cashier_clerk_init_lock_);
       break;
   }
+#endif
 
   clerk->running_ = 1;
   while (clerk->running_) {
@@ -820,14 +964,14 @@ void ManagerPrintMoneyReport(Manager* manager) {
     for (i = 0; i < NUM_CLERK_TYPES; ++i) {
       for (j = 0; j < num_clerks_[i]; ++j) {
         m = CollectMoney(&(clerks_[i][j]));
-        m->money_[clerks_[i][j].type_] += m;
+        manager->money_[clerks_[i][j].type_] += m;
       }
     }
     total = 0;
     for (i = 0; i < NUM_CLERK_TYPES; ++i) {
-      total += m->money_[i];
+      total += manager->money_[i];
       Print("Manager has counted a total of $", 32);
-      PrintNum(m->money_[i]);
+      PrintNum(manager->money_[i]);
       Print(" for ", 5);
       PrintNameForClerkType((ClerkType)(i));
       Print("s\n", 2);
@@ -859,10 +1003,11 @@ void ManagerRun(Manager* manager) {
     }
     for (i = 0; i < NUM_CLERK_TYPES; ++i) {
       if (GetNumCustomersForClerkType((ClerkType)(i))
-          > CLERK_WAKEUP_THRESHOLD || num_senators_ > 0) {
-				/*Print("Customers for clerk type ", 25);
-				PrintNum(i);
-				Print("\n", 1);*/
+#ifdef NETWORK
+          > CLERK_WAKEUP_THRESHOLD || GetMonitor(num_senators_, 0) > 0) {
+#else
+        > CLERK_WAKEUP_THRESHOLD || num_senators_ > 0) {
+#endif
         for (j = 0; j < num_clerks_[i]; ++j) {
           clerk = &(clerks_[i][j]);
           if (clerk->state_ == kOnBreak) {
@@ -919,6 +1064,7 @@ void WakeClerksForSenator() {
 }
 
 /* ######## Thread Runners ######## */
+#ifndef NETWORK
 void RunManager() {
   ManagerRun(&manager_);
   Exit(0);
@@ -964,69 +1110,90 @@ void RunSenator() {
   SenatorRun(&(customers_[customers_init_size_++]));
   Exit(0);
 }
+#endif
 
 void SetupPassportOffice() {
   int i;
 
-	application_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
-  picture_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
-  passport_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
-  cashier_clerk_init_lock_ = CreateLock("clerk initialization lock", 25);
+#ifndef NETWORK
+	application_clerk_init_lock_ = CreateLock("acil", 4);
+  picture_clerk_init_lock_ = CreateLock("picil", 5);
+  passport_clerk_init_lock_ = CreateLock("pacil", 5);
+  cashier_clerk_init_lock_ = CreateLock("ccil", 4);
+#endif
 
-  breaking_clerks_lock_ = CreateLock("breaking clerks lock", 20);
-  senator_lock_ = CreateLock("senator lock", 10);
-  senator_condition_ = CreateCondition("senator condition", 17);
-  customer_count_lock_ = CreateLock("customer count lock", 19);
-  customers_served_lock_ = CreateLock("num customers being served lock", 31);
-  customers_served_cv_ = CreateCondition("num customers being served cv", 29);
-  num_customers_waiting_lock_ = CreateLock("customer waiting counter", 24);
-  num_senators_lock_ = CreateLock("num senators lock", 17);
-  outside_line_lock_ = CreateLock("outside line lock", 17);
-  outside_line_cv_ = CreateCondition("outside line condition", 22);
+  breaking_clerks_lock_ = CreateLock("bcl", 3);
+  senator_lock_ = CreateLock("sl", 2);
+  senator_condition_ = CreateCondition("slcv", 4);
+  customer_count_lock_ = CreateLock("ccl", 3);
+  customers_served_lock_ = CreateLock("csl", 3);
+  customers_served_cv_ = CreateCondition("cslcv", 5);
+  num_customers_waiting_lock_ = CreateLock("ncwl", 4);
+  num_senators_lock_ = CreateLock("nsl", 3);
+  outside_line_lock_ = CreateLock("oll", 3);
+  outside_line_cv_ = CreateCondition("ollcv", 5);
+
+#ifdef NETWORK
+  customers_size_ = CreateMonitor("cs", 2, 1);
+  SetMonitor(customers_size_, 0, NUM_CUSTOMERS);
+  num_customers_being_served_ = CreateMonitor("ncs", 3, 1);
+  num_customers_waiting_ = CreateMonitor("ncw", 3, 1);
+  num_senators_ = CreateMonitor("ns", 2, 1); 
+#else
+  customers_size_ = 0;
+  num_customers_being_served_ = 0;
+  num_customers_waiting_= 0;
+  num_senators_ = 0;
+#endif
 
   for (i = 0; i < NUM_CLERK_TYPES; ++i) {
-    line_locks_[i] = CreateLock("Line Lock", 9);
+    nameLen = Sprintf(nameBuf, "ll%d", 4, i);
+    line_locks_[i] = CreateLock(nameBuf, nameLen);
+#ifdef NETWORK
+    nameLen = Sprintf(nameBuf, "lcmv%d", 6, i);
+    line_counts_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
+    nameLen = Sprintf(nameBuf, "blcmv%d", 6, i);
+    line_counts_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
+#endif
   }
-
-  /*PrintNum(NUM_APPLICATION_CLERKS);
-  Print("\n", 1);
-  PrintNum(NUM_PICTURE_CLERKS);
-  Print("\n", 1);
-  PrintNum(NUM_PASSPORT_CLERKS);
-  Print("\n", 1);
-  PrintNum(NUM_CASHIER_CLERKS);
-  Print("\n", 1);*/
 
   for (i = 0; i < NUM_APPLICATION_CLERKS; ++i) {
     clerks_[kApplication][i] = CreateClerk(i, kApplication);
+#ifndef NETWORK
     line_counts_[kApplication][i] = 0;
     bribe_line_counts_[kApplication][i] = 0;
+#endif
   }
 
 	for (i = 0; i < NUM_PICTURE_CLERKS; ++i) {
     clerks_[kPicture][i] = CreateClerk(i, kPicture);
+#ifndef NETWORK
     line_counts_[kPicture][i] = 0;
     bribe_line_counts_[kPicture][i] = 0;
+#endif
   }
 
   for (i = 0; i < NUM_PASSPORT_CLERKS; ++i) {
     clerks_[kPassport][i] = CreateClerk(i, kPassport);
+#ifndef NETWORK
     line_counts_[kPassport][i] = 0;
     bribe_line_counts_[kPassport][i] = 0;
+#endif
   }
 
   for (i = 0; i < NUM_CASHIER_CLERKS; ++i) {
     clerks_[kCashier][i] = CreateClerk(i, kCashier);
+#ifndef NETWORK
     line_counts_[kCashier][i] = 0;
     bribe_line_counts_[kCashier][i] = 0;
+#endif
   }
   manager_ = CreateManager();
 }
 
+#ifndef NETWORK
 void StartPassportOffice() {
   int i, j;
-
-  /*Print("I love Jesus?\n", 14);*/
 
   for (i = 0; i < num_clerks_[kApplication]; ++i) {
     Fork(RunApplicationClerk);
@@ -1046,15 +1213,24 @@ void StartPassportOffice() {
   Fork(RunManager);
   Fork(RunManagerMoneyReport);
 }
+#endif
 
 void WaitOnFinish() {
   int i, j, done;
     /* WaitOnFinish for the Passport Office */
   while (customers_size_ > 0) {
     for (i = 0; i < 400; ++i) { Yield(); }
+#ifdef NETWORK
+    if (GetMonitor(num_senators_, 0) > 0)
+#else
     if (num_senators_ > 0) continue;
+#endif
     Acquire(num_customers_waiting_lock_);
-    if (customers_size_ == num_customers_waiting_) {
+#ifdef NETWORK
+    if (customers_size_ == GetMonitor(num_customers_waiting_, 0)) {
+#else
+      if (customers_size_ == num_customers_waiting_) {
+#endif
       Release(num_customers_waiting_lock_);
       done = 1;
       Acquire(breaking_clerks_lock_);

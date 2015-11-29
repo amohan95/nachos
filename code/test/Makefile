@@ -35,7 +35,7 @@ all: halt matmult sort testfiles thread_tests exec_test lock_tests \
 		 condition_tests system_test system_test_exec \
      matmult_virtual_mem_test sort_virtual_mem_test \
      monitortest conditiontest1 conditiontest2 \
-		 sprintf_test
+		 sprintf_test create_entity mini_passport_office_net_test
 
 start.o: start.s ../userprog/syscall.h
 	$(CPP) $(CPPFLAGS) start.s > strt.s
@@ -147,6 +147,20 @@ sprintf_test.o: sprintf_test.c
 sprintf_test.coff: sprintf_test.o start.o
 	$(LD) $(LDFLAGS) $^ -o $@
 sprintf_test: sprintf_test.coff
+	../bin/coff2noff $< $@
+
+create_entity.o: create_entity.c
+	$(CC) $(CFLAGS) -c $^
+create_entity.coff: create_entity.o start.o
+	$(LD) $(LDFLAGS) $^ -o $@
+create_entity: create_entity.coff
+	../bin/coff2noff $< $@
+
+mini_passport_office_net_test.o: mini_passport_office_net_test.c
+	$(CC) $(CFLAGS) -c $^
+mini_passport_office_net_test.coff: mini_passport_office_net_test.o start.o
+	$(LD) $(LDFLAGS) $^ -o $@
+mini_passport_office_net_test: mini_passport_office_net_test.coff
 	../bin/coff2noff $< $@
 
 clean:
