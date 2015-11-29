@@ -361,7 +361,7 @@ int CreateLock_Syscall(int name, int len) {
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
     ss.str("");
     ss.clear();
     ss << result;
@@ -406,7 +406,7 @@ int DestroyLock_Syscall(int lock) {
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
     ss.str("");
     ss.clear();
     ss << result;
@@ -460,7 +460,7 @@ int CreateCondition_Syscall(int name, int len) {
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
     ss.str("");
     ss.clear();
     ss << result;
@@ -502,7 +502,7 @@ int DestroyCondition_Syscall(int cv) {
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
     ss.str("");
     ss.clear();
     ss << result;
@@ -546,7 +546,7 @@ int Acquire_Syscall(int lock) {
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
     ss.str("");
     ss.clear();
     ss << result;
@@ -585,7 +585,7 @@ int Release_Syscall(int lock) {
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
     ss.str("");
     ss.clear();
     ss << result;
@@ -630,7 +630,7 @@ int Wait_Syscall(int cv, int lock) {
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
     DEBUG('R', "Recevied in wait on cv in syscall\n");
     ss.str("");
     ss.clear();
@@ -682,7 +682,7 @@ int Signal_Syscall(int cv, int lock) {
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
     ss.str("");
     ss.clear();
     ss << result;
@@ -740,7 +740,7 @@ int Broadcast_Syscall(int cv, int lock) {
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-    postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+    postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
     ss.str("");
     ss.clear();
     ss << result;
@@ -835,7 +835,7 @@ int CreateMonitor_Syscall(int name, int len, int arr_size) {
   out_header_init(outPktHdr, outMailHdr, ss.str().length());
   postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-  postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+  postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
   ss.str("");
   ss.clear();
   ss << result;
@@ -856,7 +856,7 @@ int SetMonitor_Syscall(int mv, int index, int value) {
   out_header_init(outPktHdr, outMailHdr, ss.str().length());
   postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-  postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+  postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
   ss.str("");
   ss.clear();
   ss << result;
@@ -880,7 +880,7 @@ int GetMonitor_Syscall(int mv, int index) {
   out_header_init(outPktHdr, outMailHdr, ss.str().length());
   postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-  postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+  postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
   ss.str("");
   ss.clear();
   ss << result;
@@ -906,7 +906,7 @@ int DestroyMonitor_Syscall(int mv) {
   out_header_init(outPktHdr, outMailHdr, ss.str().length());
   postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
-  postOffice->Receive(CLIENT_MAILBOX, &inPktHdr, &inMailHdr, result);
+  postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
   ss.str("");
   ss.clear();
   ss << result;
