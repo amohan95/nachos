@@ -67,6 +67,11 @@ int bribe_line_counts_[NUM_CLERK_TYPES][MAX_NUM_CLERKS];
 
 Manager manager_;
 
+#ifdef NETWORK
+int customer_index_;
+int clerk_index_[NUM_CLERK_TYPES];
+#endif
+
 int NUM_INITIAL_MONEY_AMOUNTS = 4;
 int INITIAL_MONEY_AMOUNTS[] = {100, 600, 1100, 1600};
 int CURRENT_UNUSED_SSN = 0;
@@ -252,7 +257,9 @@ void SenatorRun(Customer* senator) {
   Clerk* clerk;
   int num_senators;
 
+#ifndef NETWORK
   Release(customer_count_lock_);
+#endif
 
   senator->running_ = 1;
   /* Increment the number of senators in the office so that others know 
@@ -378,9 +385,12 @@ void CustomerRun(Customer* customer) {
   Clerk* clerk;
   int num_customers_being_served;
 
+#ifndef NETWORK
   Release(customer_count_lock_);
+#endif
 
   customer->running_ = 1;
+  Print("Starting Customer\n", 18);
   while (customer->running_ &&
       (!customer->passport_verified_ || !customer->picture_taken_ ||
       !customer->completed_application_ || !customer->certified_)) {
@@ -1138,7 +1148,8 @@ void SetupPassportOffice() {
   SetMonitor(customers_size_, 0, NUM_CUSTOMERS);
   num_customers_being_served_ = CreateMonitor("ncs", 3, 1);
   num_customers_waiting_ = CreateMonitor("ncw", 3, 1);
-  num_senators_ = CreateMonitor("ns", 2, 1); 
+  num_senators_ = CreateMonitor("ns", 2, 1);
+  customer_index_ = CreateMonitor("ci", 2, 1);
 #else
   customers_size_ = 0;
   num_customers_being_served_ = 0;
@@ -1153,7 +1164,9 @@ void SetupPassportOffice() {
     nameLen = Sprintf(nameBuf, "lcmv%d", 6, i);
     line_counts_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
     nameLen = Sprintf(nameBuf, "blcmv%d", 6, i);
-    line_counts_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
+    bribe_line_counts_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
+    nameLen = Sprintf(nameBuf, "cimv%d", 6, i);
+    clerk_index_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
 #endif
   }
 
@@ -1314,5 +1327,45 @@ void WaitOnFinish() {
   DestroyCondition(outside_line_cv_);
   for (i = 0; i < NUM_CLERK_TYPES; ++i) {
     DestroyLock(line_locks_[i]);
+  }
+}
+
+typedef enum {
+  CUSTOMER = 0,
+  SENATOR,
+  APPLICATION_CLERK,
+  PASSPORT_CLERK,
+  CASHIER_CLERK,
+  PICTURE_CLERK,
+  MANAGER,
+  NUM_ENTITY_TYPES,
+} EntityType;
+
+void RunEntity(EntityType type, int entityId) {
+  SetupPassportOffice();
+  switch (type) {
+    case CUSTOMER:
+      CustomerRun(customers_ + entityId);
+      break;
+    case SENATOR:
+      CustomerRun(customers_ + entityId);
+      break;
+    case APPLICATION_CLERK:
+      ClerkRun(clerks_[kApplication] + entityId);
+      break;
+    case PASSPORT_CLERK:
+      ClerkRun(clerks_[kPassport] + entityId);
+      break;
+    case CASHIER_CLERK:
+      ClerkRun(clerks_[kCashier] + entityId);
+      break;
+    case PICTURE_CLERK:
+      ClerkRun(clerks_[kPicture] + entityId);
+      break;
+    case MANAGER:
+      ManagerRun(&manager_);
+      break;
+    default:
+      break;
   }
 }
