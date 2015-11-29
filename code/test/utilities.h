@@ -71,6 +71,7 @@ typedef struct Managers {
   int wakeup_condition_lock_;
   int elapsed_;
   int running_;
+  int money_[NUM_CLERK_TYPES];
 } Manager;
 
 #endif

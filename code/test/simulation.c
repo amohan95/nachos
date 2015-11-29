@@ -15,8 +15,6 @@ int num_clerks_[NUM_CLERK_TYPES]
     = {NUM_APPLICATION_CLERKS, NUM_PICTURE_CLERKS, NUM_PASSPORT_CLERKS, 
         NUM_CASHIER_CLERKS};
 
-int manager_money_[NUM_CLERK_TYPES] = {0, 0, 0, 0};
-
 int application_clerk_init_lock_;
 int application_clerk_init_count_ = 0;
 
@@ -822,14 +820,14 @@ void ManagerPrintMoneyReport(Manager* manager) {
     for (i = 0; i < NUM_CLERK_TYPES; ++i) {
       for (j = 0; j < num_clerks_[i]; ++j) {
         m = CollectMoney(&(clerks_[i][j]));
-        manager_money_[clerks_[i][j].type_] += m;
+        m->money_[clerks_[i][j].type_] += m;
       }
     }
     total = 0;
     for (i = 0; i < NUM_CLERK_TYPES; ++i) {
-      total += manager_money_[i];
+      total += m->money_[i];
       Print("Manager has counted a total of $", 32);
-      PrintNum(manager_money_[i]);
+      PrintNum(m->money_[i]);
       Print(" for ", 5);
       PrintNameForClerkType((ClerkType)(i));
       Print("s\n", 2);
