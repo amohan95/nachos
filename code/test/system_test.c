@@ -14,10 +14,10 @@ int main() {
   
   while (num_customers + num_senators > 0) {
     if (Rand() % (num_customers + num_senators) >= num_customers) {
-      AddNewSenator(CreateCustomer(kSenator, 0), index);
+      AddNewSenator(index);
       --num_senators;
     } else {
-      AddNewCustomer(CreateCustomer(kCustomer, 0), index);
+      AddNewCustomer(index);
       --num_customers;
     }
     ++index;

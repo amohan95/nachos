@@ -12,16 +12,6 @@
 char nameBuf[128];
 int nameLen;
 
-void* memcpy(void* dst, void* src, int size) {
-  int i;
-  char* cpy_dst = (char*) dst; 
-  char* cpy_src = (char*) src;
-  for (i = 0; i < size; ++i) {
-    cpy_dst[i] = cpy_src[i];
-  }
-  return (void*) cpy_dst;
-}
-
 int num_clerks_[NUM_CLERK_TYPES] 
     = {NUM_APPLICATION_CLERKS, NUM_PICTURE_CLERKS, NUM_PASSPORT_CLERKS, 
         NUM_CASHIER_CLERKS};
@@ -97,8 +87,8 @@ void ManagerPrintMoneyReport(Manager* manager);
 void ManagerRun(Manager* manager);
 
 #ifndef NETWORK
-void AddNewCustomer(Customer customer, int index);
-void AddNewSenator(Customer senator, int index);
+void AddNewCustomer(int index);
+void AddNewSenator(int index);
 void DestroyCustomer(Customer* customer);
 void RunManager();
 void RunManagerMoneyReport();
@@ -142,45 +132,43 @@ int GetNumCustomersForClerkType(ClerkType type) {
   return total;
 }
 
+/* ######## Customer Functionality ######## */
+void CreateCustomer(Customer* customer, CustomerType type, int money) {
+  customer->type_ = type;
+  customer->money_ =
+      (money == 0 ? INITIAL_MONEY_AMOUNTS[Rand() % NUM_INITIAL_MONEY_AMOUNTS]
+                  : money);
+  customer->ssn_ = (type == kCustomer ?
+      CURRENT_UNUSED_SSN++ : SENATOR_UNUSED_SSN++);
+  customer->bribed_ = 0;
+  customer->certified_ = 0;
+  customer->completed_application_ = 0;
+  customer->passport_verified_ = 0;
+  customer->picture_taken_ = 0;
+  customer->running_ = 0;
+}
+
 #ifndef NETWORK
 /* Adds a new customer to the passport office by creating a new thread and
   forking it. Additionally, this will add the customer to the customers_ set.*/
-void AddNewCustomer(Customer customer, int index) {
+void AddNewCustomer(int index) {
   Acquire(customer_count_lock_);
-  customers_[index] = customer;
+  CreateCustomer(customers_ + index, kCustomer, 0);
   Fork(RunCustomer);
   Release(customer_count_lock_);
 }
 
 /* Adds a new senator to the passport office by creating a new thread and
   forking it. */
-void AddNewSenator(Customer senator, int index) {
+void AddNewSenator(int index) {
   Acquire(customer_count_lock_);
-  customers_[index] = senator;
+  CreateCustomer(customers_ + index, kSenator, 0);
   Fork(RunSenator);
   Release(customer_count_lock_);
 /*  Thread* thread = new Thread("senator thread");
   thread->Fork(thread_runners::RunSenator, reinterpret_cast<int>(senator));
 */}
 #endif
-
-/* ######## Customer Functionality ######## */
-Customer CreateCustomer(CustomerType type, int money) {
-  Customer customer;
-  customer.type_ = type;
-  customer.money_ =
-      (money == 0 ? INITIAL_MONEY_AMOUNTS[Rand() % NUM_INITIAL_MONEY_AMOUNTS]
-                  : money);
-  customer.ssn_ = (type == kCustomer ?
-      CURRENT_UNUSED_SSN++ : SENATOR_UNUSED_SSN++);
-  customer.bribed_ = 0;
-  customer.certified_ = 0;
-  customer.completed_application_ = 0;
-  customer.passport_verified_ = 0;
-  customer.picture_taken_ = 0;
-  customer.running_ = 0;
-  return customer;
-}
 
 void DestroyCustomer(Customer* customer) {
 }
@@ -608,25 +596,22 @@ void PrintClerkIdentifierString(Clerk* clerk) {
   Print("]", 1);
 }
 
-Clerk CreateClerk(int identifier, ClerkType type) {
-  Clerk clerk;
-  clerk.customer_money_ = 0;
-  clerk.customer_input_ = 0;
-  clerk.state_ = kAvailable;
-  clerk.collected_money_ = 0;
-  clerk.identifier_ = identifier;
-  clerk.running_ = 0;
-  clerk.lines_lock_ = CreateLock("Clerk Lines Lock", 16);
-  clerk.bribe_line_lock_cv_ = CreateCondition("Clerk Bribe Line Condition", 26); 
-  clerk.bribe_line_lock_ = CreateLock("Clerk Bribe Line Lock", 21);
-  clerk.regular_line_lock_cv_ = CreateCondition("Clerk Regular Line Condition", 28); 
-  clerk.regular_line_lock_ = CreateLock("Clerk Regular Line Lock", 23);
-  clerk.wakeup_lock_cv_ = CreateCondition("Clerk Wakeup Condition", 22);
-  clerk.wakeup_lock_ = CreateLock("Clerk Wakeup Lock", 17);
-  clerk.money_lock_ = CreateLock("Clerk Money Lock", 16);
-  clerk.type_ = type;
-
-  return clerk;
+void CreateClerk(Clerk* clerk, int identifier, ClerkType type) {
+  clerk->customer_money_ = 0;
+  clerk->customer_input_ = 0;
+  clerk->state_ = kAvailable;
+  clerk->collected_money_ = 0;
+  clerk->identifier_ = identifier;
+  clerk->running_ = 0;
+  clerk->lines_lock_ = CreateLock("Clerk Lines Lock", 16);
+  clerk->bribe_line_lock_cv_ = CreateCondition("Clerk Bribe Line Condition", 26); 
+  clerk->bribe_line_lock_ = CreateLock("Clerk Bribe Line Lock", 21);
+  clerk->regular_line_lock_cv_ = CreateCondition("Clerk Regular Line Condition", 28); 
+  clerk->regular_line_lock_ = CreateLock("Clerk Regular Line Lock", 23);
+  clerk->wakeup_lock_cv_ = CreateCondition("Clerk Wakeup Condition", 22);
+  clerk->wakeup_lock_ = CreateLock("Clerk Wakeup Lock", 17);
+  clerk->money_lock_ = CreateLock("Clerk Money Lock", 16);
+  clerk->type_ = type;
 }
 
 void DestroyClerk(Clerk* clerk) {
@@ -1171,7 +1156,7 @@ void SetupPassportOffice() {
   }
 
   for (i = 0; i < NUM_APPLICATION_CLERKS; ++i) {
-    clerks_[kApplication][i] = CreateClerk(i, kApplication);
+    CreateClerk(clerks_[kApplication] + i, i, kApplication);
 #ifndef NETWORK
     line_counts_[kApplication][i] = 0;
     bribe_line_counts_[kApplication][i] = 0;
@@ -1179,7 +1164,7 @@ void SetupPassportOffice() {
   }
 
 	for (i = 0; i < NUM_PICTURE_CLERKS; ++i) {
-    clerks_[kPicture][i] = CreateClerk(i, kPicture);
+    CreateClerk(clerks_[kPicture] + i, i, kPicture);
 #ifndef NETWORK
     line_counts_[kPicture][i] = 0;
     bribe_line_counts_[kPicture][i] = 0;
@@ -1187,7 +1172,7 @@ void SetupPassportOffice() {
   }
 
   for (i = 0; i < NUM_PASSPORT_CLERKS; ++i) {
-    clerks_[kPassport][i] = CreateClerk(i, kPassport);
+    CreateClerk(clerks_[kPassport] + i, i, kPassport);
 #ifndef NETWORK
     line_counts_[kPassport][i] = 0;
     bribe_line_counts_[kPassport][i] = 0;
@@ -1195,7 +1180,7 @@ void SetupPassportOffice() {
   }
 
   for (i = 0; i < NUM_CASHIER_CLERKS; ++i) {
-    clerks_[kCashier][i] = CreateClerk(i, kCashier);
+    CreateClerk(clerks_[kCashier] + i, i, kCashier);
 #ifndef NETWORK
     line_counts_[kCashier][i] = 0;
     bribe_line_counts_[kCashier][i] = 0;
