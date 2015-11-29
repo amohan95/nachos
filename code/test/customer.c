@@ -1,8 +1,6 @@
-#include "../userprog/syscall.h"
+/*#include "../userprog/syscall.h"*/
 
-#define NETWORK
-
-#include "simulation.c"
+#include "simulationp.c"
 
 /*int main() {
   int entityId;
