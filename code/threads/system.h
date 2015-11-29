@@ -101,5 +101,4 @@ extern int numServers;
 extern Lock* mailboxesLock;
 extern BitMap* mailboxes;
 #endif
-
 #endif // SYSTEM_H

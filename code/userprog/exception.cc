@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <sstream>
+#include "time.h"
 
 using namespace std;
 
@@ -108,6 +109,7 @@ void Create_Syscall(unsigned int vaddr, int len) {
 #ifdef NETWORK
 
 void out_header_init(PacketHeader & pktHdr, MailHeader & mailHdr, int size) {
+  srand (time(NULL));
   pktHdr.to = rand() % numServers;
   mailHdr.to = SERVER_MAILBOX;
   mailHdr.from = currentThread->mailbox;
@@ -410,7 +412,7 @@ int DestroyLock_Syscall(int lock) {
     ss << result;
     int result_val;
     ss >> result_val;
-    if (result_val == 0) {
+    if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
       DEBUG('R',"Successfully destroyed lock in syscall\n");
@@ -506,7 +508,7 @@ int DestroyCondition_Syscall(int cv) {
     ss << result;
     int result_val;
     ss >> result_val;
-    if (result_val == 0) {
+    if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
       DEBUG('R',"Successfully destroyed lock in syscall\n");
@@ -550,7 +552,7 @@ int Acquire_Syscall(int lock) {
     ss << result;
     int result_val;
     ss >> result_val;
-    if (result_val == 0) {
+    if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
       DEBUG('R', "Successfully acquired lock in syscall\n");
@@ -579,7 +581,7 @@ int Release_Syscall(int lock) {
     char result[MaxMailSize];
 
     stringstream ss;
-    ss << RELEASE_LOCK << " " << lock;
+    DEBUG('R', "RELEASE_LOCK id %d\n", lock);
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
@@ -589,7 +591,7 @@ int Release_Syscall(int lock) {
     ss << result;
     int result_val;
     ss >> result_val;
-    if (result_val == 0) {
+    if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
       DEBUG('R', "Successfully released lock in syscall\n");
@@ -635,7 +637,7 @@ int Wait_Syscall(int cv, int lock) {
     ss << result;
     int result_val;
     ss >> result_val;
-    if (result_val == 0) {
+    if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
       DEBUG('R', "Successfully waited on cv in syscall\n");
@@ -686,7 +688,7 @@ int Signal_Syscall(int cv, int lock) {
     ss << result;
     int result_val;
     ss >> result_val;
-    if (result_val == 0) {
+    if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
       DEBUG('R', "Successfully signalled on cv in syscall\n");
@@ -744,7 +746,7 @@ int Broadcast_Syscall(int cv, int lock) {
     ss << result;
     int result_val;
     ss >> result_val;
-    if (result_val == 0) {
+    if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
       DEBUG('R', "Successfully broadcasted on cv in syscall\n");
@@ -860,7 +862,7 @@ int SetMonitor_Syscall(int mv, int index, int value) {
   ss << result;
   int result_val;
   ss >> result_val;
-  if (result_val == 0) {
+  if (result_val == -1) {
     return UNSUCCESSFUL_SYSCALL;
   } else {
     DEBUG('R', "Successfully set mv in syscall\n");
@@ -884,7 +886,7 @@ int GetMonitor_Syscall(int mv, int index) {
   ss << result;
   int success;
   ss >> success;
-  if (!success) {
+  if (success == -1) {
     return UNSUCCESSFUL_SYSCALL;
   } else {
     int mv_val;
@@ -910,7 +912,7 @@ int DestroyMonitor_Syscall(int mv) {
   ss << result;
   int result_val;
   ss >> result_val;
-  if (result_val == 0) {
+  if (result_val == -1) {
     return UNSUCCESSFUL_SYSCALL;
   } else {
     DEBUG('R', "Successfully destroyed mv in syscall\n");
