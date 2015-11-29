@@ -31,7 +31,7 @@
 //
 //	"threadName" is an arbitrary string, useful for debugging.
 //----------------------------------------------------------------------
-
+int mailboxesCount = 0;
 Thread::Thread(char* threadName)
 {
     name = threadName;
@@ -42,9 +42,9 @@ Thread::Thread(char* threadName)
     space = NULL;
 #endif
 #ifdef NETWORK
-		mailboxesLock->Acquire();
-		mailbox = mailboxes->Find();
-		mailboxesLock->Release();
+//		mailboxesLock->Acquire();
+		mailbox = mailboxesCount++;mailboxes->Find();
+//		mailboxesLock->Release();
 #endif
 }
 
