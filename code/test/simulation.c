@@ -71,21 +71,24 @@ void AddNewSenator(int index) {
 void DestroyCustomer(Customer* customer) {
 }
 
-void PrintCustomerIdentifierString(Customer* customer) {
-  if (customer->type_ == kCustomer) {
+void PrintCustomerIdentifierString(int customer_ssn) {
+  if (customers_[customer_ssn].type_ == kCustomer) {
     Print("Customer [", 10);
   } else {
     Print("Senator [", 9);
   }
-  PrintNum(customer->ssn_);
+  PrintNum(customer_ssn);
   Print("]", 1);
 }
 
 void DoClerkWork(Customer* customer, Clerk* clerk) {
   Acquire(clerk->wakeup_lock_);
+#ifdef NETWORK
+  SetMonitor(clerk_customer_ssn_[clerk->type_], clerk->identifier_, customer->ssn_);
+#endif
   clerk->customer_ssn_ = customer->ssn_;
   clerk->current_customer_ = customer;
-  PrintCustomerIdentifierString(customer);
+  PrintCustomerIdentifierString(customer->ssn_);
   Print(" has given SSN [", 16);
   PrintNum(customer->ssn_);
   Print("] to ", 5);
@@ -93,7 +96,7 @@ void DoClerkWork(Customer* customer, Clerk* clerk) {
   Print(".\n", 2);
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
-  
+
   switch (clerk->type_) {
     case kApplication:
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
@@ -101,18 +104,30 @@ void DoClerkWork(Customer* customer, Clerk* clerk) {
       break;
     case kPicture:
       clerk->customer_input_ = (Rand() % 10) > 0;
+#ifdef NETWORK
+      SetMonitor(clerk_customer_input_[clerk->type_], clerk->identifier_, clerk->customer_input_);
+#endif
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       break;
     case kCashier:
+#ifdef NETWORK
+      SetMonitor(clerk_customer_money_[clerk->type_], clerk->identifier_, PASSPORT_FEE);
+#endif
       clerk->customer_money_ = PASSPORT_FEE;
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
+#ifdef NETWORK
+      SetMonitor(clerk_customer_input_[clerk->type_], clerk->identifier_, 1);
+#endif
       clerk->customer_input_ = 1;
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       break;
     case kPassport:
+#ifdef NETWORK
+      SetMonitor(clerk_customer_input_[clerk->type_], clerk->identifier_, 1);
+#endif
       clerk->customer_input_ = 1;
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
@@ -123,7 +138,7 @@ void DoClerkWork(Customer* customer, Clerk* clerk) {
 }
 
 void PrintLineJoin(Customer* customer, Clerk* clerk, int bribed) {
-  PrintCustomerIdentifierString(customer);
+  PrintCustomerIdentifierString(customer->ssn_);
   Print(" has gotten in ", 15);
   Print((bribed ? "bribe" : "regular"), (bribed ? 5 : 7));
   Print(" line for ", 10); 
@@ -158,6 +173,7 @@ void SenatorRun(Customer* senator) {
 #endif
   Release(num_senators_lock_);
 
+  Print("Starting Senator\n", 17);
   Acquire(senator_lock_);
 
   /* Wake up customers that are currently in line in the passport office so that
@@ -278,8 +294,15 @@ void CustomerRun(Customer* customer) {
   customer->running_ = 1;
   Print("Starting Customer\n", 18);
   while (customer->running_ &&
+#ifdef NETWORK
+      (!GetMonitor(customer_passport_verified_, customer->ssn_) ||
+       !GetMonitor(customer_picture_taken_, customer->ssn_) ||
+       !GetMonitor(customer_completed_application_, customer->ssn_) ||
+       !GetMonitor(customer_certified_, customer->ssn_))) {
+#else
       (!customer->passport_verified_ || !customer->picture_taken_ ||
       !customer->completed_application_ || !customer->certified_)) {
+#endif
     Acquire(num_senators_lock_);
 #ifdef NETWORK
     if (GetMonitor(num_senators_, 0) > 0) {
@@ -288,7 +311,7 @@ void CustomerRun(Customer* customer) {
 #endif
       Release(num_senators_lock_);
       Acquire(outside_line_lock_);
-      PrintCustomerIdentifierString(customer);
+      PrintCustomerIdentifierString(customer->ssn_);
       Print(" is going outside the Passport Office because there is a Senator present.\n", 74);
       Wait(outside_line_cv_, outside_line_lock_);
       Release(outside_line_lock_);
@@ -306,7 +329,11 @@ void CustomerRun(Customer* customer) {
     Release(customers_served_lock_);
 
     customer->bribed_ = 0;
+#ifdef NETWORK
+    if (!GetMonitor(customer_completed_application_, customer->ssn_) && !GetMonitor(customer_picture_taken_, customer->ssn_)) {
+#else
     if (!customer->completed_application_ && !customer->picture_taken_ && NUM_APPLICATION_CLERKS > 0 && NUM_PICTURE_CLERKS > 0) {
+#endif
       next_clerk = (ClerkType)(Rand() % 2); /*either kApplication (0) or kPicture (1) */
     } else if (!customer->completed_application_) {
       next_clerk = kApplication;
@@ -331,7 +358,11 @@ void CustomerRun(Customer* customer) {
         shortest = i;
       }
     }
+#ifdef NETWORK
+    if (GetMonitor(customer_money_, customer->ssn_) >= CLERK_BRIBE_AMOUNT + PASSPORT_FEE) {
+#else
     if (customer->money_ >= CLERK_BRIBE_AMOUNT + PASSPORT_FEE) {
+#endif
       bribe_shortest = -1;
       for (i = 0; i < num_clerks_[next_clerk]; ++i) {
         if (bribe_shortest == -1 ||
@@ -357,10 +388,13 @@ void CustomerRun(Customer* customer) {
       if (bribe_line_counts_[next_clerk][bribe_shortest]
           < line_counts_[next_clerk][shortest]) {
 #endif
-        clerk = &(clerks_[next_clerk][bribe_shortest]);
+        clerk = clerks_[next_clerk] + bribe_shortest;
+#ifdef NETWORK
+        SetMonitor(customer_bribed_, customer->ssn_, 1);
+#endif
         customer->bribed_ = 1;
       } else {
-        clerk = &(clerks_[next_clerk][shortest]);
+        clerk = clerks_[next_clerk] + shortest;
       }
     } else {
       if (shortest == -1) {
@@ -368,11 +402,11 @@ void CustomerRun(Customer* customer) {
         customer->running_ = 0;
         continue;
       }
-      clerk = &(clerks_[next_clerk][shortest]);
+      clerk = clerks_[next_clerk] + shortest;
     }
     Release(line_locks_[next_clerk]);
 
-    if (GetNumCustomersForClerkType(next_clerk) > 
+    if (GetNumCustomersForClerkType(next_clerk) >
         CLERK_WAKEUP_THRESHOLD) {
       Signal(manager_.wakeup_condition_, manager_.wakeup_condition_lock_);
     }
@@ -399,7 +433,7 @@ void CustomerRun(Customer* customer) {
 
     Acquire(customers_served_lock_);
 #ifdef NETWORK
-    SetMonitor(num_customers_being_served_, 0, GetMonitor(num_customers_being_served_, 0) + 1);
+    SetMonitor(num_customers_being_served_, 0, GetMonitor(num_customers_being_served_, 0) - 1);
 #else
     --num_customers_being_served_;
 #endif
@@ -432,6 +466,10 @@ void CustomerRun(Customer* customer) {
     DoClerkWork(customer, clerk);
 
     if (customer->bribed_) {
+#ifdef NETWORK
+      SetMonitor(clerk_customer_money_[clerk->type_], clerk->identifier_, CLERK_BRIBE_AMOUNT);
+      SetMonitor(customer_money_, customer->ssn_, GetMonitor(customer_money_, customer->ssn_) - CLERK_BRIBE_AMOUNT);
+#endif
       clerk->customer_money_ = CLERK_BRIBE_AMOUNT;
       customer->money_ -= CLERK_BRIBE_AMOUNT;
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
@@ -441,11 +479,15 @@ void CustomerRun(Customer* customer) {
     Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
     Release(clerk->wakeup_lock_);
   }
+#ifdef NETWORK
+  if (GetMonitor(customer_passport_verified_, customer->ssn_)) {
+#else
   if (customer->passport_verified_) {
-    PrintCustomerIdentifierString(customer);
+#endif
+    PrintCustomerIdentifierString(customer->ssn_);
     Print(" is leaving the Passport Office.\n", 33);
   } else {
-    PrintCustomerIdentifierString(customer);
+    PrintCustomerIdentifierString(customer->ssn_);
     Print(" terminated early because it is impossible to get a passport.\n", 62);
   }
   Acquire(customers_served_lock_);
@@ -635,10 +677,15 @@ void ApplicationClerkWork(Clerk* clerk) {
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   /* Wait for customer to put passport on counter. */
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
-  clerk->current_customer_->completed_application_ = 1;
+#ifdef NETWORK
+  SetMonitor(customer_completed_application_,
+      clerk->customer_ssn_, 1);
+#else
+  customers_[clerk->customer_ssn_].completed_application_ = 1;
+#endif
   PrintClerkIdentifierString(clerk);
   Print(" has recorded a completed application for ", 42);
-  PrintCustomerIdentifierString(clerk->current_customer_);
+  PrintCustomerIdentifierString(clerk->customer_ssn_);
   Print("\n", 1);
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
 }
@@ -649,25 +696,32 @@ void PictureClerkWork(Clerk* clerk) {
   Print(" [", 2);
   PrintNum(clerk->identifier_);
   Print(" has taken a picture of ", 24);
-  PrintCustomerIdentifierString(clerk->current_customer_);
+  PrintCustomerIdentifierString(clerk->customer_ssn_);
   Print("\n", 1);
 
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
+#ifdef NETWORK
+  clerk->customer_input_ = GetMonitor(clerk_customer_input_[clerk->type_], clerk->identifier_);
+#endif
   picture_accepted = clerk->customer_input_;
 
   /* If they don't like their picture don't set their picture to taken.  They go back in line. */
   if (!picture_accepted) {
     PrintClerkIdentifierString(clerk);
     Print(" has been told that ", 20);
-    PrintCustomerIdentifierString(clerk->current_customer_);
+    PrintCustomerIdentifierString(clerk->customer_ssn_);
     Print(" does not like their picture.\n", 30);
   } else {
     /* Set picture taken. */
-    clerk->current_customer_->picture_taken_ = 1;
+#ifdef NETWORK
+    SetMonitor(customer_picture_taken_, clerk->customer_ssn_, 1);
+#else
+    customers_[clerk->customer_ssn_].picture_taken_ = 1;
+#endif
     PrintClerkIdentifierString(clerk); 
     Print(" has been told that ", 20);
-    PrintCustomerIdentifierString(clerk->current_customer_);
+    PrintCustomerIdentifierString(clerk->customer_ssn_);
     Print(" does like their picture.\n", 26);
   }
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
@@ -678,23 +732,30 @@ void PassportClerkWork(Clerk* clerk) {
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   /* Wait for customer to show whether or not they got their picture taken and passport verified. */
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
+#ifdef NETWORK
+  clerk->customer_input_ = GetMonitor(clerk_customer_input_[clerk->type_], clerk->identifier_);
+#endif
   picture_taken_and_passport_verified = clerk->customer_input_;
 
   /* Check to make sure their picture has been taken and passport verified. */
   if (!picture_taken_and_passport_verified) {
     PrintClerkIdentifierString(clerk);
     Print(" has determined that ", 21);
-    PrintCustomerIdentifierString(clerk->current_customer_);
+    PrintCustomerIdentifierString(clerk->customer_ssn_);
     Print(" does not have both their application and picture completed\n", 60);
   } else {
-    PrintClerkIdentifierString(clerk); 
+    PrintClerkIdentifierString(clerk);
     Print(" has determined that ", 21);
-    PrintCustomerIdentifierString(clerk->current_customer_);
+    PrintCustomerIdentifierString(clerk->customer_ssn_);
     Print(" does have both their application and picture completed\n", 56);
-    clerk->current_customer_->certified_ = 1;
-    PrintClerkIdentifierString(clerk); 
+#ifdef NETWORK
+    SetMonitor(customer_certified_, clerk->customer_ssn_, 1);
+#else
+    customers_[clerk->customer_ssn_].certified_ = 1;
+#endif
+    PrintClerkIdentifierString(clerk);
     Print(" has recorded ", 15);
-    PrintCustomerIdentifierString(clerk->current_customer_);
+    PrintCustomerIdentifierString(clerk->customer_ssn_);
     Print(" passport documentation\n", 24);
   }
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
@@ -706,6 +767,11 @@ void CashierClerkWork(Clerk* clerk) {
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Acquire(clerk->money_lock_);
+  #ifdef NETWORK
+  clerk->customer_money_ = GetMonitor(clerk_customer_money_[clerk->type_], clerk->identifier_);
+  SetMonitor(clerk_customer_money_[clerk->type_], clerk->identifier_, 0);
+  SetMonitor(clerk_collected_money_[clerk->type_], clerk->identifier_, GetMonitor(clerk_collected_money_[clerk->type_], clerk->identifier_) + clerk->customer_money_);
+#endif
   clerk->collected_money_ += clerk->customer_money_;
   clerk->customer_money_ = 0;
   Release(clerk->money_lock_);
@@ -713,39 +779,53 @@ void CashierClerkWork(Clerk* clerk) {
   /* Wait for the customer to show you that they are certified. */
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
   Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
+#ifdef NETWORK
+  clerk->customer_input_ = GetMonitor(clerk_customer_input_[clerk->type_], clerk->identifier_);
+#endif
   certified = clerk->customer_input_;
 
   /* Check to make sure they have been certified. */
   if (!certified) {
     PrintClerkIdentifierString(clerk);
     Print(" has received the $100 from ", 28);
-    PrintCustomerIdentifierString(clerk->current_customer_); 
+    PrintCustomerIdentifierString(clerk->customer_ssn_);
     Print(" before certification. They are to go to the back of my line.\n", 62);
 
     /* Give money back. */
     Acquire(clerk->money_lock_);
+#ifdef NETWORK
+    SetMonitor(clerk_collected_money_[clerk->type_], clerk->identifier_, GetMonitor(clerk_collected_money_[clerk->type_], clerk->identifier_) - 100);
+#endif
     clerk->collected_money_ -= 100;
     Release(clerk->money_lock_);
-    clerk->current_customer_->money_ += 100;
+#ifdef NETWORK
+    SetMonitor(customer_money_, clerk->customer_ssn_, GetMonitor(customer_money_, clerk->customer_ssn_) + 100);
+#else
+    customers_[clerk->customer_ssn_].money_ += 100;
+#endif
   } else {
     PrintClerkIdentifierString(clerk);
     Print(" has received the $100 from ", 28);
-    PrintCustomerIdentifierString(clerk->current_customer_); 
+    PrintCustomerIdentifierString(clerk->customer_ssn_);
     Print(" after certification.\n", 23);
 
     /* Give customer passport. */
     PrintClerkIdentifierString(clerk);
     Print(" has provided ", 14);
-    PrintCustomerIdentifierString(clerk->current_customer_); 
+    PrintCustomerIdentifierString(clerk->customer_ssn_);
     Print(" their completed passport.\n", 28);
 
     /* Record passport was given to customer. */
     PrintClerkIdentifierString(clerk);
     Print(" has recorded that ", 19);
-    PrintCustomerIdentifierString(clerk->current_customer_); 
+    PrintCustomerIdentifierString(clerk->customer_ssn_);
     Print(" has been given their completed passport.\n", 43);
 
-    clerk->current_customer_->passport_verified_ = 1;
+#ifdef NETWORK
+    SetMonitor(customer_passport_verified_, clerk->customer_ssn_, 1);
+#else
+    customers_[clerk->customer_ssn_].passport_verified_ = 1;
+#endif
   }
   Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
 }
@@ -756,7 +836,7 @@ void ClerkRun(Clerk* clerk) {
 
 #ifndef NETWORK
   switch(clerk->type_) {
-    case kApplication :     
+    case kApplication :
       Release(application_clerk_init_lock_);
       break;
     case kPicture :
@@ -778,15 +858,18 @@ void ClerkRun(Clerk* clerk) {
       /* Wait for customer to come to counter and give SSN. */
       Wait(clerk->wakeup_lock_cv_ , clerk->wakeup_lock_);
       /* Take Customer's SSN and verify passport. */
+#ifdef NETWORK
+      clerk->customer_ssn_ = GetMonitor(clerk_customer_ssn_[clerk->type_], clerk->identifier_);
+#endif
       PrintClerkIdentifierString(clerk);
       Print(" has received SSN ", 18);
       PrintNum(clerk->customer_ssn_);
       Print(" from ", 6);
-      PrintCustomerIdentifierString(clerk->current_customer_);
+      PrintCustomerIdentifierString(clerk->customer_ssn_);
       Print("\n", 1);
       /* Do work specific to the type of clerk. */
       switch(clerk->type_) {
-        case kApplication :     
+        case kApplication:
           ApplicationClerkWork(clerk);
           break;
         case kPicture :
@@ -801,18 +884,29 @@ void ClerkRun(Clerk* clerk) {
       }
 
       /* Collect bribe money. */
-      if (clerk->current_customer_->bribed_) {
+#ifdef NETWORK
+      customers_[clerk->customer_ssn_].bribed_ =
+        GetMonitor(customer_bribed_, clerk->customer_ssn_);
+#endif
+      if (customers_[clerk->customer_ssn_].bribed_) {
         Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
+#ifdef NETWORK
+        clerk->customer_money_  = GetMonitor(clerk_customer_money_[clerk->type_], clerk->identifier_);
+        SetMonitor(clerk_customer_money_[clerk->type_], clerk->identifier_, 0);
+#endif
         bribe = clerk->customer_money_;
         clerk->customer_money_ = 0;
         Acquire(clerk->money_lock_);
+#ifdef NETWORK
+        SetMonitor(clerk_collected_money_[clerk->type_], clerk->identifier_, GetMonitor(clerk_collected_money_[clerk->type_], clerk->identifier_) + bribe);
+#endif
         clerk->collected_money_ += bribe;
         Release(clerk->money_lock_);
         PrintClerkIdentifierString(clerk);
         Print(" has received $", 15);
         PrintNum(bribe);
         Print(" from ", 6);
-        PrintCustomerIdentifierString(clerk->current_customer_);
+        PrintCustomerIdentifierString(clerk->customer_ssn_);
         Print("\n", 1);
         Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       }
@@ -1033,6 +1127,12 @@ void SetupPassportOffice() {
   num_customers_waiting_ = CreateMonitor("ncw", 3, 1);
   num_senators_ = CreateMonitor("ns", 2, 1);
   customer_index_ = CreateMonitor("ci", 2, 1);
+  customer_money_ = CreateMonitor("cm", 2, NUM_CUSTOMERS);
+  customer_bribed_ = CreateMonitor("cb", 2, NUM_CUSTOMERS);
+  customer_picture_taken_ = CreateMonitor("cpt", 3, NUM_CUSTOMERS);
+  customer_certified_ = CreateMonitor("cc", 2, NUM_CUSTOMERS);
+  customer_completed_application_ = CreateMonitor("ccp", 3, NUM_CUSTOMERS);
+  customer_passport_verified_ = CreateMonitor("cpv", 3, NUM_CUSTOMERS);
 #else
   customers_size_ = 0;
   num_customers_being_served_ = 0;
@@ -1050,6 +1150,14 @@ void SetupPassportOffice() {
     bribe_line_counts_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
     nameLen = Sprintf(nameBuf, "cimv%d", 6, i);
     clerk_index_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
+    nameLen = Sprintf(nameBuf, "ccssnmv%d", 9, i);
+    clerk_customer_ssn_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
+    nameLen = Sprintf(nameBuf, "ccmmv%d", 7, i);
+    clerk_customer_money_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
+    nameLen = Sprintf(nameBuf, "ccommv%d", 8, i);
+    clerk_collected_money_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
+    nameLen = Sprintf(nameBuf, "ccimv%d", 7, i);
+    clerk_customer_input_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
 #endif
   }
 
@@ -1220,7 +1328,7 @@ void RunEntity(EntityType type, int entityId) {
       CustomerRun(customers_ + entityId);
       break;
     case SENATOR:
-      CustomerRun(customers_ + entityId);
+      SenatorRun(customers_ + entityId);
       break;
     case APPLICATION_CLERK:
       ClerkRun(clerks_[kApplication] + entityId);

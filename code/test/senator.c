@@ -4,6 +4,7 @@
 #include "simulation.h"
 int main() {
   int entityId;
+	SetupPassportOffice();
   entityId = GetMonitor(customer_index_, 0);
   SetMonitor(customer_index_, 0, entityId + 1);
   RunEntity(SENATOR, entityId);

@@ -7,9 +7,7 @@ int main() {
   Exec("../test/cashier", 15);
   Exec("../test/manager", 15);
   Exec("../test/customer", 16);
-  Exec("../test/customer", 16);
-  Exec("../test/customer", 16);
-  Exec("../test/customer", 16);
-  Exec("../test/customer", 16);
+  /*Exec("../test/customer", 16);
+  Exec("../test/customer", 16);*/
   Exit(0);
 }
