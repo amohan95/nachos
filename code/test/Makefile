@@ -152,7 +152,7 @@ sprintf_test: sprintf_test.coff
 	../bin/coff2noff $< $@
 
 customer.o: customer.c
-	$(CC) $(CFLAGS) -c $^
+	$(CC) $(CFLAGS) -c $^ -o $@
 customer.coff: customer.o start.o
 	$(LD) $(LDFLAGS) $^ -o $@
 customer: customer.coff

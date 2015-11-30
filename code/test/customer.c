@@ -1,8 +1,8 @@
-/*#include "../userprog/syscall.h"*/
+#include "../userprog/syscall.h"
 
-#include "simulationp.c"
-
-/*int main() {
+#define NETWORK
+#include "simulation.h"
+int main() {
   int entityId;
   Exit(1);
   Print("A\n", 2);
@@ -12,8 +12,5 @@
   Print("C\n", 2);
   RunEntity(CUSTOMER, entityId);
   Exit(0);
-}*/
-int main() {
-  Print("Hello World!\n", 13);
-  Exit(0);
 }
+#include "simulation.c"

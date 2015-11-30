@@ -1,10 +1,9 @@
 #include "../userprog/syscall.h"
 
 #define NETWORK
-
-#include "simulation.c"
-
+#include "simulation.h"
 int main() {
   RunEntity(MANAGER, 0);
   Exit(0);
 }
+#include "simulation.c"

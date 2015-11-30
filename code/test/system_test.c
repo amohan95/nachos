@@ -1,7 +1,6 @@
 #include "../userprog/syscall.h"
 
-#include "simulation.c"
-
+#include "simulation.h"
 int main() {
   int index = 0;
   int num_customers = NUM_CUSTOMERS;
@@ -25,3 +24,4 @@ int main() {
 
   WaitOnFinish();
 }
+#include "simulation.c"

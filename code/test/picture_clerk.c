@@ -1,9 +1,7 @@
 #include "../userprog/syscall.h"
 
 #define NETWORK
-
-#include "simulation.c"
-
+#include "simulation.h"
 int main() {
   int entityId;
   entityId = GetMonitor(clerk_index_[kPicture], 0);
@@ -11,3 +9,4 @@ int main() {
   RunEntity(PICTURE_CLERK, entityId);
   Exit(0);
 }
+#include "simulation.c"

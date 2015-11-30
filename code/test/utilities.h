@@ -23,6 +23,17 @@ typedef enum CustomerTypes {
   kSenator,  
 } CustomerType;
 
+typedef enum {
+  CUSTOMER = 0,
+  SENATOR,
+  APPLICATION_CLERK,
+  PASSPORT_CLERK,
+  CASHIER_CLERK,
+  PICTURE_CLERK,
+  MANAGER,
+  NUM_ENTITY_TYPES,
+} EntityType;
+
 struct Clerk;
 struct Customer;
 struct Manager;
