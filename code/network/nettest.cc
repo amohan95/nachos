@@ -609,6 +609,7 @@ void Server() {
               } else if (locks.find(lockID) != locks.end()) {
                 outPktHdr.to = pkt;
                 outMailHdr.to = mail;
+                inMailHdr.from = mail;
                 wait_cv(outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
               } else {
                 ss.str("");
@@ -814,6 +815,9 @@ void Server() {
         ss >> yes;
         map<int, Request>::iterator it = pending_requests.find(requestId);
         if (yes) {
+            outPktHdr.to = it->second.requestorMID;
+            outMailHdr.to = it->second.requestorMB;
+            inMailHdr.from = it->second.requestorMB;
           switch (it->second.requestType) {
             case WAIT_CV_LOCK: {
               int cvID, lockID;
