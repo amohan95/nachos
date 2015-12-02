@@ -43,12 +43,14 @@ struct Message {
 struct ServerLock {
   bool busy;
   int machineID;
+  int mailbox;
   std::string name;
   bool toBeDeleted;
   int numWaitingOnCV;
   std::deque<Message> waitQ;
   ServerLock(std::string n) {
     machineID = -1;
+    mailbox = -1;
     name = n;
     busy = false;
     toBeDeleted = false;
@@ -955,11 +957,13 @@ void acquire_lock(
     PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, int lockID) {
   DEBUG('R', "Acquiring lock on server starting\n");
   ServerLock *temp_lock = &(locks.find(lockID)->second);
-  if (temp_lock->busy && temp_lock->machineID != pkt) {
+  if (temp_lock->busy && temp_lock->machineID != pkt ||
+      temp_lock->mailbox != outMailHdr.to) {
     DEBUG('R', "Found lock and busy\n");
     Message m(outPktHdr, outMailHdr, "1", 2);
     temp_lock->addToWaitQ(m);
-  } else if (temp_lock->toBeDeleted){
+  } else if (temp_lock->toBeDeleted && (temp_lock->machineID != pkt ||
+                                        temp_lock->mailbox != outMailHdr.to)) {
     DEBUG('R', "Lock requested is marked for deletion\n");
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
   } else {
@@ -973,7 +977,7 @@ void acquire_lock(
 // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
 void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
                   int lockID, ServerLock* temp_lock, bool send) {
-  if (temp_lock->machineID != pkt) {
+  if (temp_lock->machineID != pkt || temp_lock->mailbox != outMailHdr.to) {
     DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, pkt);
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
   } else if (!temp_lock->waitQ.empty()) {
@@ -990,6 +994,7 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
     DEBUG('R', "Releasing no waitQ\n");
     temp_lock->busy = false;
     temp_lock->machineID = -1;
+    temp_lock->mailbox = -1;
     if (temp_lock->toBeDeleted && temp_lock->numWaitingOnCV == 0) {
       locks.erase(locks.find(lockID));
     }
