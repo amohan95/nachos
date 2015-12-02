@@ -43,12 +43,14 @@ struct Message {
 struct ServerLock {
   bool busy;
   int machineID;
+  int mailbox;
   std::string name;
   bool toBeDeleted;
   int numWaitingOnCV;
   std::deque<Message> waitQ;
   ServerLock(std::string n) {
     machineID = -1;
+    mailbox = -1;
     name = n;
     busy = false;
     toBeDeleted = false;
@@ -713,11 +715,11 @@ void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
     int pkt, std::map<int, ServerLock> & locks, int lockID) {
   DEBUG('R', "Acquiring lock on server starting\n");
   ServerLock *temp_lock = &(locks.find(lockID)->second);
-  if (temp_lock->busy && temp_lock->machineID != pkt) {
+  if (temp_lock->busy && (temp_lock->machineID != pkt || temp_lock->mailbox != outMailHdr.to)) {
     DEBUG('R', "Found lock and busy\n");
     Message m(outPktHdr, outMailHdr, "1", 2);
     temp_lock->addToWaitQ(m);
-  } else if (temp_lock->toBeDeleted){
+  } else if (temp_lock->toBeDeleted && (temp_lock->machineID != pkt || temp_lock->mailbox != outMailHdr.to)){
     DEBUG('R', "Lock requested is marked for deletion\n");
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
   } else {
@@ -732,7 +734,7 @@ void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
 void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, 
     std::map<int, ServerLock> & locks, int lockID, ServerLock* temp_lock,
     bool send) {
-  if (temp_lock->machineID != pkt) {
+  if (temp_lock->machineID != pkt || temp_lock->mailbox != outMailHdr.to) {
     DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, pkt);
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
   } else if (!temp_lock->waitQ.empty()) {
@@ -740,7 +742,8 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
     Message m = temp_lock->waitQ.front();
     temp_lock->waitQ.pop_front();
     temp_lock->machineID = m.packetHdr.to;
-    DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
+    temp_lock->mailbox = m.mailHdr.to;
+    DEBUG('R', "m.packetHdr.to: %d  m.mailHdr.to: %d", m.packetHdr.to, m.mailHdr.to);
     setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
     if (send) {
       setup_message_and_send(outPktHdr, outMailHdr, "1");
@@ -749,6 +752,7 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
     DEBUG('R', "Releasing no waitQ\n");
     temp_lock->busy = false;
     temp_lock->machineID = -1;
+    temp_lock->mailbox  = -1;
     if (temp_lock->toBeDeleted && temp_lock->numWaitingOnCV == 0) {
       locks.erase(locks.find(lockID));
     }
@@ -808,7 +812,7 @@ void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHd
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
     ServerLock* temp_lock = &(locks.find(lockID)->second);
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
-        || temp_lock->machineID != inPktHdr.from) {
+        || (temp_lock->machineID != inPktHdr.from || temp_lock->mailbox != outMailHdr.to)) {
       DEBUG('R', "Trying to wait on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
       setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
@@ -835,7 +839,7 @@ void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPkt
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
     ServerLock* temp_lock = &(locks.find(lockID)->second);
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
-        || temp_lock->machineID != inPktHdr.from) {
+        || (temp_lock->machineID != inPktHdr.from || temp_lock->mailbox != outMailHdr.to)) {
       DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
       setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
@@ -852,6 +856,7 @@ void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPkt
           DEBUG('R', "lock is not busy\n");
           temp_lock->busy = true;
           temp_lock->machineID = inPktHdr.from;
+          temp_lock->mailbox = outMailHdr.to;
           setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
         }
 
@@ -878,7 +883,7 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader in
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
     ServerLock* temp_lock = &(locks.find(lockID)->second);
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
-      || temp_lock->machineID != inPktHdr.from) {
+      || (temp_lock->machineID != inPktHdr.from || temp_lock->mailbox != outMailHdr.to)) {
       DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
@@ -894,6 +899,7 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader in
           DEBUG('R', "lock is not busy\n");
           temp_lock->busy = true;
           temp_lock->machineID = inPktHdr.from;
+          temp_lock->mailbox = outMailHdr.to;
           setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
         }
       } 
