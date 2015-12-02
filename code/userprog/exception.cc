@@ -352,6 +352,7 @@ int CreateLock_Syscall(int name, int len) {
     DEBUG('R', "CREATE Lock Syscall Starting\n");
     char * buffer = new char[len + 1];
     copyin(name, len, buffer);
+    buffer[len] = '\0';
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
     char result[MaxMailSize];
@@ -452,6 +453,7 @@ int CreateCondition_Syscall(int name, int len) {
     DEBUG('R', "CREATE CV Syscall Starting\n");
     char * buffer = new char[len + 1];
     copyin(name, len, buffer);
+    buffer[len] = '\0';
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
     char result[MaxMailSize];
@@ -828,6 +830,7 @@ int CreateMonitor_Syscall(int name, int len, int arr_size) {
   }
   char * buffer = new char[len + 1];
   copyin(name, len, buffer);
+  buffer[len] = '\0';
   PacketHeader outPktHdr, inPktHdr;
   MailHeader outMailHdr, inMailHdr;
   char result[MaxMailSize];
