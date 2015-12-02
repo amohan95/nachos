@@ -43,7 +43,8 @@ Thread::Thread(char* threadName)
 #endif
 #ifdef NETWORK
 //		mailboxesLock->Acquire();
-		mailbox = mailboxesCount++;mailboxes->Find();
+    DEBUG('R', "Assigning mailbox %d to thread %s\n", mailboxesCount, threadName);
+		mailbox = mailboxesCount++;//mailboxes->Find();
 //		mailboxesLock->Release();
 #endif
 }

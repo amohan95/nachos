@@ -1225,7 +1225,7 @@ void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int mvID, int index, 
 
 // First send whether or not success, if success then return value
 void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int mvID, int index) {
-  DEBUG('R', "Getting mv on server starting\n");
+  DEBUG('R', "Getting mv on server starting for %s (%d,%d)\n", mvs.find(mvID)->second.name.c_str(), mvID, index);
   if (mvs.find(mvID)->second.value.size() > index) {
     stringstream ss;
     ss << "1 " << (mvs.find(mvID)->second).value[index];
