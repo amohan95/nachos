@@ -963,8 +963,8 @@ void acquire_lock(
     PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, int lockID) {
   ServerLock *temp_lock = &(locks.find(lockID)->second);
   DEBUG('R', "Acquiring lock on server starting %s (%d)\n", temp_lock->name.c_str(), lockID);
-  if (temp_lock->busy && temp_lock->machineID != pkt ||
-      temp_lock->mailbox != outMailHdr.to) {
+  if (temp_lock->busy && (temp_lock->machineID != pkt ||
+      temp_lock->mailbox != outMailHdr.to)) {
     DEBUG('R', "Found lock and busy\n");
     Message m(outPktHdr, outMailHdr, "1", 2);
     temp_lock->addToWaitQ(m);
@@ -976,6 +976,7 @@ void acquire_lock(
     DEBUG('R', "Found lock and not busy or trying to acquire lock it already has\n");
     temp_lock->busy = true;
     temp_lock->machineID = pkt;
+    temp_lock->mailbox = outMailHdr.to;
     setup_message_and_send(outPktHdr, outMailHdr, "1");
   }
 }
@@ -991,6 +992,7 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
     Message m = temp_lock->waitQ.front();
     temp_lock->waitQ.pop_front();
     temp_lock->machineID = m.packetHdr.to;
+    temp_lock->mailbox = m.mailHdr.to;
     DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
     setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
     if (send) {
@@ -1099,6 +1101,7 @@ void signal_cv(
             DEBUG('R', "lock is not busy\n");
             temp_lock->busy = true;
             temp_lock->machineID = inPktHdr.from;
+            temp_lock->mailbox = outMailHdr.to;
             setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
           }
         }
@@ -1141,6 +1144,7 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
             DEBUG('R', "lock is not busy\n");
             temp_lock->busy = true;
             temp_lock->machineID = inPktHdr.from;
+            temp_lock->mailbox = outMailHdr.to;
             setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
           }
         } else {
