@@ -580,6 +580,10 @@ void DestroyClerk(Clerk* clerk) {
 int CollectMoney(Clerk* clerk) {
   int money;
   Acquire(clerk->money_lock_);
+#ifdef NETWORK
+  clerk->collected_money_ = GetMonitor(clerk_collected_money_[clerk->type_], clerk->identifier_);
+  SetMonitor(clerk_collected_money_[clerk->type_], clerk->identifier_, 0);
+#endif
   money = clerk->collected_money_;
   clerk->collected_money_ = 0;
   Release(clerk->money_lock_);
