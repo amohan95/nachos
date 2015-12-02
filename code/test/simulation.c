@@ -538,20 +538,31 @@ void PrintClerkIdentifierString(Clerk* clerk) {
 }
 
 void CreateClerk(Clerk* clerk, int identifier, ClerkType type) {
+  char nameBuf[128];
+  int nameLen;
+
   clerk->customer_money_ = 0;
   clerk->customer_input_ = 0;
   clerk->state_ = kAvailable;
   clerk->collected_money_ = 0;
   clerk->identifier_ = identifier;
   clerk->running_ = 0;
-  clerk->lines_lock_ = CreateLock("Clerk Lines Lock", 16);
-  clerk->bribe_line_lock_cv_ = CreateCondition("Clerk Bribe Line Condition", 26); 
-  clerk->bribe_line_lock_ = CreateLock("Clerk Bribe Line Lock", 21);
-  clerk->regular_line_lock_cv_ = CreateCondition("Clerk Regular Line Condition", 28); 
-  clerk->regular_line_lock_ = CreateLock("Clerk Regular Line Lock", 23);
-  clerk->wakeup_lock_cv_ = CreateCondition("Clerk Wakeup Condition", 22);
-  clerk->wakeup_lock_ = CreateLock("Clerk Wakeup Lock", 17);
-  clerk->money_lock_ = CreateLock("Clerk Money Lock", 16);
+  nameLen = Sprintf(nameBuf, "cll%d", 5, identifier * 10 + type);
+  clerk->lines_lock_ = CreateLock(nameBuf, nameLen);
+  nameLen = Sprintf(nameBuf, "cblcv%d", 7, identifier * 10 + type);
+  clerk->bribe_line_lock_cv_ = CreateCondition(nameBuf, nameLen);
+  nameLen = Sprintf(nameBuf, "cbll%d", 6, identifier * 10 + type);
+  clerk->bribe_line_lock_ = CreateLock(nameBuf, nameLen);
+  nameLen = Sprintf(nameBuf, "crlcv%d", 7, identifier * 10 + type);
+  clerk->regular_line_lock_cv_ = CreateCondition(nameBuf, nameLen);
+  nameLen = Sprintf(nameBuf, "crll%d", 6, identifier * 10 + type);
+  clerk->regular_line_lock_ = CreateLock(nameBuf, nameLen);
+  nameLen = Sprintf(nameBuf, "cwlcv%d", 7, identifier * 10 + type);
+  clerk->wakeup_lock_cv_ = CreateCondition(nameBuf, nameLen);
+  nameLen = Sprintf(nameBuf, "cwl%d", 5, identifier * 10 + type);
+  clerk->wakeup_lock_ = CreateLock(nameBuf, nameLen);
+  nameLen = Sprintf(nameBuf, "cml%d", 5, identifier * 10 + type);
+  clerk->money_lock_ = CreateLock(nameBuf, nameLen);
   clerk->type_ = type;
 }
 
