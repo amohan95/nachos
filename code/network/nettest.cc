@@ -1096,11 +1096,11 @@ void signal_cv(
   DEBUG('R', "Sigalling CV started on Server\n");
   if (cvs.find(cvID) != cvs.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
-    DEBUG('R', "Found CV on server\n");
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID)) {
       DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine.\n");
       setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
+      setup_message_and_send(outPktHdr, outMailHdr, "1");
       if (!temp_cv->waitQ.empty()) {
         DEBUG('R', "Releasing from waitQ and acquire lock\n");
         Message m = temp_cv->waitQ.front();
