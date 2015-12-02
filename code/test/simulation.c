@@ -303,6 +303,7 @@ void CustomerRun(Customer* customer) {
       (!customer->passport_verified_ || !customer->picture_taken_ ||
       !customer->completed_application_ || !customer->certified_)) {
 #endif
+		Print("Customer Loop\n", 14);
     Acquire(num_senators_lock_);
 #ifdef NETWORK
     if (GetMonitor(num_senators_, 0) > 0) {
@@ -1104,12 +1105,10 @@ void SetupPassportOffice() {
   int nameLen;
   char nameBuf[128];
 
-#ifndef NETWORK
 	application_clerk_init_lock_ = CreateLock("acil", 4);
   picture_clerk_init_lock_ = CreateLock("picil", 5);
   passport_clerk_init_lock_ = CreateLock("pacil", 5);
   cashier_clerk_init_lock_ = CreateLock("ccil", 4);
-#endif
 
   breaking_clerks_lock_ = CreateLock("bcl", 3);
   senator_lock_ = CreateLock("sl", 2);
@@ -1124,17 +1123,17 @@ void SetupPassportOffice() {
 
 #ifdef NETWORK
   customers_size_ = CreateMonitor("cs", 2, 1);
-  SetMonitor(customers_size_, 0, NUM_CUSTOMERS);
+  SetMonitor(customers_size_, 0, NUM_CUSTOMERS + NUM_SENATORS);
   num_customers_being_served_ = CreateMonitor("ncs", 3, 1);
   num_customers_waiting_ = CreateMonitor("ncw", 3, 1);
   num_senators_ = CreateMonitor("ns", 2, 1);
   customer_index_ = CreateMonitor("ci", 2, 1);
-  customer_money_ = CreateMonitor("cm", 2, NUM_CUSTOMERS);
-  customer_bribed_ = CreateMonitor("cb", 2, NUM_CUSTOMERS);
-  customer_picture_taken_ = CreateMonitor("cpt", 3, NUM_CUSTOMERS);
-  customer_certified_ = CreateMonitor("cc", 2, NUM_CUSTOMERS);
-  customer_completed_application_ = CreateMonitor("ccp", 3, NUM_CUSTOMERS);
-  customer_passport_verified_ = CreateMonitor("cpv", 3, NUM_CUSTOMERS);
+  customer_money_ = CreateMonitor("cm", 2, NUM_CUSTOMERS + NUM_SENATORS);
+  customer_bribed_ = CreateMonitor("cb", 2, NUM_CUSTOMERS + NUM_SENATORS);
+  customer_picture_taken_ = CreateMonitor("cpt", 3, NUM_CUSTOMERS + NUM_SENATORS);
+  customer_certified_ = CreateMonitor("cc", 2, NUM_CUSTOMERS + NUM_SENATORS);
+  customer_completed_application_ = CreateMonitor("ccp", 3, NUM_CUSTOMERS + NUM_SENATORS);
+  customer_passport_verified_ = CreateMonitor("cpv", 3, NUM_CUSTOMERS + NUM_SENATORS);
 #else
   customers_size_ = 0;
   num_customers_being_served_ = 0;
@@ -1142,7 +1141,6 @@ void SetupPassportOffice() {
   num_senators_ = 0;
 #endif
 
-    Print("HI\n", 3);
   for (i = 0; i < NUM_CLERK_TYPES; ++i) {
     nameLen = Sprintf(nameBuf, "ll%d", 4, i);
     line_locks_[i] = CreateLock(nameBuf, nameLen);
@@ -1163,6 +1161,12 @@ void SetupPassportOffice() {
     clerk_customer_input_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
 #endif
   }
+
+#ifdef NETWORK
+	for (i = 0; i < NUM_CUSTOMERS + NUM_SENATORS; ++i) {
+		CreateCustomer(customers_ + i, kCustomer, 0);
+	}
+#endif
 
   for (i = 0; i < NUM_APPLICATION_CLERKS; ++i) {
     CreateClerk(clerks_[kApplication] + i, i, kApplication);

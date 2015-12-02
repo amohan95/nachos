@@ -5,8 +5,7 @@
 Swap::Swap() : pagesBitmap(NUM_SWAP_PAGES) {
 	#ifdef NETWORK
 	sprintf(swapFileName, "%d.swap", machineId);
-	#endif
-	#ifndef NETWORK
+	#else
 	sprintf(swapFileName, "%s", "local.swap");
 	#endif
 	if (!fileSystem->Create(swapFileName, 0)) {

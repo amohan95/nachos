@@ -151,8 +151,8 @@ sprintf_test.coff: sprintf_test.o start.o
 sprintf_test: sprintf_test.coff
 	../bin/coff2noff $< $@
 
-customer.o: customer.c
-	$(CC) $(CFLAGS) -c $^ -o $@
+customer.o: customer.c simulation.c simulation.h
+	$(CC) $(CFLAGS) -c $< -o $@
 customer.coff: customer.o start.o
 	$(LD) $(LDFLAGS) $^ -o $@
 customer: customer.coff

@@ -16,14 +16,14 @@ int num_clerks_[NUM_CLERK_TYPES]
     = {NUM_APPLICATION_CLERKS, NUM_PICTURE_CLERKS, NUM_PASSPORT_CLERKS, 
         NUM_CASHIER_CLERKS};
 
-#ifndef NETWORK
 int application_clerk_init_lock_;
-int application_clerk_init_count_ = 0;
 int picture_clerk_init_lock_;
-int picture_clerk_init_count_ = 0;
 int passport_clerk_init_lock_;
-int passport_clerk_init_count_ = 0;
 int cashier_clerk_init_lock_;
+#ifndef NETWORK
+int application_clerk_init_count_ = 0;
+int picture_clerk_init_count_ = 0;
+int passport_clerk_init_count_ = 0;
 int cashier_clerk_init_count_ = 0;
 int customers_init_size_ = 0;
 #endif

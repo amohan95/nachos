@@ -33,7 +33,12 @@ Lock* iptLock = new Lock("Kernel IPT Lock");
 InvertedTranslationEntry ipt[NumPhysPages];
 EvictionPolicy evictionPolicy = FIFO;
 Lock* swapLock = new Lock("Kernel Swap Lock");
+#ifndef NETWORK
 Swap* swapFile = new Swap();
+#else
+Swap* swapFile = NULL;
+#endif
+
 
 #ifdef FILESYS_NEEDED
 FileSystem  *fileSystem;
@@ -152,6 +157,7 @@ Initialize(int argc, char **argv)
       ASSERT(argc > 1);
       netname = atoi(*(argv + 1));
 			machineId = netname;
+      swapFile = new Swap();
       argCount = 2;
   } else if (!strcmp(*argv, "-sn")) {
     ASSERT(argc > 1);
