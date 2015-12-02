@@ -1142,6 +1142,7 @@ void SetupPassportOffice() {
   num_senators_ = 0;
 #endif
 
+    Print("HI\n", 3);
   for (i = 0; i < NUM_CLERK_TYPES; ++i) {
     nameLen = Sprintf(nameBuf, "ll%d", 4, i);
     line_locks_[i] = CreateLock(nameBuf, nameLen);
@@ -1324,7 +1325,6 @@ void WaitOnFinish() {
 }
 
 void RunEntity(EntityType type, int entityId) {
-  SetupPassportOffice();
   switch (type) {
     case CUSTOMER:
       CustomerRun(customers_ + entityId);

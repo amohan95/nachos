@@ -940,9 +940,14 @@ int Sprintf_Syscall(int vdst, int format, int len, int x) {
   int slen = snprintf(NULL, 0, fbuf, x);
   char* buf = new char[slen + 1];
   sprintf(buf, fbuf, x);
-  copyout(vdst, slen + 1, buf);
-  delete [] fbuf;
-  delete [] buf;
+  if (copyout(vdst, slen + 1, buf) == -1) {
+    DEBUG('s', "Failed to copy Sprintf result %s (%d) to user program vaddr 0x%x.\n", buf, slen, vdst);
+  } else {
+    DEBUG('s', "Successful copy Sprintf result %s (%d) to user program vaddr 0x%x.\n", buf, slen, vdst);
+
+  }
+  //delete [] fbuf;
+  //delete [] buf;
   return slen + 1;
 }
 
@@ -1117,6 +1122,7 @@ void ExceptionHandler(ExceptionType which) {
         DEBUG('s', "Sprintf syscall.\n");
         rv = Sprintf_Syscall(machine->ReadRegister(4), machine->ReadRegister(5),
             machine->ReadRegister(6), machine->ReadRegister(7));
+        break;
       #ifdef NETWORK
       case SC_CreateMonitor:
         DEBUG('s', "Create monitor variable syscall.\n");

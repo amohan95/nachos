@@ -961,8 +961,8 @@ void create_new_lock_and_send(
 // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
 void acquire_lock(
     PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, int lockID) {
-  DEBUG('R', "Acquiring lock on server starting\n");
   ServerLock *temp_lock = &(locks.find(lockID)->second);
+  DEBUG('R', "Acquiring lock on server starting %s (%d)\n", temp_lock->name.c_str(), lockID);
   if (temp_lock->busy && temp_lock->machineID != pkt ||
       temp_lock->mailbox != outMailHdr.to) {
     DEBUG('R', "Found lock and busy\n");
