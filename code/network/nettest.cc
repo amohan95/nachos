@@ -21,10 +21,10 @@
 #include "../threads/system.h"
 #include "network.h"
 #include "network_utility.h"
-#include "string.h"
-#include "deque.h"
-#include "vector.h"
 
+#include <string>
+#include <deque>
+#include <vector>
 #include <sstream>
 #include <iostream>
 
@@ -115,8 +115,8 @@ std::map<int, ServerCV> cvs;
 std::map<int, ServerMV> mvs;
 std::map<int, Request> pending_requests;
 
-int find_lock_by_name(std::map<int, ServerLock> locks, string lock_name);
-bool find_lock_by_id(std::map<int, ServerLock>& locks, int id);
+int find_lock_by_name(string lock_name);
+bool find_lock_by_id(int id);
 void create_new_lock_and_send(
     PacketHeader outPktHdr, MailHeader outMailHdr, string lock_name);
 void acquire_lock(
@@ -129,7 +129,7 @@ void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int lockID);
 int find_cv_by_name(string& cv_name);
 void create_new_cv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, string& cv_name);
 void wait_cv(
-    PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
+    PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr, MailHeader inMailHdr,
     int cvID, int lockID);
 void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
     MailHeader inMailHdr, int cvID, int lockID);
@@ -341,7 +341,7 @@ void Server() {
             if (cv.lockID != -1 && cv.lockID != lockID) {
               setup_message_and_send(outPktHdr, outMailHdr, "-1");
             } else if (locks.find(lockID) != locks.end()) {
-              signal_cv(outPktHdr, outMailHdr, inPktHdr, cvID, lockID);
+              signal_cv(outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
             } else {
               ss.str("");
               ss.clear();
@@ -370,7 +370,7 @@ void Server() {
             if (cv.lockID != -1 && cv.lockID != lockID) {
               setup_message_and_send(outPktHdr, outMailHdr, "-1");
             } else if (locks.find(lockID) != locks.end()) {
-              broadcast_cv(outPktHdr, outMailHdr, inPktHdr, cvID, lockID);
+              broadcast_cv(outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
             } else {
               ss.str("");
               ss.clear();
@@ -400,7 +400,12 @@ void Server() {
             DEBUG('R', "Couldn't find CV %d\n", cvID);
             setup_message_and_send(outPktHdr, outMailHdr, "-1");
           } else {
-            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr, );
+            ss.str("");
+            ss.clear();
+            ss << cvID;
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, DESTROY_CV,
+                ss.str());
           }
           break;
         }
@@ -442,8 +447,8 @@ void Server() {
             ss.str("");
             ss.clear();
             ss << mvID << " " << index << " " << value << " ";
-            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
-                pending_requests, currentRequest, s, ss.str());
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, ss.str());
           }
           break;
         }
@@ -556,7 +561,7 @@ void Server() {
             int lockID;
             ss >> lockID;
             // If on this server, send response to client and yes to requesting server.
-            if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
+            if (find_lock_by_id(lockID)) {  // If on this server, send response.
               DEBUG('R', "Found lock and handling destroy of lockid: %d\n", lockID);
               sendResponse(outPktHdr, outMailHdr, requestId, YES);
 
@@ -570,7 +575,7 @@ void Server() {
             break;
           }
           case CREATE_CV: {
-            string cv_name = get_rest_of_stream(ss)
+            string cv_name = get_rest_of_stream(ss);
             int cvID = find_cv_by_name(cv_name);
             if (cvID != -1) {
               DEBUG('R', "Found CV and handling create of cvID: %d\n", cvID);
@@ -596,7 +601,7 @@ void Server() {
               if (cv.lockID != -1 && cv.lockID != lockID) {
                 setup_message_and_send(outPktHdr, outMailHdr, "-1");
               } else if (locks.find(lockID) != locks.end()) {
-                outPktHdr.to = pk;
+                outPktHdr.to = pkt;
                 outMailHdr.to = mail;
                 wait_cv(outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
               } else {
@@ -620,7 +625,7 @@ void Server() {
               if (cv.lockID != -1 && cv.lockID != lockID) {
                 setup_message_and_send(outPktHdr, outMailHdr, "-1");
               } else if (locks.find(lockID) != locks.end()) {
-                outPktHdr.to = pk;
+                outPktHdr.to = pkt;
                 outMailHdr.to = mail;
                 signal_cv(outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
               } else {
@@ -644,7 +649,7 @@ void Server() {
               if (cv.lockID != -1 && cv.lockID != lockID) {
                 setup_message_and_send(outPktHdr, outMailHdr, "-1");
               } else if (locks.find(lockID) != locks.end()) {
-                outPktHdr.to = pk;
+                outPktHdr.to = pkt;
                 outMailHdr.to = mail;
                 broadcast_cv(
                     outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
@@ -774,7 +779,7 @@ void Server() {
               outPktHdr.to = pkt;
               outMailHdr.to = mail;
               acquire_lock(
-                  outPktHdr, outMailHdr, pkt, lockID, temp_lock);
+                  outPktHdr, outMailHdr, pkt, lockID);
             } else {
               sendResponse(outPktHdr, outMailHdr, requestId, NO);
             }
@@ -798,7 +803,7 @@ void Server() {
         if (yes) {
           switch (it->second.requestType) {
             case WAIT_CV_LOCK: {
-              int cvID, int lockID;
+              int cvID, lockID;
               ss.str(it->second.info);
               ss.clear();
               ss >> cvID >> lockID;
@@ -806,19 +811,21 @@ void Server() {
               break;
             }
             case SIGNAL_CV_LOCK: {
-              int cvID, int lockID;
+              int cvID, lockID;
               ss.str(it->second.info);
               ss.clear();
               ss >> cvID >> lockID;
-              signal_cv(outPktHdr, outMailHdr, inPktHdr, cvID, lockID);
+              signal_cv(
+                  outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
               break;
             }
             case BROADCAST_CV_LOCK: {
-              int cvID, int lockID;
+              int cvID, lockID;
               ss.str(it->second.info);
               ss.clear();
               ss >> cvID >> lockID;
-              broadcast_cv(outPktHdr, outMailHdr, inPktHdr, cvID, lockID);
+              broadcast_cv(
+                  outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
               break;
             }
           }
@@ -905,7 +912,6 @@ void Server() {
               setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
-            case 
           }
           pending_requests.erase(it);
         } else {
@@ -1032,7 +1038,7 @@ void create_new_cv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, strin
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
     return;
   }
-  cvID = currentCV;
+  int cvID = currentCV;
   ServerCV cv(cv_name);
   cvs.insert(std::pair<int, ServerCV>(currentCV++, cv));
   stringstream ss;
@@ -1041,24 +1047,25 @@ void create_new_cv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, strin
 }
 
 void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
-             PacketHeader inPktHdr, int cvID, int lockID) {
+             PacketHeader inPktHdr, MailHeader inMailHdr, int cvID, int lockID) {
   DEBUG('R', "Waiting on cv on server starting\n");
   if (cvs.find(cvID) != cvs.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID)) {
-      DEBUG('R', "Trying to wait on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
+      DEBUG('R', "Trying to wait on lock that doesn't belong to cv or machine.\n");
       setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
       DEBUG('R', "Adding to CV waitQ\n");
+      Message m(outPktHdr, outMailHdr, "1", 2);
       temp_cv->addToWaitQ(m);
       temp_cv->lockID = lockID;
 
       if (find_lock_by_id(lockID)) {
         ServerLock* temp_lock = &(locks.find(lockID)->second);
         ++temp_lock->numWaitingOnCV;
-        Message m(outPktHdr, outMailHdr, "1", 2);
         // Release lock
-        release_lock(outPktHdr, outMailHdr, inPktHdr.from, lockID, temp_lock, true);
+        release_lock(
+            outPktHdr, outMailHdr, inPktHdr.from, lockID, temp_lock, true);
       }
     }
   } else {
@@ -1074,17 +1081,17 @@ void signal_cv(
   if (cvs.find(cvID) != cvs.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID)) {
-      DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
+      DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine.\n");
       setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
       if (!temp_cv->waitQ.empty()) {
         DEBUG('R', "Releasing from waitQ and acquire lock\n");
-        --temp_lock->numWaitingOnCV;
         Message m = temp_cv->waitQ.front();
         temp_cv->waitQ.pop_front();
         
         if (find_lock_by_id(lockID)) {
           ServerLock* temp_lock = &(locks.find(lockID)->second);
+          --temp_lock->numWaitingOnCV;
           if (temp_lock->busy) {
             DEBUG('R', "lock is busy\n");
             temp_lock->addToWaitQ(m);
@@ -1117,7 +1124,7 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
   if (cvs.find(cvID) != cvs.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
     if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID)) {
-      DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
+      DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine.\n");
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
       while(!temp_cv->waitQ.empty()) {
@@ -1138,7 +1145,7 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
           }
         } else {
           create_request_and_send_servers(
-              inPktHdr, inMailHdr, m.packetHdr, m.mailHdr, m.data);
+              inPktHdr, inMailHdr, m.packetHdr, m.mailHdr, ACQUIRE_LOCK, m.data);
         }
       } 
       temp_cv->lockID = -1;
