@@ -358,6 +358,7 @@ int CreateLock_Syscall(int name, int len) {
 
     stringstream ss;
     ss << CREATE_LOCK << " " << buffer;
+    delete [] buffer;
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
@@ -457,6 +458,7 @@ int CreateCondition_Syscall(int name, int len) {
 
     stringstream ss;
     ss << CREATE_CV << " " << buffer;
+    delete [] buffer;
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
@@ -832,6 +834,7 @@ int CreateMonitor_Syscall(int name, int len, int arr_size) {
 
   stringstream ss;
   ss << CREATE_MV << " " << arr_size << " " << buffer;
+  delete [] buffer;
   out_header_init(outPktHdr, outMailHdr, ss.str().length());
   postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
@@ -923,34 +926,24 @@ int DestroyMonitor_Syscall(int mv) {
 
 int Sprintf_Syscall(int vdst, int format, int len, int x) {
   char* fbuf;
-  char* buf;
-  if (!(fbuf = new char[len])) {
+  if (!(fbuf = new char[len + 1])) {
     printf("%s","Error allocating kernel buffer for write!\n");
     return UNSUCCESSFUL_SYSCALL;
   } else {
     if (copyin(format, len, fbuf) == -1) {
       printf("%s","Bad pointer passed to to Sprintf: data not written\n");
-      delete[] buf;
+      delete[] fbuf;
       return UNSUCCESSFUL_SYSCALL;
     }
+    fbuf[len] = 0;
   }
-  int xx = x;
-  int d = 0;
-  while (xx != 0) {
-    xx /= 10;
-    ++d;
-  }
-  if (!(buf = new char[len + d - 1])) {
-    printf("%s","Error allocating kernel buffer for write!\n");
-    delete [] fbuf;
-    return UNSUCCESSFUL_SYSCALL;
-  }
+  int slen = snprintf(NULL, 0, fbuf, x);
+  char* buf = new char[slen + 1];
   sprintf(buf, fbuf, x);
-  copyout(vdst, len + d - 1, buf);
-  copyout(vdst + len + d - 1, 1, "\0");
+  copyout(vdst, slen + 1, buf);
   delete [] fbuf;
   delete [] buf;
-  return len + d;
+  return slen + 1;
 }
 
 int HandleMemoryFull() {

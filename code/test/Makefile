@@ -158,43 +158,43 @@ customer.coff: customer.o start.o
 customer: customer.coff
 	../bin/coff2noff $< $@
 
-senator.o: senator.c
-	$(CC) $(CFLAGS) -c $^
+senator.o: senator.c simulation.c simulation.h
+	$(CC) $(CFLAGS) -c $<
 senator.coff: senator.o start.o
 	$(LD) $(LDFLAGS) $^ -o $@
 senator: senator.coff
 	../bin/coff2noff $< $@
 
-application_clerk.o: application_clerk.c
-	$(CC) $(CFLAGS) -c $^
+application_clerk.o: application_clerk.c simulation.c simulation.h
+	$(CC) $(CFLAGS) -c $<
 application_clerk.coff: application_clerk.o start.o
 	$(LD) $(LDFLAGS) $^ -o $@
 application_clerk: application_clerk.coff
 	../bin/coff2noff $< $@
 
-picture_clerk.o: picture_clerk.c
-	$(CC) $(CFLAGS) -c $^
+picture_clerk.o: picture_clerk.c simulation.c simulation.h
+	$(CC) $(CFLAGS) -c $<
 picture_clerk.coff: picture_clerk.o start.o
 	$(LD) $(LDFLAGS) $^ -o $@
 picture_clerk: picture_clerk.coff
 	../bin/coff2noff $< $@
 
-passport_clerk.o: passport_clerk.c
-	$(CC) $(CFLAGS) -c $^
+passport_clerk.o: passport_clerk.c simulation.c simulation.h
+	$(CC) $(CFLAGS) -c $<
 passport_clerk.coff: passport_clerk.o start.o
 	$(LD) $(LDFLAGS) $^ -o $@
 passport_clerk: passport_clerk.coff
 	../bin/coff2noff $< $@
 
-cashier.o: cashier.c
-	$(CC) $(CFLAGS) -c $^
+cashier.o: cashier.c simulation.c simulation.h
+	$(CC) $(CFLAGS) -c $<
 cashier.coff: cashier.o start.o
 	$(LD) $(LDFLAGS) $^ -o $@
 cashier: cashier.coff
 	../bin/coff2noff $< $@
 
-manager.o: manager.c
-	$(CC) $(CFLAGS) -c $^
+manager.o: manager.c simulation.c simulation.h
+	$(CC) $(CFLAGS) -c $<
 manager.coff: manager.o start.o
 	$(LD) $(LDFLAGS) $^ -o $@
 manager: manager.coff

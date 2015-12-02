@@ -1051,14 +1051,14 @@ void WakeClerksForSenator() {
 }
 
 /* ######## Thread Runners ######## */
-#ifndef NETWORK
-void RunManager() {
-  ManagerRun(&manager_);
+void RunManagerMoneyReport() {
+  ManagerPrintMoneyReport(&manager_);
   Exit(0);
 }
 
-void RunManagerMoneyReport() {
-  ManagerPrintMoneyReport(&manager_);
+#ifndef NETWORK
+void RunManager() {
+  ManagerRun(&manager_);
   Exit(0);
 }
 
@@ -1101,6 +1101,8 @@ void RunSenator() {
 
 void SetupPassportOffice() {
   int i;
+  int nameLen;
+  char nameBuf[128];
 
 #ifndef NETWORK
 	application_clerk_init_lock_ = CreateLock("acil", 4);
@@ -1343,6 +1345,7 @@ void RunEntity(EntityType type, int entityId) {
       ClerkRun(clerks_[kPicture] + entityId);
       break;
     case MANAGER:
+      Fork(RunManagerMoneyReport);
       ManagerRun(&manager_);
       break;
     default:
