@@ -43,14 +43,12 @@ struct Message {
 struct ServerLock {
   bool busy;
   int machineID;
-  int mailbox;
   std::string name;
   bool toBeDeleted;
   int numWaitingOnCV;
   std::deque<Message> waitQ;
   ServerLock(std::string n) {
     machineID = -1;
-    mailbox = -1;
     name = n;
     busy = false;
     toBeDeleted = false;
@@ -63,6 +61,7 @@ struct ServerLock {
 
 struct ServerCV {
   int lockID;
+  bool busy;
   std::string name;
   bool toBeDeleted;
   std::deque<Message> waitQ;
@@ -70,6 +69,7 @@ struct ServerCV {
     name = n;
     lockID = -1;
     toBeDeleted = false;
+    busy = false;
   }
   void addToWaitQ(Message m) {
     waitQ.push_back(m);
@@ -104,40 +104,44 @@ struct Request {
   }
 };
 
+int currentLock = machineId * 1000;
+int currentCV = machineId * 1000;
+int currentMV = machineId * 1000;
+int currentRequest = machineId * 1000;
+std::map<int, ServerLock> locks;
+std::map<int, ServerCV> cvs;
+std::map<int, ServerMV> mvs;
+std::map<int, Request> pending_requests;
+
 int find_lock_by_name(std::map<int, ServerLock> locks, string lock_name);
 bool find_lock_by_id(std::map<int, ServerLock>& locks, int id);
-void create_new_lock_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    int & currentLock, map<int, ServerLock> & locks, string lock_name);
-void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
-    std::map<int, ServerLock> & locks, int lockID);
-void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, 
-    std::map<int, ServerLock> & locks, int lockID, ServerLock* temp_lock,
-    bool send);
-void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    std::map<int, ServerLock> & locks, int lockID);
-void create_cv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentCV,
-    std::map<int, ServerCV> & cvs, string cv_name);
-void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
-    std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
-    int lockID);
+void create_new_lock_and_send(
+    PacketHeader outPktHdr, MailHeader outMailHdr, string lock_name);
+void acquire_lock(
+    PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, int lockID);
+void release_lock(
+    PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, int lockID,
+    ServerLock* temp_lock, bool send);
+void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int lockID);
+
+int find_cv_by_name(string& cv_name);
+void create_new_cv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, string& cv_name);
+void wait_cv(
+    PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
+    int cvID, int lockID);
 void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
-    std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
-    int lockID);
-void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
-    std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
-    int lockID);
-void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    std::map<int, ServerCV> & cvs, int cvID);
-int find_mv_by_name(std::map<int, ServerMV> mvs, string mv_name);
-bool find_mv_by_id(std::map<int, ServerMV>& mvs, int id);
+    MailHeader inMailHdr, int cvID, int lockID);
+void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
+    PacketHeader inPktHdr, MailHeader inMailHdr, int cvID, int lockID);
+void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr, int cvID);
+
+int find_mv_by_name(string mv_name);
+bool find_mv_by_id(int id);
 void create_new_mv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr,
-    int & currentMV, std::map<int, ServerMV> & mvs, int size, string mv_name);
-void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    std::map<int, ServerMV> & mvs, int mvID, int index, int value);
-void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
-    std::map<int, ServerMV> & mvs, int mvID, int index);
-void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    std::map<int, ServerMV> & mvs, int mvID);
+    int size, string mv_name);
+void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int mvID, int index, int value);
+void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int mvID, int index);
+void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int mvID);
 
 void setup_message_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, string s) {
   outMailHdr.length = s.length() + 1;
@@ -158,8 +162,7 @@ string get_rest_of_stream(std::stringstream& ss) {
 
 void create_request_and_send_servers(PacketHeader inPktHdr, 
     MailHeader inMailHdr, PacketHeader outPktHdr, 
-    MailHeader outMailHdr, map<int, Request> & pending_requests, 
-    int & currentRequest, int type, string info) {
+    MailHeader outMailHdr, int type, string info) {
   pending_requests.insert(std::pair<int, Request>(currentRequest++, 
       Request(inPktHdr.from, inMailHdr.from, type, info)));
   outMailHdr.to = SERVER_MAILBOX;
@@ -187,15 +190,6 @@ void sendResponse(PacketHeader outPktHdr, MailHeader outMailHdr, int requestId,
 // Server for Project 3 Part 3
 void Server() {
   DEBUG('R', "In server function\n");
-  int currentLock = 0;
-  int currentCV = 0;
-  int currentMV = 0;
-  int currentRequest = 0;
-  std::map<int, ServerLock> locks;
-  std::map<int, ServerCV> cvs;
-  std::map<int, ServerMV> mvs;
-  std::map<int, Request> pending_requests;
-
   for (;;) {
     // Receive a message.
     PacketHeader outPktHdr, inPktHdr;
@@ -221,7 +215,7 @@ void Server() {
       switch (s) {
         case CREATE_LOCK: {
           string lock_name = get_rest_of_stream(ss);
-          int lockID = find_lock_by_name(locks, lock_name);
+          int lockID = find_lock_by_name(lock_name);
           if (lockID != -1) { // If on this server, send response.
             ss.str("");
             ss.clear();
@@ -229,18 +223,18 @@ void Server() {
             DEBUG('R',"Lock found on server sending: %d\n", lockID);
             setup_message_and_send(outPktHdr, outMailHdr, ss.str());
           } else if (numServers == 1) { // If only server, create lock and send response.
-            create_new_lock_and_send(outPktHdr, outMailHdr, currentLock, locks, lock_name);
+            create_new_lock_and_send(outPktHdr, outMailHdr, lock_name);
           } else { // See if on another server.
-            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
-                pending_requests, currentRequest, s, lock_name);
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, lock_name);
           }
           break;
         }
         case ACQUIRE_LOCK: {
           int lockID;
           ss >> lockID;
-          if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
-            acquire_lock(outPktHdr, outMailHdr, inPktHdr.from, locks, lockID);
+          if (find_lock_by_id(lockID)) {  // If on this server, send response.
+            acquire_lock(outPktHdr, outMailHdr, inPktHdr.from, lockID);
           } else if (numServers == 1) { // If only server, send error.
             DEBUG('R', "Couldn't find lock\n");
             setup_message_and_send(outPktHdr, outMailHdr, "-1");
@@ -248,17 +242,17 @@ void Server() {
             ss.str("");
             ss.clear();
             ss << lockID;
-            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
-                pending_requests, currentRequest, s, ss.str());
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, ss.str());
           }
           break;
         }
         case RELEASE_LOCK: {
           int lockID;
           ss >> lockID;
-          if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
+          if (find_lock_by_id(lockID)) {  // If on this server, send response.
             DEBUG('R', "Found lock and releasing: %d\n", lockID);
-            release_lock(outPktHdr, outMailHdr, inPktHdr.from, locks, lockID,
+            release_lock(outPktHdr, outMailHdr, inPktHdr.from, lockID,
                 &(locks.find(lockID)->second), true);
           } else if (numServers == 1) { // If only server, send error.
             DEBUG('R', "Couldn't find lock\n");
@@ -267,17 +261,17 @@ void Server() {
             ss.str("");
             ss.clear();
             ss << lockID;
-            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
-                pending_requests, currentRequest, s, ss.str());
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, ss.str());
           }
           break;
         }
         case DESTROY_LOCK: {
           int lockID;
           ss >> lockID;
-          if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
+          if (find_lock_by_id(lockID)) {  // If on this server, send response.
             DEBUG('R', "Found lock and destroying: %d\n", lockID);
-            destroy_lock(outPktHdr, outMailHdr, locks, lockID);
+            destroy_lock(outPktHdr, outMailHdr, lockID);
           } else if (numServers == 1) { // If only server, send error.
             DEBUG('R', "Couldn't find lock\n");
             setup_message_and_send(outPktHdr, outMailHdr, "-1");
@@ -285,48 +279,134 @@ void Server() {
             ss.str("");
             ss.clear();
             ss << lockID;
-            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
-                pending_requests, currentRequest, s, ss.str());
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, ss.str());
           }
           break;
         }
         case CREATE_CV: {
-          string temp = get_rest_of_stream(ss);
-          create_cv(outPktHdr, outMailHdr, currentCV, cvs, temp);
+          string cv_name = get_rest_of_stream(ss);
+          int cv_id = find_cv_by_name(cv_name);
+          if (cv_id != -1) {
+            ss.str("");
+            ss.clear();
+            ss << cv_id;
+            DEBUG('R', "CV found on server, sending: %d\n", cv_id);
+            setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+          } else if (numServers == 1) {
+            create_new_cv_and_send(outPktHdr, outMailHdr, cv_name);
+          } else {
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, cv_name);
+          }
           break;
         }
         case WAIT_CV: {
           int cvID, lockID;
           ss >> cvID;
           ss >> lockID;
-          wait_cv(outPktHdr, outMailHdr, inPktHdr, locks, cvs, cvID, lockID);
+          if (cvs.find(cvID) != cvs.end()) {
+            ServerCV& cv = cvs.find(cvID)->second;
+            if (cv.lockID != -1 && cv.lockID != lockID) {
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
+            } else if (find_lock_by_id(lockID)) {
+              wait_cv(outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
+            } else {
+              ss.str("");
+              ss.clear();
+              ss << cvID << " " << lockID;
+              create_request_and_send_servers(
+                  inPktHdr, inMailHdr, outPktHdr, outMailHdr, WAIT_CV_LOCK, ss.str());
+            }
+          } else if (numServers == 1) {
+            DEBUG('R', "Couldn't find CV %d\n", cvID);
+            setup_message_and_send(outPktHdr, outMailHdr, "-1");
+          } else {
+            ss.str("");
+            ss.clear();
+            ss << cvID << " " << lockID;
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, ss.str());
+          }
           break;
         }
         case SIGNAL_CV: {
           int cvID, lockID;
           ss >> cvID;
           ss >> lockID;
-          signal_cv(outPktHdr, outMailHdr, inPktHdr, locks, cvs, cvID, lockID);
+          if (cvs.find(cvID) != cvs.end()) {
+            ServerCV& cv = cvs.find(cvID)->second;
+            if (cv.lockID != -1 && cv.lockID != lockID) {
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
+            } else if (locks.find(lockID) != locks.end()) {
+              signal_cv(outPktHdr, outMailHdr, inPktHdr, cvID, lockID);
+            } else {
+              ss.str("");
+              ss.clear();
+              ss << cvID << " " << lockID;
+              create_request_and_send_servers(
+                  inPktHdr, inMailHdr, outPktHdr, outMailHdr, SIGNAL_CV_LOCK, ss.str());
+            }
+          } else if (numServers == 1) {
+            DEBUG('R', "Couldn't find CV %d\n", cvID);
+            setup_message_and_send(outPktHdr, outMailHdr, "-1");
+          } else {
+            ss.str("");
+            ss.clear();
+            ss << cvID << " " << lockID;
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, ss.str());
+          }
           break;
         }
         case BROADCAST_CV: {
           int cvID, lockID;
           ss >> cvID;
           ss >> lockID;
-          broadcast_cv(outPktHdr, outMailHdr, inPktHdr, locks, cvs, cvID, lockID);
+          if (cvs.find(cvID) != cvs.end()) {
+            ServerCV& cv = cvs.find(cvID)->second;
+            if (cv.lockID != -1 && cv.lockID != lockID) {
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
+            } else if (locks.find(lockID) != locks.end()) {
+              broadcast_cv(outPktHdr, outMailHdr, inPktHdr, cvID, lockID);
+            } else {
+              ss.str("");
+              ss.clear();
+              ss << cvID << " " << lockID;
+              create_request_and_send_servers(
+                  inPktHdr, inMailHdr, outPktHdr, outMailHdr, BROADCAST_CV_LOCK,
+                  ss.str());
+            }
+          } else if (numServers == 1) {
+            DEBUG('R', "Couldn't find CV %d\n", cvID);
+            setup_message_and_send(outPktHdr, outMailHdr, "-1");
+          } else {
+            ss.str("");
+            ss.clear();
+            ss << cvID << " " << lockID;
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, ss.str());
+          }
           break;
         }
         case DESTROY_CV: {
           int cvID;
           ss >> cvID;
-          destroy_cv(outPktHdr, outMailHdr, cvs, cvID);
+          if (cvs.find(cvID) != cvs.end()) {
+            destroy_cv(outPktHdr, outMailHdr, cvID);
+          } else if (numServers == 1) {
+            DEBUG('R', "Couldn't find CV %d\n", cvID);
+            setup_message_and_send(outPktHdr, outMailHdr, "-1");
+          } else {
+            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr, );
+          }
           break;
         }
         case CREATE_MV: {
           int size;
           ss >> size;
           string mv_name = get_rest_of_stream(ss);
-          int mvID = find_mv_by_name(mvs, mv_name);
+          int mvID = find_mv_by_name(mv_name);
           if (mvID != -1) { // If on this server, send response.
             ss.str("");
             ss.clear();
@@ -334,13 +414,13 @@ void Server() {
             DEBUG('R',"MV found on server sending: %d\n", mvID);
             setup_message_and_send(outPktHdr, outMailHdr, ss.str());
           } else if (numServers == 1) { // If only server, create mv and send response.
-            create_new_mv_and_send(outPktHdr, outMailHdr, currentMV, mvs, size, mv_name);
+            create_new_mv_and_send(outPktHdr, outMailHdr, size, mv_name);
           } else { // See if on another server.
             ss.str("");
             ss.clear();
             ss << size << " " << mv_name;
-            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
-                pending_requests, currentRequest, s, ss.str());
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, ss.str());
           }
           break;
         }
@@ -350,9 +430,9 @@ void Server() {
           ss >> index;
           ss >> value;
 
-          if (find_mv_by_id(mvs, mvID)) {  // If on this server, send response.
+          if (find_mv_by_id(mvID)) {  // If on this server, send response.
             DEBUG('R',"MV found on server setting: %d\n", mvID);
-            set_mv(outPktHdr, outMailHdr, mvs, mvID, index, value);
+            set_mv(outPktHdr, outMailHdr, mvID, index, value);
           } else if (numServers == 1) { // If only server, send error.
             DEBUG('R', "Couldn't find mv\n");
             setup_message_and_send(outPktHdr, outMailHdr, "-1");
@@ -370,9 +450,9 @@ void Server() {
           ss >> mvID;
           ss >> index;
 
-          if (find_mv_by_id(mvs, mvID)) {  // If on this server, send response.
+          if (find_mv_by_id(mvID)) {  // If on this server, send response.
             DEBUG('R',"MV found on server getting: %d\n", mvID);
-            get_mv(outPktHdr, outMailHdr, mvs, mvID, index);
+            get_mv(outPktHdr, outMailHdr, mvID, index);
           } else if (numServers == 1) { // If only server, send error.
             DEBUG('R', "Couldn't find mv\n");
             setup_message_and_send(outPktHdr, outMailHdr, "-1");
@@ -380,8 +460,8 @@ void Server() {
             ss.str("");
             ss.clear();
             ss << mvID << " " << index;
-            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
-                pending_requests, currentRequest, s, ss.str());
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, ss.str());
           }
           break;
         }
@@ -389,9 +469,9 @@ void Server() {
           int mvID;
           ss >> mvID;
 
-          if (find_mv_by_id(mvs, mvID)) {  // If on this server, send response.
+          if (find_mv_by_id(mvID)) {  // If on this server, send response.
             DEBUG('R', "Found mv and destroying: %d\n", mvID);
-            destroy_mv(outPktHdr, outMailHdr, mvs, mvID);
+            destroy_mv(outPktHdr, outMailHdr, mvID);
           } else if (numServers == 1) { // If only server, send error.
             DEBUG('R', "Couldn't find mv\n");
             setup_message_and_send(outPktHdr, outMailHdr, "-1");
@@ -399,8 +479,8 @@ void Server() {
             ss.str("");
             ss.clear();
             ss << mvID;
-            create_request_and_send_servers(inPktHdr, inMailHdr, outPktHdr, outMailHdr,
-                pending_requests, currentRequest, s, ss.str());
+            create_request_and_send_servers(
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, ss.str());
           }
           break;
         }
@@ -416,7 +496,7 @@ void Server() {
         switch (s) {
           case CREATE_LOCK: {
             string lock_name = get_rest_of_stream(ss);
-            int lockID = find_lock_by_name(locks, lock_name);
+            int lockID = find_lock_by_name(lock_name);
 
             // If on this server, send response to client and yes to requesting server.
             if (lockID != -1) { 
@@ -439,13 +519,13 @@ void Server() {
             int lockID;
             ss >> lockID;
             // If on this server, send response to client and yes to requesting server.
-            if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
+            if (find_lock_by_id(lockID)) {  // If on this server, send response.
               DEBUG('R', "Found lock and handling acquire of lockid: %d\n", lockID);
               sendResponse(outPktHdr, outMailHdr, requestId, YES);
 
               outPktHdr.to = pkt;
               outMailHdr.to = mail;
-              acquire_lock(outPktHdr, outMailHdr, pkt, locks, lockID);
+              acquire_lock(outPktHdr, outMailHdr, pkt, lockID);
             } else { // Send no.
               DEBUG('R', "Can't Find lock id: %d\n", lockID);
               sendResponse(outPktHdr, outMailHdr, requestId, NO);
@@ -456,13 +536,13 @@ void Server() {
             int lockID;
             ss >> lockID;
             // If on this server, send response to client and yes to requesting server.
-            if (find_lock_by_id(locks, lockID)) {  // If on this server, send response.
+            if (find_lock_by_id(lockID)) {  // If on this server, send response.
               DEBUG('R', "Found lock and handling release of lockid: %d\n", lockID);
               sendResponse(outPktHdr, outMailHdr, requestId, YES);
 
               outPktHdr.to = pkt;
               outMailHdr.to = mail;
-              release_lock(outPktHdr, outMailHdr, pkt, locks, lockID, 
+              release_lock(outPktHdr, outMailHdr, pkt, lockID, 
                   &(locks.find(lockID)->second), true);
             } else { // Send no.
               DEBUG('R', "Can't Find lock id: %d\n", lockID);
@@ -480,7 +560,7 @@ void Server() {
 
               outPktHdr.to = pkt;
               outMailHdr.to = mail;
-              destroy_lock(outPktHdr, outMailHdr, locks, lockID);
+              destroy_lock(outPktHdr, outMailHdr, lockID);
             } else { // Send no.
               DEBUG('R', "Can't Find lock id: %d\n", lockID);
               sendResponse(outPktHdr, outMailHdr, requestId, NO);
@@ -488,19 +568,95 @@ void Server() {
             break;
           }
           case CREATE_CV: {
-              
+            string cv_name = get_rest_of_stream(ss)
+            int cvID = find_cv_by_name(cv_name);
+            if (cvID != -1) {
+              DEBUG('R', "Found CV and handling create of cvID: %d\n", cvID);
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+              ss.str("");
+              ss.clear();
+              ss << cvID;
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
+              setup_message_and_send(outPktHdr, outMailHdr, ss.str());
+            } else {
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
             break;
           }
           case WAIT_CV: {
-            
+            int cvID, lockID;
+            ss >> cvID;
+            ss >> lockID;
+            if (cvs.find(cvID) != cvs.end()) {
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+              ServerCV& cv = cvs.find(cvID)->second;
+              if (cv.lockID != -1 && cv.lockID != lockID) {
+                setup_message_and_send(outPktHdr, outMailHdr, "-1");
+              } else if (locks.find(lockID) != locks.end()) {
+                outPktHdr.to = pk;
+                outMailHdr.to = mail;
+                wait_cv(outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
+              } else {
+                ss.str("");
+                ss.clear();
+                ss << cvID << " " << lockID;
+                create_request_and_send_servers(
+                    inPktHdr, inMailHdr, outPktHdr, outMailHdr, WAIT_CV_LOCK, ss.str());
+              }
+            } else {
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
             break;
           }
           case SIGNAL_CV: {
-            
+            int cvID, lockID;
+            ss >> cvID >> lockID;
+            if (cvs.find(cvID) != cvs.end()) {
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+              ServerCV& cv = cvs.find(cvID)->second;
+              if (cv.lockID != -1 && cv.lockID != lockID) {
+                setup_message_and_send(outPktHdr, outMailHdr, "-1");
+              } else if (locks.find(lockID) != locks.end()) {
+                outPktHdr.to = pk;
+                outMailHdr.to = mail;
+                signal_cv(outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
+              } else {
+                ss.str("");
+                ss.clear();
+                ss << cvID << " " << lockID;
+                create_request_and_send_servers(
+                    inPktHdr, inMailHdr, outPktHdr, outMailHdr, WAIT_CV_LOCK, ss.str());
+              }
+            } else {
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
             break;
           }
           case BROADCAST_CV: {
-            
+            int cvID, lockID;
+            ss >> cvID >> lockID;
+            if (cvs.find(cvID) != cvs.end()) {
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+              ServerCV& cv = cvs.find(cvID)->second;
+              if (cv.lockID != -1 && cv.lockID != lockID) {
+                setup_message_and_send(outPktHdr, outMailHdr, "-1");
+              } else if (locks.find(lockID) != locks.end()) {
+                outPktHdr.to = pk;
+                outMailHdr.to = mail;
+                broadcast_cv(
+                    outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
+              } else {
+                ss.str("");
+                ss.clear();
+                ss << cvID << " " << lockID;
+                create_request_and_send_servers(
+                    inPktHdr, inMailHdr, outPktHdr, outMailHdr,
+                    BROADCAST_CV_LOCK, ss.str());
+              }
+            } else {
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
             break;
           }
           case DESTROY_CV: {
@@ -511,7 +667,7 @@ void Server() {
             int size;
             ss >> size;
             string mv_name = get_rest_of_stream(ss);
-            int mvID = find_mv_by_name(mvs, mv_name);
+            int mvID = find_mv_by_name(mv_name);
 
             // If on this server, send response to client and yes to requesting server.
             if (mvID != -1) { 
@@ -543,7 +699,7 @@ void Server() {
               
               outPktHdr.to = pkt;
               outMailHdr.to = mail;
-              set_mv(outPktHdr, outMailHdr, mvs, mvID, index, value);
+              set_mv(outPktHdr, outMailHdr, mvID, index, value);
             } else { // Send no.
               DEBUG('R', "Can't Find MV: %d\n", mvID);
               sendResponse(outPktHdr, outMailHdr, requestId, NO);
@@ -562,7 +718,7 @@ void Server() {
 
               outPktHdr.to = pkt;
               outMailHdr.to = mail;
-              get_mv(outPktHdr, outMailHdr, mvs, mvID, index);
+              get_mv(outPktHdr, outMailHdr, mvID, index);
             } else { // Send no.
               DEBUG('R', "Can't Find MV: %d\n", mvID);
               sendResponse(outPktHdr, outMailHdr, requestId, NO);
@@ -580,9 +736,54 @@ void Server() {
 
               outPktHdr.to = pkt;
               outMailHdr.to = mail;
-              destroy_mv(outPktHdr, outMailHdr, mvs, mvID);
+              destroy_mv(outPktHdr, outMailHdr, mvID);
             } else { // Send no.
               DEBUG('R', "Can't Find MV: %d\n", mvID);
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
+            break;
+          }
+          case WAIT_CV_LOCK: {
+            int cvID, lockID;
+            ss >> cvID >> lockID;
+            if (find_lock_by_id(lockID)) {
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+
+              ServerLock* temp_lock = &(locks.find(lockID)->second);
+              ++temp_lock->numWaitingOnCV;
+
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
+              release_lock(outPktHdr, outMailHdr, pkt, lockID, temp_lock, true);
+            } else {
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
+            break;
+          }
+          case SIGNAL_CV_LOCK: {
+            int cvID, lockID;
+            ss >> cvID >> lockID;
+            if (find_lock_by_id(lockID)) {
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+
+              ServerLock* temp_lock = &(locks.find(lockID)->second);
+              --temp_lock->numWaitingOnCV;
+
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
+              acquire_lock(
+                  outPktHdr, outMailHdr, pkt, lockID, temp_lock);
+            } else {
+              sendResponse(outPktHdr, outMailHdr, requestId, NO);
+            }
+            break;
+          }
+          case BROADCAST_CV_LOCK: {
+            int cvID, lockID;
+            ss >> cvID >> lockID;
+            if (locks.find(lockID) != locks.end()) {
+              sendResponse(outPktHdr, outMailHdr, requestId, YES);
+            } else {
               sendResponse(outPktHdr, outMailHdr, requestId, NO);
             }
             break;
@@ -593,21 +794,47 @@ void Server() {
         ss >> yes;
         map<int, Request>::iterator it = pending_requests.find(requestId);
         if (yes) {
+          switch (it->second.requestType) {
+            case WAIT_CV_LOCK: {
+              int cvID, int lockID;
+              ss.str(it->second.info);
+              ss.clear();
+              ss >> cvID >> lockID;
+              wait_cv(outPktHdr, outMailHdr, inPktHdr, inMailHdr, cvID, lockID);
+              break;
+            }
+            case SIGNAL_CV_LOCK: {
+              int cvID, int lockID;
+              ss.str(it->second.info);
+              ss.clear();
+              ss >> cvID >> lockID;
+              signal_cv(outPktHdr, outMailHdr, inPktHdr, cvID, lockID);
+              break;
+            }
+            case BROADCAST_CV_LOCK: {
+              int cvID, int lockID;
+              ss.str(it->second.info);
+              ss.clear();
+              ss >> cvID >> lockID;
+              broadcast_cv(outPktHdr, outMailHdr, inPktHdr, cvID, lockID);
+              break;
+            }
+          }
           DEBUG('R', "Received a yes server response\n");
           it->second.yesResponse = true;
           if (numServers == 2) {
             pending_requests.erase(it);
           }
-        } else if (it->second.yesResponse  && it->second.noCount == numServers - 3) {
+        } else if (it->second.yesResponse && it->second.noCount == numServers - 3) {
           DEBUG('R', "Received a no server response and erasing\n");
           pending_requests.erase(it);
-        } else if (it->second.noCount == numServers - 2){
+        } else if (it->second.noCount == numServers - 2) {
           DEBUG('R', "Sending client response since all nos\n");
           outPktHdr.to = it->second.requestorMID;
           outMailHdr.to = it->second.requestorMB;
           switch(it->second.requestType) {
             case CREATE_LOCK: {
-              create_new_lock_and_send(outPktHdr, outMailHdr, currentLock, locks, it->second.info);
+              create_new_lock_and_send(outPktHdr, outMailHdr, it->second.info);
               break;
             }
             case ACQUIRE_LOCK: {
@@ -623,7 +850,7 @@ void Server() {
               break;
             }
             case CREATE_CV: {
-              
+              create_new_cv_and_send(outPktHdr, outMailHdr, it->second.info);
               break;
             }
             case WAIT_CV: {
@@ -649,7 +876,7 @@ void Server() {
               int size;
               ss >> size;
               string mv_name = get_rest_of_stream(ss);
-              create_new_mv_and_send(outPktHdr, outMailHdr, currentMV, mvs, size, mv_name);
+              create_new_mv_and_send(outPktHdr, outMailHdr, size, mv_name);
               break;
             }
             case SET_MV: {
@@ -664,6 +891,19 @@ void Server() {
               setup_message_and_send(outPktHdr, outMailHdr, "-1");
               break;
             }
+            case WAIT_CV_LOCK: {
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
+              break;
+            }
+            case SIGNAL_CV_LOCK: {
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
+              break;
+            }
+            case BROADCAST_CV_LOCK: {
+              setup_message_and_send(outPktHdr, outMailHdr, "-1");
+              break;
+            }
+            case 
           }
           pending_requests.erase(it);
         } else {
@@ -679,7 +919,7 @@ void Server() {
 }
 
 // Returns the lock ID for the given lock or -1 if not on this server.
-int find_lock_by_name(std::map<int, ServerLock> locks, string lock_name) {
+int find_lock_by_name(string lock_name) {
   for (std::map<int, ServerLock>::iterator it = locks.begin(); 
       it != locks.end(); ++it) {
     if (it->second.name == lock_name) {
@@ -690,15 +930,15 @@ int find_lock_by_name(std::map<int, ServerLock> locks, string lock_name) {
 }
 
 // Returns true if it is on this server, false otherwise.
-bool find_lock_by_id(std::map<int, ServerLock>& locks, int id) {
+bool find_lock_by_id(int id) {
   std::map<int, ServerLock>::iterator it = locks.find(id);
   return it != locks.end();
 }
 
 
 // Returns the lock ID for the new lock, or -1 if not possible.
-void create_new_lock_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    int & currentLock, map<int, ServerLock> & locks, string lock_name) {
+void create_new_lock_and_send(
+    PacketHeader outPktHdr, MailHeader outMailHdr, string lock_name) {
   if (locks.size() >= NUM_SYSTEM_LOCKS) {
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
   } else {
@@ -711,15 +951,15 @@ void create_new_lock_and_send(PacketHeader outPktHdr, MailHeader outMailHdr,
 }
 
 // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
-void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    int pkt, std::map<int, ServerLock> & locks, int lockID) {
+void acquire_lock(
+    PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, int lockID) {
   DEBUG('R', "Acquiring lock on server starting\n");
   ServerLock *temp_lock = &(locks.find(lockID)->second);
-  if (temp_lock->busy && (temp_lock->machineID != pkt || temp_lock->mailbox != outMailHdr.to)) {
+  if (temp_lock->busy && temp_lock->machineID != pkt) {
     DEBUG('R', "Found lock and busy\n");
     Message m(outPktHdr, outMailHdr, "1", 2);
     temp_lock->addToWaitQ(m);
-  } else if (temp_lock->toBeDeleted && (temp_lock->machineID != pkt || temp_lock->mailbox != outMailHdr.to)){
+  } else if (temp_lock->toBeDeleted){
     DEBUG('R', "Lock requested is marked for deletion\n");
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
   } else {
@@ -731,10 +971,9 @@ void acquire_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
 }
 
 // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
-void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt, 
-    std::map<int, ServerLock> & locks, int lockID, ServerLock* temp_lock,
-    bool send) {
-  if (temp_lock->machineID != pkt || temp_lock->mailbox != outMailHdr.to) {
+void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
+                  int lockID, ServerLock* temp_lock, bool send) {
+  if (temp_lock->machineID != pkt) {
     DEBUG('R', "Trying to release lock it doesn't have. real: %d request: %d\n", temp_lock->machineID, pkt);
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
   } else if (!temp_lock->waitQ.empty()) {
@@ -742,8 +981,7 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
     Message m = temp_lock->waitQ.front();
     temp_lock->waitQ.pop_front();
     temp_lock->machineID = m.packetHdr.to;
-    temp_lock->mailbox = m.mailHdr.to;
-    DEBUG('R', "m.packetHdr.to: %d  m.mailHdr.to: %d", m.packetHdr.to, m.mailHdr.to);
+    DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
     setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
     if (send) {
       setup_message_and_send(outPktHdr, outMailHdr, "1");
@@ -752,7 +990,6 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
     DEBUG('R', "Releasing no waitQ\n");
     temp_lock->busy = false;
     temp_lock->machineID = -1;
-    temp_lock->mailbox  = -1;
     if (temp_lock->toBeDeleted && temp_lock->numWaitingOnCV == 0) {
       locks.erase(locks.find(lockID));
     }
@@ -763,8 +1000,7 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
 }
 
 // Returns 0 if lock doesn't exist, 1 if it does and is acquired.
-void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    std::map<int, ServerLock> & locks, int lockID) {
+void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int lockID) {
   ServerLock* temp_lock = &(locks.find(lockID)->second);
   if (temp_lock->busy || temp_lock->numWaitingOnCV > 0) {
     DEBUG('R', "In use so, marking for deletion\n");
@@ -777,53 +1013,48 @@ void destroy_lock(PacketHeader outPktHdr, MailHeader outMailHdr,
   }
 }
 
-// Returns the cv ID for the given CV.
-void create_cv(PacketHeader outPktHdr, MailHeader outMailHdr, int & currentCV,
-    std::map<int, ServerCV> & cvs, string cv_name) {
-  DEBUG('R', "Create cv on server starting\n");
-  int cvID;
-  bool found = false;
+int find_cv_by_name(string& cv_name) {
   for (std::map<int, ServerCV>::iterator it = cvs.begin(); it != cvs.end(); ++it) {
     if (it->second.name == cv_name) {
-      cvID = it->first;
-      found = true;
-      break;
+      return it->first;
     }
-  } 
-  if (!found) {
-    if (cvs.size() >= NUM_SYSTEM_CONDITIONS) {
-      setup_message_and_send(outPktHdr, outMailHdr, "-1");
-    }
-    cvID = currentCV;
-    ServerCV cv(cv_name);
-    cvs.insert(std::pair<int, ServerCV>(currentCV++, cv));
   }
+  return -1; 
+}
+
+void create_new_cv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, string& cv_name) {
+  if (cvs.size() > NUM_SYSTEM_CONDITIONS) {
+    setup_message_and_send(outPktHdr, outMailHdr, "-1");
+    return;
+  }
+  cvID = currentCV;
+  ServerCV cv(cv_name);
+  cvs.insert(std::pair<int, ServerCV>(currentCV++, cv));
   stringstream ss;
-  ss << (cvID);
-  DEBUG('R', "Create cv on server sending: %s\n", ss.str().c_str());
+  ss << currentCV - 1;
   setup_message_and_send(outPktHdr, outMailHdr, ss.str());
 }
 
-void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
-    std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
-    int lockID) {
+void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
+             PacketHeader inPktHdr, int cvID, int lockID) {
   DEBUG('R', "Waiting on cv on server starting\n");
-  if (cvs.find(cvID) != cvs.end() && locks.find(lockID) != locks.end()) {
+  if (cvs.find(cvID) != cvs.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
-    ServerLock* temp_lock = &(locks.find(lockID)->second);
-    if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
-        || (temp_lock->machineID != inPktHdr.from || temp_lock->mailbox != outMailHdr.to)) {
+    if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID)) {
       DEBUG('R', "Trying to wait on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
       setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
       DEBUG('R', "Adding to CV waitQ\n");
-      ++temp_lock->numWaitingOnCV;
-      Message m(outPktHdr, outMailHdr, "1", 2);
       temp_cv->addToWaitQ(m);
       temp_cv->lockID = lockID;
 
-      // Release lock
-      release_lock(outPktHdr, outMailHdr, inPktHdr.from, locks, lockID, temp_lock, false);
+      if (find_lock_by_id(lockID)) {
+        ServerLock* temp_lock = &(locks.find(lockID)->second);
+        ++temp_lock->numWaitingOnCV;
+        Message m(outPktHdr, outMailHdr, "1", 2);
+        // Release lock
+        release_lock(outPktHdr, outMailHdr, inPktHdr.from, lockID, temp_lock, true);
+      }
     }
   } else {
     DEBUG('R', "Couldn't find cv or lock\n");
@@ -831,15 +1062,13 @@ void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHd
   }
 }
 
-void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
-    std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
-    int lockID) {
+void signal_cv(
+    PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
+    MailHeader inMailHdr, int cvID, int lockID) {
   DEBUG('R', "Signalling on cv on server starting\n");
-  if (cvs.find(cvID) != cvs.end() && locks.find(lockID) != locks.end()) {
+  if (cvs.find(cvID) != cvs.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
-    ServerLock* temp_lock = &(locks.find(lockID)->second);
-    if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
-        || (temp_lock->machineID != inPktHdr.from || temp_lock->mailbox != outMailHdr.to)) {
+    if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID)) {
       DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
       setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
@@ -848,16 +1077,18 @@ void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPkt
         --temp_lock->numWaitingOnCV;
         Message m = temp_cv->waitQ.front();
         temp_cv->waitQ.pop_front();
-
-        if (temp_lock->busy) {
-          DEBUG('R', "lock is busy\n");
-          temp_lock->addToWaitQ(m);
-        } else {
-          DEBUG('R', "lock is not busy\n");
-          temp_lock->busy = true;
-          temp_lock->machineID = inPktHdr.from;
-          temp_lock->mailbox = outMailHdr.to;
-          setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
+        
+        if (find_lock_by_id(lockID)) {
+          ServerLock* temp_lock = &(locks.find(lockID)->second);
+          if (temp_lock->busy) {
+            DEBUG('R', "lock is busy\n");
+            temp_lock->addToWaitQ(m);
+          } else {
+            DEBUG('R', "lock is not busy\n");
+            temp_lock->busy = true;
+            temp_lock->machineID = inPktHdr.from;
+            setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
+          }
         }
 
         if (temp_cv->waitQ.empty()) {
@@ -866,7 +1097,6 @@ void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPkt
             cvs.erase(cvs.find(cvID));
           }
         }
-        setup_message_and_send(outPktHdr, outMailHdr, "1");
       }
     }
   } else {
@@ -875,39 +1105,41 @@ void signal_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPkt
   }
 }
 
-void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader inPktHdr,
-    std::map<int, ServerLock> & locks, std::map<int, ServerCV> & cvs, int cvID,
-    int lockID) {
+void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, 
+                  PacketHeader inPktHdr, MailHeader inMailHdr,
+                  int cvID, int lockID) {
   DEBUG('R', "Broadcasting on cv on server starting\n");
-  if (cvs.find(cvID) != cvs.end() && locks.find(lockID) != locks.end()) {
+  if (cvs.find(cvID) != cvs.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
-    ServerLock* temp_lock = &(locks.find(lockID)->second);
-    if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID) 
-      || (temp_lock->machineID != inPktHdr.from || temp_lock->mailbox != outMailHdr.to)) {
+    if ((temp_cv->lockID != -1 && temp_cv->lockID != lockID)) {
       DEBUG('R', "Trying to signal cv on lock that doesn't belong to cv or machine. real: %d request: %d\n", temp_lock->machineID, inPktHdr.from);
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
       while(!temp_cv->waitQ.empty()) {
-        --temp_lock->numWaitingOnCV;
         Message m = temp_cv->waitQ.front();
         temp_cv->waitQ.pop_front();
 
-        if (temp_lock->busy) {
-          DEBUG('R', "lock is busy\n");
-          temp_lock->addToWaitQ(m);
+        if (find_lock_by_id(lockID)) {
+          ServerLock* temp_lock = &(locks.find(lockID)->second);
+          --temp_lock->numWaitingOnCV;
+          if (temp_lock->busy) {
+            DEBUG('R', "lock is busy\n");
+            temp_lock->addToWaitQ(m);
+          } else {
+            DEBUG('R', "lock is not busy\n");
+            temp_lock->busy = true;
+            temp_lock->machineID = inPktHdr.from;
+            setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
+          }
         } else {
-          DEBUG('R', "lock is not busy\n");
-          temp_lock->busy = true;
-          temp_lock->machineID = inPktHdr.from;
-          temp_lock->mailbox = outMailHdr.to;
-          setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
+          create_request_and_send_servers(
+              inPktHdr, inMailHdr, m.packetHdr, m.mailHdr, m.data);
         }
       } 
       temp_cv->lockID = -1;
       if (temp_cv->toBeDeleted) {
         cvs.erase(cvs.find(cvID));
       }
-      setup_message_and_send(outPktHdr, outMailHdr, "1");
     }
   } else {
     DEBUG('R', "Couldn't find cv or lock\n");
@@ -915,8 +1147,7 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr, PacketHeader in
   }
 }
 
-void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    std::map<int, ServerCV> & cvs, int cvID) {
+void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr, int cvID) {
   DEBUG('R', "Destroying cv on server starting\n");
   if (cvs.find(cvID) != cvs.end()) {
     ServerCV* temp_cv = &(cvs.find(cvID)->second);
@@ -936,7 +1167,7 @@ void destroy_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
 }
 
 // Returns the mv ID for the given lock or -1 if not on this server.
-int find_mv_by_name(std::map<int, ServerMV> mvs, string mv_name) {
+int find_mv_by_name(string mv_name) {
   for (std::map<int, ServerMV>::iterator it = mvs.begin(); it != mvs.end();
       ++it) {
     if (it->second.name == mv_name) {
@@ -947,13 +1178,12 @@ int find_mv_by_name(std::map<int, ServerMV> mvs, string mv_name) {
 }
 
 // Returns true if it is on this server, false otherwise.
-bool find_mv_by_id(std::map<int, ServerMV>& mvs, int id) {
+bool find_mv_by_id(int id) {
   std::map<int, ServerMV>::iterator it = mvs.find(id);
   return it != mvs.end();
 }
 
-void create_new_mv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr,
-    int & currentMV, std::map<int, ServerMV> & mvs, int size, string mv_name) {
+void create_new_mv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr, int size, string mv_name) {
   if (mvs.size() >= NUM_MONITORS || size > MAX_MONITOR) {
     setup_message_and_send(outPktHdr, outMailHdr, "-1");
   } else {
@@ -966,8 +1196,7 @@ void create_new_mv_and_send(PacketHeader outPktHdr, MailHeader outMailHdr,
   }
 }
 
-void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    std::map<int, ServerMV> & mvs, int mvID, int index, int value) {
+void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int mvID, int index, int value) {
   DEBUG('R', "Setting mv on server starting\n");
   if (mvs.find(mvID)->second.value.size() > index) {
     (mvs.find(mvID)->second).value[index] = value;
@@ -979,8 +1208,7 @@ void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
 }
 
 // First send whether or not success, if success then return value
-void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
-    std::map<int, ServerMV> & mvs, int mvID, int index) {
+void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int mvID, int index) {
   DEBUG('R', "Getting mv on server starting\n");
   if (mvs.find(mvID)->second.value.size() > index) {
     stringstream ss;
@@ -992,8 +1220,7 @@ void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr,
   }
 }
 
-void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr, 
-    std::map<int, ServerMV> & mvs, int mvID) {
+void destroy_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int mvID) {
   mvs.erase(mvs.find(mvID));
   setup_message_and_send(outPktHdr, outMailHdr, "1");
 }
