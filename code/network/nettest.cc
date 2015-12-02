@@ -761,7 +761,7 @@ void Server() {
 
               outPktHdr.to = pkt;
               outMailHdr.to = mail;
-              release_lock(outPktHdr, outMailHdr, pkt, lockID, temp_lock, true);
+              release_lock(outPktHdr, outMailHdr, pkt, lockID, temp_lock, false);
             } else {
               sendResponse(outPktHdr, outMailHdr, requestId, NO);
             }
@@ -1067,7 +1067,7 @@ void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
         ++temp_lock->numWaitingOnCV;
         // Release lock
         release_lock(
-            outPktHdr, outMailHdr, inPktHdr.from, lockID, temp_lock, true);
+            outPktHdr, outMailHdr, inPktHdr.from, lockID, temp_lock, false);
       }
     }
   } else {
