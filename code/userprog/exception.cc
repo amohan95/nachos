@@ -70,14 +70,22 @@ int copyout(unsigned int vaddr, int len, char *buf) {
   bool result;
   int n=0;			// The number of bytes copied in
 
+  bool failed = false;
   while ( n >= 0 && n < len) {
     // Note that we check every byte's address
     result = machine->WriteMem( vaddr, 1, (int)(buf[n++]) );
 
     if ( !result ) {
-      //translation failed
-      return -1;
+      if (failed) {
+        //translation failed
+        return -1;
+      } else {
+        --n;
+        failed = true;
+        continue;
+      }
     }
+    failed = false;
 
     vaddr++;
   }
