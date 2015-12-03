@@ -217,9 +217,7 @@ void Server() {
     // Parse the message.
     int s;
     stringstream ss(buffer);
-    DEBUG('R', "MESSAGE: ");
-    DEBUG('R', buffer);
-    DEBUG('R', "\n");
+    DEBUG('R', "MESSAGE: %s - FROM: %d\n", buffer, inPktHdr.from);
     ss >> s;
 
     if (inPktHdr.from >= numServers) { // Client message.
@@ -414,8 +412,7 @@ void Server() {
             ss.clear();
             ss << cvID;
             create_request_and_send_servers(
-                inPktHdr, inMailHdr, outPktHdr, outMailHdr, DESTROY_CV,
-                ss.str());
+                inPktHdr, inMailHdr, outPktHdr, outMailHdr, s, ss.str());
           }
           break;
         }
@@ -690,6 +687,8 @@ void Server() {
             ss >> cvID;
             if (cvs.find(cvID) != cvs.end()) {
               sendResponse(outPktHdr, outMailHdr, requestId, YES);
+              outPktHdr.to = pkt;
+              outMailHdr.to = mail;
               destroy_cv(outPktHdr, outMailHdr, cvID);
             } else {
               sendResponse(outPktHdr, outMailHdr, requestId, NO);
@@ -795,7 +794,7 @@ void Server() {
             break;
           }
           case SIGNAL_CV_LOCK: {
-            int cvID, lockID, to_mid, to_mb;
+            int cvID, lockID;
             ss >> cvID >> lockID;
             if (find_lock_by_id(lockID)) {
               sendResponse(outPktHdr, outMailHdr, requestId, YES);
@@ -1090,7 +1089,10 @@ void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
       setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
       DEBUG('R', "Adding to CV waitQ\n");
-      Message m(outPktHdr, outMailHdr, "1", 2);
+      stringstream ss;
+      ss << lockID;
+      Message m(outPktHdr, outMailHdr, const_cast<char*>(ss.str().c_str()),
+                ss.str().length());
       temp_cv->addToWaitQ(m);
       temp_cv->lockID = lockID;
 
@@ -1139,8 +1141,9 @@ void signal_cv(
             setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
           }
         } else {
+          DEBUG('R', "Signalling to acquire lock for woken client\n");
           create_request_and_send_servers(
-              inPktHdr, inMailHdr, m.packetHdr, m.mailHdr, ACQUIRE_LOCK, m.data);
+              m.packetHdr, m.mailHdr, inPktHdr, inMailHdr, ACQUIRE_LOCK, m.data);
         }
 
         if (temp_cv->waitQ.empty()) {
@@ -1263,7 +1266,7 @@ void set_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int mvID, int index, 
 
 // First send whether or not success, if success then return value
 void get_mv(PacketHeader outPktHdr, MailHeader outMailHdr, int mvID, int index) {
-  DEBUG('R', "Getting mv on server starting for %s (%d,%d)\n", mvs.find(mvID)->second.name.c_str(), mvID, index);
+  DEBUG('R', "Getting mv on server starting\n");
   if (mvs.find(mvID)->second.value.size() > index) {
     stringstream ss;
     ss << "1 " << (mvs.find(mvID)->second).value[index];
