@@ -117,7 +117,7 @@ void Create_Syscall(unsigned int vaddr, int len) {
 #ifdef NETWORK
 
 void out_header_init(PacketHeader & pktHdr, MailHeader & mailHdr, int size) {
-  srand (time(NULL));
+  // srand (time(NULL));
   pktHdr.to = rand() % numServers;
   mailHdr.to = SERVER_MAILBOX;
   mailHdr.from = currentThread->mailbox;
