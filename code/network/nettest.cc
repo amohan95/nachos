@@ -1130,20 +1130,20 @@ void signal_cv(
           ServerLock* temp_lock = &(locks.find(lockID)->second);
           --temp_lock->numWaitingOnCV;
           if (temp_lock->busy &&
-              !lock_owned_by_requestor(temp_lock, inPktHdr.from, outMailHdr.to)) {
+              !lock_owned_by_requestor(temp_lock, m.packetHdr.from, m.mailHdr.to)) {
             DEBUG('R', "lock is busy\n");
             temp_lock->addToWaitQ(m);
           } else {
             DEBUG('R', "lock is not busy\n");
             temp_lock->busy = true;
-            temp_lock->machineID = inPktHdr.from;
-            temp_lock->mailbox = outMailHdr.to;
+            temp_lock->machineID = m.packetHdr.from;
+            temp_lock->mailbox = m.mailHdr.to;
             setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
           }
         } else {
           DEBUG('R', "Signalling to acquire lock for woken client\n");
           create_request_and_send_servers(
-              m.packetHdr, m.mailHdr, inPktHdr, inMailHdr, ACQUIRE_LOCK, m.data);
+              m.packetHdr, m.mailHdr, outPktHdr, outMailHdr, ACQUIRE_LOCK, m.data);
         }
 
         if (temp_cv->waitQ.empty()) {
