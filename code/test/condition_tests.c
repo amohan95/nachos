@@ -1,13 +1,13 @@
 #include "../userprog/syscall.h"
 
-#define NUM_SYSTEM_CONDITIONS 100
+#define NUM_SYSTEM_CONDITIONS 10000
 
 void test_result(int result);
 void create_destroy_condition();
 void wait_signal_broadcast();
 
 int main() {
-  create_destroy_condition();
+  /*create_destroy_condition();*/
   wait_signal_broadcast();
   Exit(0);
 }

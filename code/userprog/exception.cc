@@ -369,8 +369,8 @@ int CreateLock_Syscall(int name, int len) {
     ss << CREATE_LOCK << " " << buffer;
     delete [] buffer;
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
+    DEBUG('R', "Sending to: %d, %d\n", outPktHdr.to, outMailHdr.to);
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
-
     postOffice->Receive(currentThread->mailbox, &inPktHdr, &inMailHdr, result);
     ss.str("");
     ss.clear();
