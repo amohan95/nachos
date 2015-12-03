@@ -1022,7 +1022,7 @@ void release_lock(PacketHeader outPktHdr, MailHeader outMailHdr, int pkt,
     temp_lock->waitQ.pop_front();
     temp_lock->machineID = m.packetHdr.to;
     temp_lock->mailbox = m.mailHdr.to;
-    DEBUG('R', "m.packetHdr.to: %d", m.packetHdr.to);
+    DEBUG('R', "m.packetHdr.to: %d\n", m.packetHdr.to);
     setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
     if (send) {
       setup_message_and_send(outPktHdr, outMailHdr, "1");
@@ -1088,7 +1088,7 @@ void wait_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
       DEBUG('R', "Trying to wait on lock that doesn't belong to cv or machine.\n");
       setup_message_and_send(outPktHdr, outMailHdr, "-1");
     } else {
-      DEBUG('R', "Adding to CV waitQ\n");
+      DEBUG('R', "Adding to CV waitQ: %d\n", outPktHdr.to);
       stringstream ss;
       ss << lockID;
       Message m(outPktHdr, outMailHdr, const_cast<char*>(ss.str().c_str()),
@@ -1142,6 +1142,8 @@ void signal_cv(
           }
         } else {
           DEBUG('R', "Signalling to acquire lock for woken client\n");
+          m.packetHdr.from = m.packetHdr.to;
+          m.mailHdr.from = m.mailHdr.to;
           create_request_and_send_servers(
               m.packetHdr, m.mailHdr, outPktHdr, outMailHdr, ACQUIRE_LOCK, m.data);
         }
@@ -1189,8 +1191,10 @@ void broadcast_cv(PacketHeader outPktHdr, MailHeader outMailHdr,
             setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
           }
         } else {
+          m.packetHdr.from = m.packetHdr.to;
+          m.mailHdr.from = m.mailHdr.to;
           create_request_and_send_servers(
-              inPktHdr, inMailHdr, m.packetHdr, m.mailHdr, ACQUIRE_LOCK, m.data);
+              m.packetHdr, m.mailHdr, outPktHdr, outMailHdr, ACQUIRE_LOCK, m.data);
         }
       } 
       temp_cv->lockID = -1;
