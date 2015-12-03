@@ -64,6 +64,7 @@ int clerk_customer_ssn_[NUM_CLERK_TYPES];
 int clerk_customer_money_[NUM_CLERK_TYPES];
 int clerk_collected_money_[NUM_CLERK_TYPES];
 int clerk_customer_input_[NUM_CLERK_TYPES];
+int clerk_state_[NUM_CLERK_TYPES];
 int customer_money_;
 int customer_bribed_;
 int customer_picture_taken_;

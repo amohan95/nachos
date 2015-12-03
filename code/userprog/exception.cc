@@ -593,7 +593,7 @@ int Release_Syscall(int lock) {
     char result[MaxMailSize];
 
     stringstream ss;
-    DEBUG('R', "RELEASE_LOCK id %d\n", lock);
+    ss << RELEASE_LOCK << ' ' << lock;
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 

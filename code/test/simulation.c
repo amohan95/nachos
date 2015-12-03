@@ -292,7 +292,6 @@ void CustomerRun(Customer* customer) {
 #endif
 
   customer->running_ = 1;
-  Print("Starting Customer\n", 18);
   while (customer->running_ &&
 #ifdef NETWORK
       (!GetMonitor(customer_passport_verified_, customer->ssn_) ||
@@ -303,7 +302,6 @@ void CustomerRun(Customer* customer) {
       (!customer->passport_verified_ || !customer->picture_taken_ ||
       !customer->completed_application_ || !customer->certified_)) {
 #endif
-		Print("Customer Loop\n", 14);
     Acquire(num_senators_lock_);
 #ifdef NETWORK
     if (GetMonitor(num_senators_, 0) > 0) {
@@ -331,16 +329,20 @@ void CustomerRun(Customer* customer) {
 
     customer->bribed_ = 0;
 #ifdef NETWORK
-    if (!GetMonitor(customer_completed_application_, customer->ssn_) && !GetMonitor(customer_picture_taken_, customer->ssn_)) {
-#else
-    if (!customer->completed_application_ && !customer->picture_taken_ && NUM_APPLICATION_CLERKS > 0 && NUM_PICTURE_CLERKS > 0) {
+    customer->completed_application_ =  GetMonitor(customer_completed_application_, customer->ssn_);
+    customer->picture_taken_ = GetMonitor(customer_picture_taken_, customer->ssn_);
 #endif
+    if (!customer->completed_application_ && !customer->picture_taken_ && NUM_APPLICATION_CLERKS > 0 && NUM_PICTURE_CLERKS > 0) {
       next_clerk = (ClerkType)(Rand() % 2); /*either kApplication (0) or kPicture (1) */
     } else if (!customer->completed_application_) {
       next_clerk = kApplication;
     } else if (!customer->picture_taken_) {
       next_clerk = kPicture;
-    } else if (!customer->certified_) {
+#ifdef NETWORK
+    } else if (!GetMonitor(customer_certified_, customer->ssn_)) {
+#else
+    } else if (customer->certified_) {
+#endif
       next_clerk = kPassport;
     } else {
       next_clerk = kCashier;
@@ -661,7 +663,11 @@ void GetNextCustomer(Clerk* clerk) {
     Acquire(clerk->wakeup_lock_);
     Signal(clerk->bribe_line_lock_cv_, clerk->bribe_line_lock_);
     Release(clerk->bribe_line_lock_);
+#ifdef NETWORK
+    SetMonitor(clerk_state_[clerk->type_], clerk->identifier_, kBusy);
+#else
     clerk->state_ = kBusy;
+#endif
 #ifdef NETWORK
     SetMonitor(bribe_line_counts_[clerk->type_], clerk->identifier_,
         GetMonitor(bribe_line_counts_[clerk->type_], clerk->identifier_) - 1);
@@ -676,7 +682,11 @@ void GetNextCustomer(Clerk* clerk) {
     Acquire(clerk->wakeup_lock_);
     Signal(clerk->regular_line_lock_cv_, clerk->regular_line_lock_);
     Release(clerk->regular_line_lock_);
+#ifdef NETWORK
+    SetMonitor(clerk_state_[clerk->type_], clerk->identifier_, kBusy);
+#else
     clerk->state_ = kBusy;
+#endif
 #ifdef NETWORK
     SetMonitor(line_counts_[clerk->type_], clerk->identifier_,
         GetMonitor(line_counts_[clerk->type_], clerk->identifier_) - 1);
@@ -684,7 +694,11 @@ void GetNextCustomer(Clerk* clerk) {
     line_counts_[clerk->type_][clerk->identifier_]--;
 #endif
   } else {
+#ifdef NETWORK
+    SetMonitor(clerk_state_[clerk->type_], clerk->identifier_, kOnBreak);
+#else
     clerk->state_ = kOnBreak;
+#endif
   }
   Release(line_locks_[clerk->type_]);
 }
@@ -709,8 +723,7 @@ void ApplicationClerkWork(Clerk* clerk) {
 void PictureClerkWork(Clerk* clerk) {
   int picture_accepted;
   /* Take Customer's picture and wait to hear if they like it. */
-  Print(" [", 2);
-  PrintNum(clerk->identifier_);
+  PrintClerkIdentifierString(clerk);
   Print(" has taken a picture of ", 24);
   PrintCustomerIdentifierString(clerk->customer_ssn_);
   Print("\n", 1);
@@ -870,7 +883,11 @@ void ClerkRun(Clerk* clerk) {
   clerk->running_ = 1;
   while (clerk->running_) {
     GetNextCustomer(clerk);
+#ifdef NETWORK
+    if (GetMonitor(clerk_state_[clerk->type_], clerk->identifier_) == kBusy || GetMonitor(clerk_state_[clerk->type_], clerk->identifier_) == kAvailable) {
+#else
     if (clerk->state_ == kBusy || clerk->state_ == kAvailable) {
+#endif
       /* Wait for customer to come to counter and give SSN. */
       Wait(clerk->wakeup_lock_cv_ , clerk->wakeup_lock_);
       /* Take Customer's SSN and verify passport. */
@@ -932,14 +949,18 @@ void ClerkRun(Clerk* clerk) {
         Yield();
       }
       /* Wakeup customer. */
-    } else if (clerk->state_ == kOnBreak) {
+    } else {
       Acquire(clerk->wakeup_lock_);
       /* Wait until woken up. */
       PrintClerkIdentifierString(clerk);
       Print(" is going on break\n", 19);
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
+#ifdef NETWORK
+      SetMonitor(clerk_state_[clerk->type_], clerk->identifier_, kAvailable);
+#else
       clerk->state_ = kAvailable;
+#endif
       if (!clerk->running_) {
         break;
       }
@@ -952,13 +973,11 @@ void ClerkRun(Clerk* clerk) {
 }
 
 /* ######## Manager Functionality ######## */
-Manager CreateManager() {
-  Manager manager;
-  manager.wakeup_condition_ = CreateCondition("Manager Wakeup Lock Condition", 29);
-  manager.wakeup_condition_lock_ = CreateLock("Manager Wakeup Lock", 19);
-manager.running_ = 1;
-  manager.elapsed_ = 0;
-  return manager;
+void CreateManager(Manager* manager) {
+  manager->wakeup_condition_ = CreateCondition("Manager Wakeup Lock Condition", 29);
+  manager->wakeup_condition_lock_ = CreateLock("Manager Wakeup Lock", 19);
+  manager->running_ = 1;
+  manager->elapsed_ = 0;
 }
 
 void ManagerPrintMoneyReport(Manager* manager) {
@@ -1013,10 +1032,18 @@ void ManagerRun(Manager* manager) {
 #endif
         for (j = 0; j < num_clerks_[i]; ++j) {
           clerk = &(clerks_[i][j]);
+#ifdef NETWORK
+          if (GetMonitor(clerk_state_[clerk->type_], clerk->identifier_) == kOnBreak) {
+#else
           if (clerk->state_ == kOnBreak) {
+#endif
             Acquire(clerk->wakeup_lock_);
             Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
+#ifdef NETWORK
+            SetMonitor(clerk_state_[clerk->type_], clerk->identifier_, kAvailable);
+#else
             clerk->state_ = kAvailable;
+#endif
             Release(clerk->wakeup_lock_);
             Print("Manager has woken up a", 22);
             if (clerk->type_ == kApplication) {
@@ -1057,8 +1084,11 @@ void WakeClerksForSenator() {
     if (num_clerks_[i] > 0) {
       Acquire(line_locks_[i]);
       clerk = &(clerks_[i][0]);
+#ifdef NETWORK
+      if (GetMonitor(clerk_state_[clerk->type_], clerk->identifier_) == kOnBreak) {
+#else
       if (clerk->state_ == kOnBreak) {
-        clerk->state_ = kAvailable;
+#endif
         Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       }
       Release(line_locks_[i]);
@@ -1174,6 +1204,8 @@ void SetupPassportOffice() {
     clerk_collected_money_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
     nameLen = Sprintf(nameBuf, "ccimv%d", 7, i);
     clerk_customer_input_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
+    nameLen = Sprintf(nameBuf, "clksmv%d", 8, i);
+    clerk_state_[i] = CreateMonitor(nameBuf, nameLen, num_clerks_[i]);
 #endif
   }
 
@@ -1214,7 +1246,7 @@ void SetupPassportOffice() {
     bribe_line_counts_[kCashier][i] = 0;
 #endif
   }
-  manager_ = CreateManager();
+  CreateManager(&manager_);
 }
 
 #ifndef NETWORK
@@ -1364,7 +1396,7 @@ void RunEntity(EntityType type, int entityId) {
       ClerkRun(clerks_[kPicture] + entityId);
       break;
     case MANAGER:
-      Fork(RunManagerMoneyReport);
+      /*Fork(RunManagerMoneyReport);*/
       ManagerRun(&manager_);
       break;
     default:
