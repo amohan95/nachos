@@ -1031,9 +1031,6 @@ void ManagerRun(Manager* manager) {
 #else
         > CLERK_WAKEUP_THRESHOLD || num_senators_ > 0) {
 #endif
-        Print("CLERK NUM ", 10);
-        PrintNum(num_clerks_[i]);
-        Print("\n", 1);
         for (j = 0; j < num_clerks_[i]; ++j) {
           clerk = &(clerks_[i][j]);
 #ifdef NETWORK
@@ -1342,6 +1339,7 @@ void WaitOnFinish() {
     } else {
       for (i = 0; i < 100; ++i) { Yield(); }
     }
+    Print("FIN\n", 4);
   }
   for (i = 0; i < NUM_CUSTOMERS + NUM_SENATORS; ++i) {
     customers_[i].running_ = 0;
