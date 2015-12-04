@@ -1136,8 +1136,9 @@ void signal_cv(
           } else {
             DEBUG('R', "lock is not busy\n");
             temp_lock->busy = true;
-            temp_lock->machineID = m.packetHdr.from;
+            temp_lock->machineID = m.packetHdr.to;
             temp_lock->mailbox = m.mailHdr.to;
+            DEBUG('R', "lock acquired by mID %d mb %d\n", temp_lock->machineID, temp_lock->mailbox);
             setup_message_and_send(m.packetHdr, m.mailHdr, m.data);
           }
         } else {

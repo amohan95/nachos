@@ -40,7 +40,7 @@ struct Manager;
 
 #define CLERK_BRIBE_AMOUNT 500
 #define PASSPORT_FEE 100
-#define CLERK_WAKEUP_THRESHOLD 3
+#define CLERK_WAKEUP_THRESHOLD 0
 #define MONEY_REPORT_INTERVAL 5000
 
 typedef struct Customers {
