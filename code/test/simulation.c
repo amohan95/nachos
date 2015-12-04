@@ -956,6 +956,7 @@ void ClerkRun(Clerk* clerk) {
       Print(" is going on break\n", 19);
       Signal(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
       Wait(clerk->wakeup_lock_cv_, clerk->wakeup_lock_);
+      Yield();
 #ifdef NETWORK
       SetMonitor(clerk_state_[clerk->type_], clerk->identifier_, kAvailable);
 #else
@@ -1168,7 +1169,6 @@ void SetupPassportOffice() {
 
 #ifdef NETWORK
   customers_size_ = CreateMonitor("cs", 2, 1);
-  SetMonitor(customers_size_, 0, NUM_CUSTOMERS + NUM_SENATORS);
   num_customers_being_served_ = CreateMonitor("ncs", 3, 1);
   num_customers_waiting_ = CreateMonitor("ncw", 3, 1);
   num_senators_ = CreateMonitor("ns", 2, 1);
@@ -1276,7 +1276,7 @@ void StartPassportOffice() {
 void WaitOnFinish() {
   int i, j, done;
     /* WaitOnFinish for the Passport Office */
-  while (customers_size_ > 0) {
+  while (GetMonitor(customers_size_, 0) > 0) {
     for (i = 0; i < 400; ++i) { Yield(); }
 #ifdef NETWORK
     if (GetMonitor(num_senators_, 0) > 0)
@@ -1285,7 +1285,7 @@ void WaitOnFinish() {
 #endif
     Acquire(num_customers_waiting_lock_);
 #ifdef NETWORK
-    if (customers_size_ == GetMonitor(num_customers_waiting_, 0)) {
+    if (GetMonitor(customers_size_, 0) == GetMonitor(num_customers_waiting_, 0)) {
 #else
       if (customers_size_ == num_customers_waiting_) {
 #endif
@@ -1295,8 +1295,12 @@ void WaitOnFinish() {
       for (i = 0; i < NUM_CLERK_TYPES; ++i) {
         Acquire(line_locks_[i]);
         for (j = 0; j < num_clerks_[i]; ++j) {
+#ifdef NETWORK
+          if (GetMonitor(clerk_state_[i], j) != kOnBreak ||
+#else
           if (clerks_[i][j].state_ != kOnBreak ||
-              GetNumCustomersForClerkType((ClerkType)(i)) > 
+#endif
+              GetNumCustomersForClerkType((ClerkType)(i)) >
               CLERK_WAKEUP_THRESHOLD) {
             done = 0;
             break;
@@ -1315,12 +1319,16 @@ void WaitOnFinish() {
 
   /* Stop the Passport Office */
   Print("Attempting to stop passport office\n", 35);
-  while (customers_size_ > 0) {
+  while (GetMonitor(customers_size_, 0) > 0) {
     done = 1;
     Acquire(breaking_clerks_lock_);
     for (i = 0; i < NUM_CLERK_TYPES; ++i) {
       for (j = 0; j < num_clerks_[i]; ++j) {
+#ifdef NETWORK
+        if (GetMonitor(clerk_state_[i], j) != kOnBreak) {
+#else
         if (clerks_[i][j].state_ != kOnBreak) {
+#endif
           done = 0;
         }
       }
@@ -1332,7 +1340,7 @@ void WaitOnFinish() {
       for (i = 0; i < 100; ++i) { Yield(); }
     }
   }
-  for (i = 0; i < customers_size_; ++i) {
+  for (i = 0; i < NUM_CUSTOMERS + NUM_SENATORS; ++i) {
     customers_[i].running_ = 0;
   }
   for (i = 0; i < NUM_CLERK_TYPES; ++i) {
@@ -1396,12 +1404,13 @@ void RunEntity(EntityType type, int entityId) {
       ClerkRun(clerks_[kPicture] + entityId);
       break;
     case MANAGER:
-      /*Fork(RunManagerMoneyReport);*/
+      Fork(RunManagerMoneyReport);
       ManagerRun(&manager_);
       break;
     default:
       break;
   }
+  WaitOnFinish();
 }
 
 #endif

@@ -33,6 +33,8 @@
 
 using namespace std;
 
+map<int,string> things;
+
 int copyin(unsigned int vaddr, int len, char *buf) {
   // Copy len bytes from the current thread's virtual address vaddr.
   // Return the number of bytes so read, or -1 if an error occors.
@@ -367,7 +369,6 @@ int CreateLock_Syscall(int name, int len) {
 
     stringstream ss;
     ss << CREATE_LOCK << " " << buffer;
-    delete [] buffer;
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     DEBUG('R', "Sending to: %d, %d\n", outPktHdr.to, outMailHdr.to);
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
@@ -381,6 +382,8 @@ int CreateLock_Syscall(int name, int len) {
       return UNSUCCESSFUL_SYSCALL;
     }
     DEBUG('R', "CREATE Lock Syscall Receive lockID: %d\n", lockID);
+    things[1000 + lockID] = string(buffer);
+    delete [] buffer;
     return lockID;
   #else
     lockTableLock->Acquire();
@@ -468,7 +471,6 @@ int CreateCondition_Syscall(int name, int len) {
 
     stringstream ss;
     ss << CREATE_CV << " " << buffer;
-    delete [] buffer;
     out_header_init(outPktHdr, outMailHdr, ss.str().length());
     postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
@@ -479,9 +481,12 @@ int CreateCondition_Syscall(int name, int len) {
     int cvID;
     ss >> cvID;
     if (cvID == -1) {
+      delete [] buffer;
       return UNSUCCESSFUL_SYSCALL;
     }
     DEBUG('R', "CREATE CV Syscall Receive cvID: %d\n", cvID);
+    things[2000 + cvID] = string(buffer);
+    delete [] buffer;
     return cvID;
   #else
     conditionTableLock->Acquire();
@@ -567,7 +572,7 @@ int Acquire_Syscall(int lock) {
     if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
-      DEBUG('R', "Successfully acquired lock in syscall\n");
+      DEBUG('R', "%dSuccessfully acquired lock in syscall %s\n", currentThread->mailbox, things[1000+lock].c_str());
       return result_val;
     }
 
@@ -606,7 +611,7 @@ int Release_Syscall(int lock) {
     if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
-      DEBUG('R', "Successfully released lock in syscall\n");
+      DEBUG('R', "%dSuccessfully released lock in syscall %s\n", currentThread->mailbox, things[1000+lock].c_str());
       return result_val;
     }
   #else
@@ -652,7 +657,7 @@ int Wait_Syscall(int cv, int lock) {
     if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
-      DEBUG('R', "Successfully waited on cv in syscall\n");
+      DEBUG('R', "%dSuccessfully waited on cv in syscall %s %d\n", currentThread->mailbox, things[2000+cv].c_str(), lock);
       return result_val;
     }
 
@@ -703,7 +708,7 @@ int Signal_Syscall(int cv, int lock) {
     if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
-      DEBUG('R', "Successfully signalled on cv in syscall\n");
+      DEBUG('R', "%dSuccessfully signalled on cv in syscall %s %d\n", currentThread->mailbox, things[2000+cv].c_str(), lock);
       return result_val;
     }
 
@@ -761,7 +766,7 @@ int Broadcast_Syscall(int cv, int lock) {
     if (result_val == -1) {
       return UNSUCCESSFUL_SYSCALL;
     } else {
-      DEBUG('R', "Successfully broadcasted on cv in syscall\n");
+      DEBUG('R', "%dSuccessfully broadcasted on cv in syscall %s %d\n", currentThread->mailbox, things[2000+cv].c_str(), lock);
       return result_val;
     }
 
@@ -845,7 +850,6 @@ int CreateMonitor_Syscall(int name, int len, int arr_size) {
 
   stringstream ss;
   ss << CREATE_MV << " " << arr_size << " " << buffer;
-  delete [] buffer;
   out_header_init(outPktHdr, outMailHdr, ss.str().length());
   postOffice->Send(outPktHdr, outMailHdr, string_2_c_str(ss.str()));
 
@@ -857,6 +861,8 @@ int CreateMonitor_Syscall(int name, int len, int arr_size) {
   int mvID;
   ss >> mvID;
   DEBUG('R', "CREATE Monitor Syscall Receive mvID: %d\n", mvID);
+  things[3000 + mvID] = string(buffer);
+  delete [] buffer;
   return mvID;
 }
 
@@ -879,7 +885,7 @@ int SetMonitor_Syscall(int mv, int index, int value) {
   if (result_val == -1) {
     return UNSUCCESSFUL_SYSCALL;
   } else {
-    DEBUG('R', "Successfully set mv in syscall\n");
+    DEBUG('R', "%dSuccessfully set mv in syscall %s %d %d\n", currentThread->mailbox, things[3000+mv].c_str(), index, value);
     return result_val;
   }
 }
@@ -905,7 +911,7 @@ int GetMonitor_Syscall(int mv, int index) {
   } else {
     int mv_val;
     ss >> mv_val;
-   DEBUG('R', "Successfully got mv in syscall\n");
+   DEBUG('R', "%dSuccessfully got mv in syscall %s %d\n", currentThread->mailbox, things[3000+mv].c_str(), index);
     return mv_val;
   }
 }
@@ -1023,6 +1029,7 @@ void ExceptionHandler(ExceptionType which) {
   int rv=0; 	// the return value from a syscall
 
   if ( which == SyscallException ) {
+    DEBUG('s', "%d", currentThread->mailbox);
     switch (type) {
       default:
         DEBUG('s', "Unknown syscall - shutting down.\n");

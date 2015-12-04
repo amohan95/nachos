@@ -8,6 +8,7 @@ int main() {
   Acquire(customer_count_lock_);
   entityId = GetMonitor(customer_index_, 0);
   SetMonitor(customer_index_, 0, entityId + 1);
+  SetMonitor(customers_size_, 0, GetMonitor(customers_size_, 0) + 1);
   Release(customer_count_lock_);
   RunEntity(CUSTOMER, entityId);
   Exit(0);
