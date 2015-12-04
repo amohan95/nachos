@@ -975,8 +975,8 @@ void ClerkRun(Clerk* clerk) {
 
 /* ######## Manager Functionality ######## */
 void CreateManager(Manager* manager) {
-  manager->wakeup_condition_ = CreateCondition("Manager Wakeup Lock Condition", 29);
-  manager->wakeup_condition_lock_ = CreateLock("Manager Wakeup Lock", 19);
+  manager->wakeup_condition_ = CreateCondition("ManWLC", 29);
+  manager->wakeup_condition_lock_ = CreateLock("Manager Wakeup L", 19);
   manager->running_ = 1;
   manager->elapsed_ = 0;
 }
@@ -1031,6 +1031,9 @@ void ManagerRun(Manager* manager) {
 #else
         > CLERK_WAKEUP_THRESHOLD || num_senators_ > 0) {
 #endif
+        Print("CLERK NUM ", 10);
+        PrintNum(num_clerks_[i]);
+        Print("\n", 1);
         for (j = 0; j < num_clerks_[i]; ++j) {
           clerk = &(clerks_[i][j]);
 #ifdef NETWORK
